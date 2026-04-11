@@ -1,0 +1,13 @@
+project_id = "baootqatwkhxnkpxeuht"
+
+[functions.extract-prescription]
+verify_jwt = false
+
+[functions.send-medicine-email]
+verify_jwt = false
+
+[functions.reminder-cron]
+verify_jwt = false
+
+[functions.escalation-check]
+verify_jwt = false
