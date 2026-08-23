@@ -3,11 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Pill, Check, BarChart3, Bell, Upload, Clock, Users, Plus, CheckCircle2, XCircle, Hourglass } from "lucide-react";
+import { Pill, Check, BarChart3, Bell, Upload, Clock, Users, Plus, CheckCircle2, XCircle, Hourglass, Store, MapPin } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
 import MedicineTrackingChart from "@/components/MedicineTrackingChart";
+import SOSButton from "@/components/SOSButton";
+import WeatherHealthCard from "@/components/WeatherHealthCard";
 
 const fadeIn = (i: number) => ({
   initial: { opacity: 0, y: 16 },
@@ -249,8 +251,29 @@ const Dashboard = () => {
         .select("id")
         .eq("user_id", user.id)
         .limit(1);
-      if (patients && patients.length > 0) {
-        const pid = patients[0].id;
+
+      let pid: string | undefined = patients && patients.length > 0 ? patients[0].id : undefined;
+
+      if (!pid) {
+        // Fallback: Create patient record on demand if trigger was skipped
+        const { data: newPatient } = await supabase
+          .from("patients")
+          .insert({
+            user_id: user.id,
+            name: user.user_metadata?.name || user.phone || user.email || "User",
+            email: user.email || "",
+            phone: user.phone || user.user_metadata?.phone || null,
+            language: user.user_metadata?.language || "en",
+          })
+          .select("id")
+          .maybeSingle();
+
+        if (newPatient) {
+          pid = newPatient.id;
+        }
+      }
+
+      if (pid) {
         setPatientId(pid);
         const { count } = await supabase
           .from("medicines")
@@ -310,16 +333,41 @@ const Dashboard = () => {
   return (
     <DashboardLayout>
       <div className="space-y-6 max-w-6xl">
-        {/* Upload Banner */}
-        <motion.div {...fadeIn(0)} className="rounded-2xl gradient-dark p-5 lg:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <p className="text-primary-foreground font-bold text-lg">Have a new prescription? Upload it now 📋</p>
-            <p className="text-primary-foreground/70 text-sm">Our AI will extract all your medicines automatically</p>
-          </div>
-          <Button variant="hero" size="default" className="shrink-0" onClick={() => navigate("/upload")}>
-            <Upload className="w-4 h-4" /> Upload Prescription
-          </Button>
+        {/* Weather & Health Tips Card */}
+        <motion.div {...fadeIn(0)}>
+          <WeatherHealthCard />
         </motion.div>
+
+        {/* Emergency SOS Button Banner */}
+        <motion.div {...fadeIn(0.1)}>
+          <SOSButton variant="inline" />
+        </motion.div>
+
+        {/* Upload & Pharmacy Banners Row */}
+        <div className="grid md:grid-cols-2 gap-4">
+          <motion.div {...fadeIn(0.2)} className="rounded-2xl gradient-dark p-5 flex flex-col justify-between gap-4">
+            <div>
+              <p className="text-primary-foreground font-bold text-lg">Have a new prescription? Upload it now 📋</p>
+              <p className="text-primary-foreground/70 text-sm mt-1">Our AI will extract all your medicines automatically</p>
+            </div>
+            <Button variant="hero" size="default" className="w-full sm:w-auto self-start" onClick={() => navigate("/upload")}>
+              <Upload className="w-4 h-4" /> Upload Prescription
+            </Button>
+          </motion.div>
+
+          <motion.div {...fadeIn(0.3)} className="rounded-2xl bg-card border-2 border-emerald-500/30 p-5 flex flex-col justify-between gap-4 shadow-card">
+            <div>
+              <div className="flex items-center gap-2 text-emerald-600 font-extrabold text-sm uppercase tracking-wider mb-1">
+                <Store className="w-4 h-4" /> Medicine Refills
+              </div>
+              <p className="font-extrabold text-lg text-foreground">Find Nearby Pharmacies 🏪</p>
+              <p className="text-muted-foreground text-sm mt-1">Locate 24/7 chemists, get directions & call stores in 1-click</p>
+            </div>
+            <Button variant="outline" size="default" className="w-full sm:w-auto self-start rounded-xl font-bold border-emerald-500/40 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30" onClick={() => navigate("/pharmacies")}>
+              <MapPin className="w-4 h-4 mr-2" /> Find Pharmacies Near Me
+            </Button>
+          </motion.div>
+        </div>
 
         {/* Stats */}
         {loading ? (
@@ -344,7 +392,7 @@ const Dashboard = () => {
         {/* Pie Chart + Family Card row */}
         <div className="grid lg:grid-cols-2 gap-6">
           <motion.div {...fadeIn(5)}>
-            <MedicineTrackingChart patientId={patientId} />
+            <MedicineTrackingChart schedule={schedule} loading={loading} />
           </motion.div>
 
           <motion.div {...fadeIn(6)} className="bg-card rounded-2xl border p-5 shadow-card">
