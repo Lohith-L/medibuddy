@@ -1,6 +1,4 @@
-import { useEffect, useState } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
-import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface ChartDataItem {
@@ -33,65 +31,26 @@ const CustomTooltip = ({ active, payload }: any) => {
 };
 
 interface Props {
-  patientId?: string;
+  schedule?: { status: string }[];
+  loading?: boolean;
 }
 
-const MedicineTrackingChart = ({ patientId }: Props) => {
-  const [data, setData] = useState<ChartDataItem[]>([]);
-  const [loading, setLoading] = useState(true);
+const MedicineTrackingChart = ({ schedule = [], loading = false }: Props) => {
+  const counts = { taken: 0, pending: 0, missed: 0, snoozed: 0, escalated: 0 };
+  
+  schedule.forEach((l) => {
+    const s = l.status.toLowerCase() as keyof typeof counts;
+    if (s in counts) counts[s]++;
+  });
 
-  const fetchData = async () => {
-    if (!patientId) {
-      // Demo data
-      setData([
-        { name: "Taken", value: 1, color: COLORS.taken },
-        { name: "Pending", value: 2, color: COLORS.pending },
-        { name: "Missed", value: 0, color: COLORS.missed },
-        { name: "Snoozed", value: 0, color: COLORS.snoozed },
-      ]);
-      setLoading(false);
-      return;
-    }
+  const missedCount = counts.missed + counts.escalated;
 
-    const today = new Date();
-    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
-    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).toISOString();
-
-    const { data: logs } = await supabase
-      .from("medicine_logs")
-      .select("status")
-      .eq("patient_id", patientId)
-      .gte("scheduled_time", startOfDay)
-      .lt("scheduled_time", endOfDay);
-
-    const counts = { taken: 0, pending: 0, missed: 0, snoozed: 0 };
-    (logs || []).forEach((l) => {
-      const s = l.status as keyof typeof counts;
-      if (s in counts) counts[s]++;
-    });
-
-    setData([
-      { name: "Taken", value: counts.taken, color: COLORS.taken },
-      { name: "Pending", value: counts.pending, color: COLORS.pending },
-      { name: "Missed", value: counts.missed, color: COLORS.missed },
-      { name: "Snoozed", value: counts.snoozed, color: COLORS.snoozed },
-    ]);
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    fetchData();
-
-    if (!patientId) return;
-    const channel = supabase
-      .channel("medicine-logs-chart")
-      .on("postgres_changes", { event: "*", schema: "public", table: "medicine_logs", filter: `patient_id=eq.${patientId}` }, () => {
-        fetchData();
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [patientId]);
+  const data = [
+    { name: "Taken", value: counts.taken, color: COLORS.taken },
+    { name: "Pending", value: counts.pending, color: COLORS.pending },
+    { name: "Missed", value: missedCount, color: COLORS.missed },
+    { name: "Snoozed", value: counts.snoozed, color: COLORS.snoozed },
+  ];
 
   const total = data.reduce((s, d) => s + d.value, 0);
   const chartData = data.map((d) => ({ ...d, total }));

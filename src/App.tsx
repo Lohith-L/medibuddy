@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
+import ForgotPassword from "./pages/ForgotPassword";
 import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
 import UploadPrescription from "./pages/UploadPrescription";
@@ -15,6 +16,7 @@ import Profile from "./pages/Profile";
 import FamilyAlerts from "./pages/FamilyAlerts";
 import HealthReports from "./pages/HealthReports";
 import Health from "./pages/Health";
+import Pharmacies from "./pages/Pharmacies";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -29,6 +31,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/upload" element={<UploadPrescription />} />
@@ -38,6 +41,7 @@ const App = () => (
             <Route path="/family-alerts" element={<FamilyAlerts />} />
             <Route path="/health-reports" element={<HealthReports />} />
             <Route path="/health" element={<Health />} />
+            <Route path="/pharmacies" element={<Pharmacies />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

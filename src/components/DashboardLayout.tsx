@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import {
-  Home, Pill, Camera, Users, BarChart3, Settings, LogOut, Heart, Menu, X, Bell, Globe, Check, AlertTriangle, Clock, CheckCircle2, XCircle, Mail, Activity,
+  Home, Pill, Camera, Users, BarChart3, Settings, LogOut, Heart, Menu, X, Bell, Globe, Check, AlertTriangle, Clock, CheckCircle2, XCircle, Mail, Activity, Store,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -12,6 +12,7 @@ import { languageLabelByCode, languageOptions, normalizeLanguageCode, resolvePre
 import BottomNav from "@/components/BottomNav";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { format } from "date-fns";
+import SOSButton from "@/components/SOSButton";
 
 interface AlertItem {
   id: string;
@@ -26,6 +27,7 @@ interface AlertItem {
 const navKeys = [
   { key: "dashboard", icon: Home, path: "/dashboard" },
   { key: "myMedicines", icon: Pill, path: "/medicines" },
+  { key: "nearbyPharmacies", icon: Store, path: "/pharmacies" },
   { key: "uploadPrescription", icon: Camera, path: "/upload" },
   { key: "healthData", icon: Activity, path: "/health" },
   { key: "familyAlerts", icon: Users, path: "/family-alerts" },
@@ -240,7 +242,8 @@ const DashboardLayout = ({ children }: Props) => {
                 <p className="text-sm text-muted-foreground hidden sm:block">{dateStr}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <SOSButton variant="header" />
               <div className="relative" ref={langRef}>
                 <button
                   onClick={() => setLangDropdownOpen(!langDropdownOpen)}
@@ -321,6 +324,7 @@ const DashboardLayout = ({ children }: Props) => {
 
       {/* Mobile bottom navigation */}
       <BottomNav />
+      <SOSButton variant="floating" />
     </div>
   );
 };
