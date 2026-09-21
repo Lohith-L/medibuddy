@@ -40,7 +40,7 @@ const Onboarding = () => {
           .eq("user_id", user.id);
       }
 
-      toast.success("Language saved! Welcome to MedBuddy 🎉");
+      toast.success("Language saved! Welcome to MEDDIBUDDY 🎉");
       navigate("/dashboard");
     } catch (err: any) {
       toast.error(err.message || "Failed to save language");
@@ -61,7 +61,7 @@ const Onboarding = () => {
           <div className="w-16 h-16 rounded-2xl gradient-warm flex items-center justify-center mx-auto mb-6 shadow-card">
             <Globe className="w-8 h-8 text-primary-foreground" />
           </div>
-          <h1 className="text-3xl font-extrabold mb-3">Welcome to MedBuddy! 🤗</h1>
+          <h1 className="text-3xl font-extrabold mb-3">Welcome to MEDDIBUDDY! 🤗</h1>
           <p className="text-muted-foreground text-lg">
             Choose your preferred language for medicine reminders
           </p>

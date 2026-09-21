@@ -31,12 +31,12 @@ function getEscalationSubject(lang: string, patientName: string, medicineName: s
 
 function getEscalationText(lang: string, d: EscalationData): string {
   const templates: Record<string, string> = {
-    en: `Dear ${d.caretakerName},\n\nURGENT ALERT: Patient ${d.patientName} has NOT confirmed taking their medicine within 2 minutes.\n\nMedicine: ${d.medicineName}\nDosage: ${d.dosage}\nScheduled Time: ${d.scheduledTime}\nInstructions: ${d.instructions}\n\nPlease check on the patient immediately.\n\nStay Healthy ❤️\nMedBuddy`,
-    hi: `प्रिय ${d.caretakerName},\n\nतुरंत सूचना: मरीज ${d.patientName} ने 2 मिनट के अंदर दवा लेने की पुष्टि नहीं की है।\n\nदवा: ${d.medicineName}\nखुराक: ${d.dosage}\nसमय: ${d.scheduledTime}\nनिर्देश: ${d.instructions}\n\nकृपया तुरंत मरीज की जांच करें।\n\nस्वस्थ रहें ❤️\nMedBuddy`,
-    kn: `ಪ್ರಿಯ ${d.caretakerName},\n\nತುರ್ತು ಎಚ್ಚರಿಕೆ: ರೋಗಿ ${d.patientName} 2 ನಿಮಿಷಗಳಲ್ಲಿ ಔಷಧಿ ತೆಗೆದುಕೊಂಡಿರುವುದನ್ನು ದೃಢಪಡಿಸಿಲ್ಲ.\n\nಔಷಧಿ: ${d.medicineName}\nಮಾತ್ರೆ: ${d.dosage}\nಸಮಯ: ${d.scheduledTime}\nಸೂಚನೆ: ${d.instructions}\n\nದಯವಿಟ್ಟು ತಕ್ಷಣ ರೋಗಿಯನ್ನು ಪರಿಶೀಲಿಸಿ.\n\nಆರೋಗ್ಯವಾಗಿರಿ ❤️\nMedBuddy`,
-    te: `ప్రియ ${d.caretakerName},\n\nఅత్యవసర హెచ్చరిక: రోగి ${d.patientName} 2 నిమిషాలలో మందు తీసుకున్నట్లు నిర్ధారించలేదు.\n\nమందు: ${d.medicineName}\nమోతాదు: ${d.dosage}\nసమయం: ${d.scheduledTime}\nసూచనలు: ${d.instructions}\n\nదయచేసి వెంటనే రోగిని చూడండి.\n\nఆరోగ్యంగా ఉండండి ❤️\nMedBuddy`,
-    ta: `அன்புள்ள ${d.caretakerName},\n\nஅவசர எச்சரிக்கை: நோயாளி ${d.patientName} 2 நிமிடங்களுக்குள் மருந்து எடுத்ததை உறுதிப்படுத்தவில்லை.\n\nமருந்து: ${d.medicineName}\nஅளவு: ${d.dosage}\nநேரம்: ${d.scheduledTime}\nஅறிவுரை: ${d.instructions}\n\nதயவுசெய்து உடனடியாக நோயாளியை சரிபாருங்கள்.\n\nஆரோக்கியமாக இருங்கள் ❤️\nMedBuddy`,
-    mr: `प्रिय ${d.caretakerName},\n\nतातडीची सूचना: रुग्ण ${d.patientName} ने 2 मिनिटांत औषध घेतल्याची पुष्टी केली नाही.\n\nऔषध: ${d.medicineName}\nडोस: ${d.dosage}\nवेळ: ${d.scheduledTime}\nसूचना: ${d.instructions}\n\nकृपया तात्काळ रुग्णाची तपासणी करा.\n\nनिरोगी रहा ❤️\nMedBuddy`,
+    en: `Dear ${d.caretakerName},\n\nURGENT ALERT: Patient ${d.patientName} has NOT confirmed taking their medicine within 2 minutes.\n\nMedicine: ${d.medicineName}\nDosage: ${d.dosage}\nScheduled Time: ${d.scheduledTime}\nInstructions: ${d.instructions}\n\nPlease check on the patient immediately.\n\nStay Healthy ❤️\nMEDDIBUDDY`,
+    hi: `प्रिय ${d.caretakerName},\n\nतुरंत सूचना: मरीज ${d.patientName} ने 2 मिनट के अंदर दवा लेने की पुष्टि नहीं की है।\n\nदवा: ${d.medicineName}\nखुराक: ${d.dosage}\nसमय: ${d.scheduledTime}\nनिर्देश: ${d.instructions}\n\nकृपया तुरंत मरीज की जांच करें।\n\nस्वस्थ रहें ❤️\nMEDDIBUDDY`,
+    kn: `ಪ್ರಿಯ ${d.caretakerName},\n\nತುರ್ತು ಎಚ್ಚರಿಕೆ: ರೋಗಿ ${d.patientName} 2 ನಿಮಿಷಗಳಲ್ಲಿ ಔಷಧಿ ತೆಗೆದುಕೊಂಡಿರುವುದನ್ನು ದೃಢಪಡಿಸಿಲ್ಲ.\n\nಔಷಧಿ: ${d.medicineName}\nಮಾತ್ರೆ: ${d.dosage}\nಸಮಯ: ${d.scheduledTime}\nಸೂಚನೆ: ${d.instructions}\n\nದಯವಿಟ್ಟು ತಕ್ಷಣ ರೋಗಿಯನ್ನು ಪರಿಶೀಲಿಸಿ.\n\nಆರೋಗ್ಯವಾಗಿರಿ ❤️\nMEDDIBUDDY`,
+    te: `ప్రియ ${d.caretakerName},\n\nఅత్యవసర హెచ్చరిక: రోగి ${d.patientName} 2 నిమిషాలలో మందు తీసుకున్నట్లు నిర్ధారించలేదు.\n\nమందు: ${d.medicineName}\nమోతాదు: ${d.dosage}\nసమయం: ${d.scheduledTime}\nసూచనలు: ${d.instructions}\n\nదయచేసి వెంటనే రోగిని చూడండి.\n\nఆరోగ్యంగా ఉండండి ❤️\nMEDDIBUDDY`,
+    ta: `அன்புள்ள ${d.caretakerName},\n\nஅவசர எச்சரிக்கை: நோயாளி ${d.patientName} 2 நிமிடங்களுக்குள் மருந்து எடுத்ததை உறுதிப்படுத்தவில்லை.\n\nமருந்து: ${d.medicineName}\nஅளவு: ${d.dosage}\nநேரம்: ${d.scheduledTime}\nஅறிவுரை: ${d.instructions}\n\nதயவுசெய்து உடனடியாக நோயாளியை சரிபாருங்கள்.\n\nஆரோக்கியமாக இருங்கள் ❤️\nMEDDIBUDDY`,
+    mr: `प्रिय ${d.caretakerName},\n\nतातडीची सूचना: रुग्ण ${d.patientName} ने 2 मिनिटांत औषध घेतल्याची पुष्टी केली नाही.\n\nऔषध: ${d.medicineName}\nडोस: ${d.dosage}\nवेळ: ${d.scheduledTime}\nसूचना: ${d.instructions}\n\nकृपया तात्काळ रुग्णाची तपासणी करा.\n\nनिरोगी रहा ❤️\nMEDDIBUDDY`,
   };
   return templates[lang] || templates["en"];
 }
@@ -80,7 +80,7 @@ function getEscalationHtml(lang: string, d: EscalationData): string {
       <p style="font-size:16px;color:#EF9F27;font-weight:bold;text-align:center;margin-top:16px;">${t.footer}</p>
     </div>
     <div style="background:#fef3e2;padding:12px;text-align:center;font-size:12px;color:#999;">
-      MedBuddy — Your Medicine Companion
+      MEDDIBUDDY — Your Medicine Companion
     </div>
   </div>
 </body>
@@ -112,7 +112,7 @@ async function sendEmail(to: string, subject: string, html: string, text: string
   });
 
   await transporter.sendMail({
-    from: `MedBuddy <${gmailUser}>`,
+    from: `MEDDIBUDDY <${gmailUser}>`,
     to,
     subject,
     html,

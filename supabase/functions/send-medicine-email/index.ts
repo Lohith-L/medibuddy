@@ -29,7 +29,7 @@ async function generateEmailContent(prompt: string): Promise<string> {
       messages: [
         {
           role: "system",
-          content: "You are MedBuddy's email generator. Generate warm, caring HTML emails. Keep medicine names and dosages in English. Use inline CSS styles. Make emails mobile-friendly. Return ONLY the HTML content, no markdown code blocks.",
+          content: "You are MEDDIBUDDY's email generator. Generate warm, caring HTML emails. Keep medicine names and dosages in English. Use inline CSS styles. Make emails mobile-friendly. Return ONLY the HTML content, no markdown code blocks.",
         },
         { role: "user", content: prompt },
       ],
@@ -62,7 +62,7 @@ async function sendEmail(to: string, subject: string, html: string) {
   });
 
   await transporter.sendMail({
-    from: `MedBuddy <${gmailUser}>`,
+    from: `MEDDIBUDDY <${gmailUser}>`,
     to,
     subject,
     html,
@@ -152,8 +152,8 @@ Keep medicine names and dosages in English. Translate everything else to ${lang}
 
       const html = await generateEmailContent(prompt);
       const subject = lang === "English"
-        ? "🎉 Your MedBuddy reminders are set!"
-        : `🎉 MedBuddy - ${lang === "हिंदी" ? "आपके रिमाइंडर सेट हो गए!" : lang === "తెలుగు" ? "మీ రిమైండర్లు సెట్ అయ్యాయి!" : "Your reminders are set!"}`;
+        ? "🎉 Your MEDDIBUDDY reminders are set!"
+        : `🎉 MEDDIBUDDY - ${lang === "हिंदी" ? "आपके रिमाइंडर सेट हो गए!" : lang === "తెలుగు" ? "మీ రిమైండర్లు సెట్ అయ్యాయి!" : "Your reminders are set!"}`;
 
       try {
         await sendEmail(patient.email, subject, html);
@@ -240,7 +240,7 @@ Include:
 - Alert heading
 - Patient name and missed medicine details
 - Warm message asking them to check on the patient
-- MedBuddy branding
+- MEDDIBUDDY branding
 
 Keep medicine name in English. Use amber (#EF9F27) and red (#E24B4A) colors for urgency. Return only HTML.`;
 
@@ -329,7 +329,7 @@ Include:
 Keep medicine names in English. Use green (#52B788) color scheme. Return only HTML.`;
 
       const patientHtml = await generateEmailContent(patientPrompt);
-      const reportSubject = `📊 Your Weekly MedBuddy Report — ${adherence}% adherence`;
+      const reportSubject = `📊 Your Weekly MEDDIBUDDY Report — ${adherence}% adherence`;
       try {
         await sendEmail(patient.email, reportSubject, patientHtml);
         await logAlert({ alert_type: "weekly_report", recipient_email: patient.email, recipient_name: patient.name, status: "sent", language_used: lang, message_preview: reportSubject });
