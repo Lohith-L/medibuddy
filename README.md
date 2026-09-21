@@ -1,4 +1,4 @@
-# 🩺 MedBuddy — Your Health Companion
+# 🩺 MEDDIBUDDY — Your Health Companion
 
 > AI-powered medicine reminder & health monitoring system with multilingual support and family alerts.
 
@@ -6,7 +6,7 @@
 
 ## 🚀 Overview
 
-**MedBuddy** is a smart healthcare assistant that helps patients manage medications efficiently.  
+**MEDDIBUDDY** is a smart healthcare assistant that helps patients manage medications efficiently.  
 It ensures timely reminders, alerts caregivers when doses are missed, and provides health insights — all in the user’s preferred language.
 
 ---
@@ -23,7 +23,7 @@ It ensures timely reminders, alerts caregivers when doses are missed, and provid
 
 ## 💡 Solution
 
-MedBuddy solves this by:
+MEDDIBUDDY solves this by:
 
 - 📸 Extracting medicines from prescriptions  
 - ⏰ Sending smart reminders  

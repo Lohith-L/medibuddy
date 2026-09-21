@@ -95,7 +95,7 @@ function getReminderHtml(lang: string, d: EmailData): string {
       <p style="font-size:16px;color:#52B788;font-weight:bold;margin-top:24px;text-align:center;">${t.footer}</p>
     </div>
     <div style="background:#f0faf5;padding:12px;text-align:center;font-size:12px;color:#999;">
-      MedBuddy — Your Medicine Companion
+      MEDDIBUDDY — Your Medicine Companion
     </div>
   </div>
 </body>
@@ -116,7 +116,7 @@ async function sendEmail(to: string, subject: string, html: string, text: string
   });
 
   await transporter.sendMail({
-    from: `MedBuddy <${gmailUser}>`,
+    from: `MEDDIBUDDY <${gmailUser}>`,
     to,
     subject,
     html,

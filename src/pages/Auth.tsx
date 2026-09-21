@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { ArrowLeft, Mail, Lock, User, Phone, KeyRound, HeartHandshake } from "lucide-react";
+import { ArrowLeft, Mail, Lock, User, Phone, KeyRound, HeartHandshake, LogIn } from "lucide-react";
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -216,49 +216,54 @@ const Auth = () => {
     <div className="min-h-screen gradient-hero flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-md">
         {/* Back */}
-        <Button variant="ghost" size="sm" className="mb-6" onClick={() => navigate("/")}>
+        <Button variant="ghost" size="sm" className="mb-4 text-muted-foreground hover:text-foreground" onClick={() => navigate("/")}>
           <ArrowLeft className="w-4 h-4 mr-2" /> Back to home
         </Button>
 
-        {/* Header */}
-        <div className="text-center mb-8">
-          <p className="text-3xl font-extrabold mb-2">
-            <span className="gradient-text">Med</span>Buddy 💊
-          </p>
-          <p className="text-muted-foreground text-lg">
-            {tab === "login" ? "Welcome back! We missed you." : "Join the MedBuddy family 🤗"}
-          </p>
-        </div>
+        {/* Card */}
+        <div className="w-full bg-gradient-to-b from-sky-50/50 to-white rounded-3xl shadow-xl border border-blue-100 p-8 text-foreground">
+          {/* Centered Icon Badge & Header */}
+          <div className="flex flex-col items-center text-center mb-6">
+            <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-white mb-4 shadow-lg shadow-blue-500/5 border border-blue-100/60">
+              <LogIn className="w-7 h-7 text-primary" />
+            </div>
+            <p className="text-3xl font-extrabold mb-1.5">
+              <span className="gradient-text">MEDDI</span>BUDDY
+            </p>
+            <p className="text-muted-foreground text-sm">
+              {tab === "login" ? "Welcome back! We missed you." : "Join the MEDDIBUDDY family 🤗"}
+            </p>
+          </div>
 
-        {/* Tabs */}
-        <div className="flex bg-muted rounded-xl p-1 mb-6">
-          <button
-            onClick={() => setTab("login")}
-            className={`flex-1 py-3 rounded-lg font-semibold transition-all ${
-              tab === "login" ? "bg-card shadow-card text-foreground" : "text-muted-foreground"
-            }`}
-          >
-            Login
-          </button>
-          <button
-            onClick={() => setTab("signup")}
-            className={`flex-1 py-3 rounded-lg font-semibold transition-all ${
-              tab === "signup" ? "bg-card shadow-card text-foreground" : "text-muted-foreground"
-            }`}
-          >
-            Sign Up
-          </button>
-        </div>
+          {/* Tabs */}
+          <div className="flex bg-gray-100/80 rounded-xl p-1 mb-6 border border-gray-200/60">
+            <button
+              type="button"
+              onClick={() => setTab("login")}
+              className={`flex-1 py-2.5 rounded-lg font-semibold text-sm transition-all ${
+                tab === "login" ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Login
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab("signup")}
+              className={`flex-1 py-2.5 rounded-lg font-semibold text-sm transition-all ${
+                tab === "signup" ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Sign Up
+            </button>
+          </div>
 
-        {/* Form */}
-        <div className="bg-card rounded-2xl shadow-float border p-8">
           {/* Method Selector: Email vs Phone */}
-          <div className="grid grid-cols-2 gap-2 p-1 bg-muted/60 rounded-xl mb-6 text-sm font-medium">
+          <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100/70 rounded-xl mb-6 text-sm font-medium border border-gray-200/50">
             <button
               type="button"
               onClick={() => setAuthMethod("email")}
               className={`py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                authMethod === "email" ? "bg-card shadow-sm text-foreground font-semibold" : "text-muted-foreground"
+                authMethod === "email" ? "bg-white shadow-sm text-foreground font-semibold" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               <Mail className="w-4 h-4" /> Email & Password
@@ -267,7 +272,7 @@ const Auth = () => {
               type="button"
               onClick={() => setAuthMethod("phone")}
               className={`py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                authMethod === "phone" ? "bg-card shadow-sm text-foreground font-semibold" : "text-muted-foreground"
+                authMethod === "phone" ? "bg-white shadow-sm text-foreground font-semibold" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               <Phone className="w-4 h-4" /> Mobile OTP
@@ -279,7 +284,7 @@ const Auth = () => {
             <>
               <Button
                 variant="outline"
-                className="w-full mb-6"
+                className="w-full mb-6 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-foreground font-medium shadow-sm transition-all flex items-center justify-center gap-2 py-2.5"
                 size="lg"
                 onClick={handleGoogleLogin}
               >
@@ -293,9 +298,9 @@ const Auth = () => {
               </Button>
 
               <div className="flex items-center gap-4 mb-6">
-                <div className="flex-1 h-px bg-border" />
-                <span className="text-sm text-muted-foreground">or</span>
-                <div className="flex-1 h-px bg-border" />
+                <div className="flex-1 border-t border-dashed border-gray-300" />
+                <span className="text-xs uppercase tracking-wider text-muted-foreground font-medium">or</span>
+                <div className="flex-1 border-t border-dashed border-gray-300" />
               </div>
             </>
           )}
@@ -307,93 +312,118 @@ const Auth = () => {
                 {tab === "signup" && (
                   <>
                     <div>
-                      <Label className="text-base font-semibold flex items-center gap-2">
-                        <User className="w-4 h-4 text-muted-foreground" /> Patient Full Name *
+                      <Label className="text-sm font-semibold text-foreground mb-1.5 block">
+                        Patient Full Name *
                       </Label>
-                      <Input
-                        required
-                        value={form.name}
-                        onChange={(e) => update("name", e.target.value)}
-                        placeholder="Patient's full name"
-                        className="mt-1.5 min-h-btn text-base rounded-xl"
-                      />
+                      <div className="relative">
+                        <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                          required
+                          value={form.name}
+                          onChange={(e) => update("name", e.target.value)}
+                          placeholder="Patient's full name"
+                          className="pl-10 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
+                        />
+                      </div>
                     </div>
 
                     <div>
-                      <Label className="text-base font-semibold flex items-center gap-2">
-                        <Mail className="w-4 h-4 text-muted-foreground" /> Patient Email Address *
+                      <Label className="text-sm font-semibold text-foreground mb-1.5 block">
+                        Patient Email Address *
                       </Label>
-                      <Input
-                        type="email"
-                        required
-                        value={form.email}
-                        onChange={(e) => update("email", e.target.value)}
-                        placeholder="patient@example.com"
-                        className="mt-1.5 min-h-btn text-base rounded-xl"
-                      />
+                      <div className="relative">
+                        <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                          type="email"
+                          required
+                          value={form.email}
+                          onChange={(e) => update("email", e.target.value)}
+                          placeholder="patient@example.com"
+                          className="pl-10 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
+                        />
+                      </div>
                     </div>
                   </>
                 )}
 
                 <div>
-                  <Label className="text-base font-semibold flex items-center gap-2">
-                    <Phone className="w-4 h-4 text-muted-foreground" /> Mobile Number *
+                  <Label className="text-sm font-semibold text-foreground mb-1.5 block">
+                    Mobile Number *
                   </Label>
-                  <Input
-                    type="tel"
-                    required
-                    value={tab === "signup" ? form.phone : phone}
-                    onChange={(e) => {
-                      update("phone", e.target.value);
-                      setPhone(e.target.value);
-                    }}
-                    placeholder="+91 98765 43210"
-                    className="mt-1.5 min-h-btn text-base rounded-xl"
-                  />
+                  <div className="relative">
+                    <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input
+                      type="tel"
+                      required
+                      value={tab === "signup" ? form.phone : phone}
+                      onChange={(e) => {
+                        update("phone", e.target.value);
+                        setPhone(e.target.value);
+                      }}
+                      placeholder="+91 98765 43210"
+                      className="pl-10 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
+                    />
+                  </div>
                   <p className="text-xs text-muted-foreground mt-1">Include country code (e.g., +91 for India)</p>
                 </div>
 
                 {tab === "signup" && (
                   <div>
-                    <Label className="text-base font-semibold flex items-center gap-2">
-                      <HeartHandshake className="w-4 h-4 text-muted-foreground" /> Caregiver Email (Optional)
+                    <Label className="text-sm font-semibold text-foreground mb-1.5 block">
+                      Caregiver Email (Optional)
                     </Label>
-                    <Input
-                      type="email"
-                      value={form.caregiverEmail}
-                      onChange={(e) => update("caregiverEmail", e.target.value)}
-                      placeholder="caregiver@example.com"
-                      className="mt-1.5 min-h-btn text-base rounded-xl"
-                    />
+                    <div className="relative">
+                      <HeartHandshake className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Input
+                        type="email"
+                        value={form.caregiverEmail}
+                        onChange={(e) => update("caregiverEmail", e.target.value)}
+                        placeholder="caregiver@example.com"
+                        className="pl-10 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
+                      />
+                    </div>
                     <p className="text-xs text-muted-foreground mt-1">
                       Caregiver will receive medication alerts & status updates
                     </p>
                   </div>
                 )}
 
-                <Button type="submit" variant="hero" className="w-full mt-2" size="lg" disabled={loading}>
+                <Button
+                  type="submit"
+                  className="w-full mt-2 rounded-xl py-2.5 gradient-warm text-white font-semibold shadow-md hover:brightness-105 transition-all text-base"
+                  size="lg"
+                  disabled={loading}
+                >
                   {loading ? "Sending SMS OTP..." : "Get OTP Code"}
                 </Button>
               </form>
             ) : (
               <form onSubmit={handleVerifyPhoneOtp} className="space-y-5">
                 <div>
-                  <Label className="text-base font-semibold flex items-center gap-2">
-                    <KeyRound className="w-4 h-4 text-muted-foreground" /> Enter 6-Digit SMS OTP
+                  <Label className="text-sm font-semibold text-foreground mb-1.5 block">
+                    Enter 6-Digit SMS OTP
                   </Label>
-                  <Input
-                    type="text"
-                    required
-                    value={phoneOtp}
-                    onChange={(e) => setPhoneOtp(e.target.value)}
-                    placeholder="123456"
-                    className="mt-1.5 min-h-btn text-base rounded-xl letter-spacing-2"
-                    maxLength={6}
-                  />
+                  <div className="relative">
+                    <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input
+                      type="text"
+                      required
+                      value={phoneOtp}
+                      onChange={(e) => setPhoneOtp(e.target.value)}
+                      placeholder="123456"
+                      className="pl-10 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn tracking-widest text-center"
+                      maxLength={6}
+                    />
+                  </div>
                   <p className="text-xs text-muted-foreground mt-1">Sent to {phone}</p>
                 </div>
 
-                <Button type="submit" variant="hero" className="w-full" size="lg" disabled={loading}>
+                <Button
+                  type="submit"
+                  className="w-full rounded-xl py-2.5 gradient-warm text-white font-semibold shadow-md hover:brightness-105 transition-all text-base"
+                  size="lg"
+                  disabled={loading}
+                >
                   {loading ? "Verifying..." : tab === "signup" ? "Verify & Complete Signup" : "Verify & Login"}
                 </Button>
 
@@ -410,92 +440,110 @@ const Auth = () => {
             )
           ) : (
             /* Email Auth Mode */
-            <form onSubmit={tab === "login" ? handleLogin : handleSignup} className="space-y-5">
+            <form onSubmit={tab === "login" ? handleLogin : handleSignup} className="space-y-4">
               {tab === "signup" && (
                 <>
                   <div>
-                    <Label className="text-base font-semibold flex items-center gap-2">
-                      <User className="w-4 h-4 text-muted-foreground" /> Full Name *
+                    <Label className="text-sm font-semibold text-foreground mb-1.5 block">
+                      Full Name *
                     </Label>
-                    <Input
-                      required
-                      value={form.name}
-                      onChange={(e) => update("name", e.target.value)}
-                      placeholder="Your full name"
-                      className="mt-1.5 min-h-btn text-base rounded-xl"
-                    />
+                    <div className="relative">
+                      <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Input
+                        required
+                        value={form.name}
+                        onChange={(e) => update("name", e.target.value)}
+                        placeholder="Your full name"
+                        className="pl-10 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
+                      />
+                    </div>
                   </div>
                   <div>
-                    <Label className="text-base font-semibold flex items-center gap-2">
-                      <Phone className="w-4 h-4 text-muted-foreground" /> Phone Number *
+                    <Label className="text-sm font-semibold text-foreground mb-1.5 block">
+                      Phone Number *
                     </Label>
-                    <Input
-                      type="tel"
-                      required
-                      value={form.phone}
-                      onChange={(e) => update("phone", e.target.value)}
-                      placeholder="+91 98765 43210"
-                      className="mt-1.5 min-h-btn text-base rounded-xl"
-                    />
+                    <div className="relative">
+                      <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Input
+                        type="tel"
+                        required
+                        value={form.phone}
+                        onChange={(e) => update("phone", e.target.value)}
+                        placeholder="+91 98765 43210"
+                        className="pl-10 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
+                      />
+                    </div>
                   </div>
                 </>
               )}
 
               <div>
-                <Label className="text-base font-semibold flex items-center gap-2">
-                  <Mail className="w-4 h-4 text-muted-foreground" /> Email Address *
+                <Label className="text-sm font-semibold text-foreground mb-1.5 block">
+                  Email Address *
                 </Label>
-                <Input
-                  type="email"
-                  required
-                  value={form.email}
-                  onChange={(e) => update("email", e.target.value)}
-                  placeholder="you@example.com"
-                  className="mt-1.5 min-h-btn text-base rounded-xl"
-                />
+                <div className="relative">
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                    type="email"
+                    required
+                    value={form.email}
+                    onChange={(e) => update("email", e.target.value)}
+                    placeholder="you@example.com"
+                    className="pl-10 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
+                  />
+                </div>
               </div>
 
               <div>
-                <Label className="text-base font-semibold flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-muted-foreground" /> Password *
+                <Label className="text-sm font-semibold text-foreground mb-1.5 block">
+                  Password *
                 </Label>
-                <Input
-                  type="password"
-                  required
-                  value={form.password}
-                  onChange={(e) => update("password", e.target.value)}
-                  placeholder={tab === "signup" ? "Min 6 characters" : "Enter your password"}
-                  className="mt-1.5 min-h-btn text-base rounded-xl"
-                />
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                    type="password"
+                    required
+                    value={form.password}
+                    onChange={(e) => update("password", e.target.value)}
+                    placeholder={tab === "signup" ? "Min 6 characters" : "Enter your password"}
+                    className="pl-10 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
+                  />
+                </div>
               </div>
 
               {tab === "signup" && (
                 <>
                   <div>
-                    <Label className="text-base font-semibold flex items-center gap-2">
-                      <Lock className="w-4 h-4 text-muted-foreground" /> Confirm Password *
+                    <Label className="text-sm font-semibold text-foreground mb-1.5 block">
+                      Confirm Password *
                     </Label>
-                    <Input
-                      type="password"
-                      required
-                      value={form.confirmPassword}
-                      onChange={(e) => update("confirmPassword", e.target.value)}
-                      placeholder="Re-enter password"
-                      className="mt-1.5 min-h-btn text-base rounded-xl"
-                    />
+                    <div className="relative">
+                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Input
+                        type="password"
+                        required
+                        value={form.confirmPassword}
+                        onChange={(e) => update("confirmPassword", e.target.value)}
+                        placeholder="Re-enter password"
+                        className="pl-10 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
+                      />
+                    </div>
                   </div>
 
                   <div>
-                    <Label className="text-base font-semibold flex items-center gap-2">
-                      <HeartHandshake className="w-4 h-4 text-muted-foreground" /> Caregiver Email (Optional)
+                    <Label className="text-sm font-semibold text-foreground mb-1.5 block">
+                      Caregiver Email (Optional)
                     </Label>
-                    <Input
-                      type="email"
-                      value={form.caregiverEmail}
-                      onChange={(e) => update("caregiverEmail", e.target.value)}
-                      placeholder="caregiver@example.com"
-                      className="mt-1.5 min-h-btn text-base rounded-xl"
-                    />
+                    <div className="relative">
+                      <HeartHandshake className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Input
+                        type="email"
+                        value={form.caregiverEmail}
+                        onChange={(e) => update("caregiverEmail", e.target.value)}
+                        placeholder="caregiver@example.com"
+                        className="pl-10 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
+                      />
+                    </div>
                     <p className="text-xs text-muted-foreground mt-1">
                       Caregiver will receive medication alerts & status updates
                     </p>
@@ -515,7 +563,12 @@ const Auth = () => {
                 </div>
               )}
 
-              <Button type="submit" variant="hero" className="w-full" size="lg" disabled={loading}>
+              <Button
+                type="submit"
+                className="w-full rounded-xl py-2.5 gradient-warm text-white font-semibold shadow-md hover:brightness-105 transition-all text-base"
+                size="lg"
+                disabled={loading}
+              >
                 {loading ? "Please wait..." : tab === "login" ? "Login" : "Create Account"}
               </Button>
             </form>

@@ -25,7 +25,7 @@ const t: Record<string, Record<ReportLang, string>> = {
   improving: { en: "Improving", hi: "सुधार हो रहा है", kn: "ಸುಧಾರಿಸುತ್ತಿದೆ", te: "మెరుగవుతోంది", ta: "மேம்படுகிறது", mr: "सुधारणा होत आहे" },
   declining: { en: "Declining", hi: "गिरावट", kn: "ಕುಸಿಯುತ್ತಿದೆ", te: "తగ్గుతోంది", ta: "குறைகிறது", mr: "घसरण" },
   stable: { en: "Stable", hi: "स्थिर", kn: "ಸ್ಥಿರ", te: "స్థిరం", ta: "நிலையானது", mr: "स्थिर" },
-  poweredBy: { en: "MedBuddy - Your Medicine Companion", hi: "MedBuddy - आपका दवा साथी", kn: "MedBuddy - ನಿಮ್ಮ ಔಷಧ ಸಂಗಾತಿ", te: "MedBuddy - మీ మందుల సహచరుడు", ta: "MedBuddy - உங்கள் மருந்துத் தோழன்", mr: "MedBuddy - तुमचा औषध साथीदार" },
+  poweredBy: { en: "MEDDIBUDDY - Your Medicine Companion", hi: "MEDDIBUDDY - आपका दवा साथी", kn: "MEDDIBUDDY - ನಿಮ್ಮ ಔಷಧ ಸಂಗಾತಿ", te: "MEDDIBUDDY - మీ మందుల సహచరుడు", ta: "MEDDIBUDDY - உங்கள் மருந்துத் தோழன்", mr: "MEDDIBUDDY - तुमचा औषध साथीदार" },
 };
 
 export function tr(key: string, lang: string): string {

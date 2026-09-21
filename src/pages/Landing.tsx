@@ -2,11 +2,14 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { motion, useScroll, useTransform, useSpring, AnimatePresence } from "framer-motion";
+import { SplineScene } from "@/components/ui/splite";
+import { Spotlight } from "@/components/ui/spotlight";
 import {
-  Pill, Clock, Heart, Shield, Users, Smartphone, ArrowRight,
+  Clock, Heart, Shield, Users, Smartphone, ArrowRight,
   Menu, X, Upload, Bell, BarChart3, Globe, Star, Check,
   Brain, MessageSquare, Activity, ChevronDown, Play, Quote,
-  Sparkles, Zap, Lock, HeartHandshake, ArrowUpRight, CheckCircle2
+  Sparkles, Zap, Lock, HeartHandshake, ArrowUpRight,
+  BellOff, Languages, HeartCrack, MapPin, Siren
 } from "lucide-react";
 
 // Animation variants
@@ -40,6 +43,8 @@ const features = [
   { icon: Users, title: "Family Circle", description: "Invite family members to monitor and receive alerts when doses are missed.", highlight: "Real-time sync" },
   { icon: Activity, title: "Health Insights", description: "Beatiful dashboards showing adherence trends, weekly reports, and health patterns.", highlight: "Visual analytics" },
   { icon: Shield, title: "Privacy First", description: "HIPAA-compliant encryption. Your health data is yours alone, always.", highlight: "Bank-grade security" },
+  { icon: MapPin, title: "Nearby Pharmacy Detection", description: "Find nearby pharmacies with real-time stock and directions so you never run out of medicine.", highlight: "500+ pharmacies mapped" },
+  { icon: Siren, title: "SOS Reminder", description: "One-tap emergency alert notifies family and caregivers instantly if a dose is critically missed or help is needed.", highlight: "Instant alerts" },
 ];
 
 const steps = [
@@ -51,9 +56,9 @@ const steps = [
 
 const testimonials = [
   { name: "Lakshmi Devi", location: "Hyderabad", text: "My mother finally takes her medicines on time. The Telugu reminders make her feel so comfortable and cared for!", rating: 5, avatar: "LD" },
-  { name: "Ramesh Kumar", location: "New Jersey, USA", text: "I live abroad but MedBuddy keeps me connected to my father's health. The family alerts are a lifesaver.", rating: 5, avatar: "RK" },
+  { name: "Ramesh Kumar", location: "New Jersey, USA", text: "I live abroad but MEDDIBUDDY keeps me connected to my father's health. The family alerts are a lifesaver.", rating: 5, avatar: "RK" },
   { name: "Priya Nair", location: "Mumbai", text: "The AI prescription scanner is incredible. It saved me hours of manual entry and works flawlessly.", rating: 5, avatar: "PN" },
-  { name: "Anil Agarwal", location: "Jaipur", text: "My mom takes 6 medicines daily. MedBuddy helped us achieve 100% adherence for 3 months straight.", rating: 5, avatar: "AA" },
+  { name: "Anil Agarwal", location: "Jaipur", text: "My mom takes 6 medicines daily. MEDDIBUDDY helped us achieve 100% adherence for 3 months straight.", rating: 5, avatar: "AA" },
 ];
 
 const languages = [
@@ -68,10 +73,10 @@ const languages = [
 ];
 
 const faqs = [
-  { q: "Is MedBuddy really free?", a: "Yes! MedBuddy has a generous free tier that includes unlimited prescriptions, 8-language reminders, and family alerts. We believe every family deserves proper medicine management." },
+  { q: "Is MEDDIBUDDY really free?", a: "Yes! MEDDIBUDDY has a generous free tier that includes unlimited prescriptions, 8-language reminders, and family alerts. We believe every family deserves proper medicine management." },
   { q: "How does the AI prescription scanner work?", a: "Upload a photo of any prescription — even handwritten ones. Our AI (powered by Gemini) analyzes the image and extracts medicine names, dosages, and timing within seconds." },
   { q: "Can family members see my health data?", a: "Only people you explicitly invite can see your medicine schedule and adherence. You control exactly who sees what. Your data is never shared without consent." },
-  { q: "What if my parents don't use smartphones?", a: "MedBuddy sends reminders via email, so they can check on any device with email access. Family members receive SMS/email alerts when doses are missed." },
+  { q: "What if my parents don't use smartphones?", a: "MEDDIBUDDY sends reminders via email, so they can check on any device with email access. Family members receive SMS/email alerts when doses are missed." },
   { q: "Is my health data secure?", a: "Absolutely. We use bank-grade encryption (AES-256) and are HIPAA-compliant. Your health data is encrypted at rest and in transit. We never sell your data." },
 ];
 
@@ -80,10 +85,7 @@ const stats = [
   { value: "98%", label: "Adherence Rate", suffix: "" },
   { value: "8", label: "Languages", suffix: "" },
   { value: "10K+", label: "Happy Families", suffix: "" },
-  { value: "4.9", label: "App Rating", suffix: "/5" },
 ];
-
-const trustedBy = ["Tata Trust", "Narayana Health", "Apollo Hospitals", "Max Healthcare", "Manipal Hospitals"];
 
 // Floating particles component
 const FloatingParticles = () => (
@@ -179,11 +181,8 @@ const Landing = () => {
             whileHover={{ scale: 1.02 }}
             onClick={() => navigate("/")}
           >
-            <div className="w-10 h-10 rounded-2xl gradient-warm flex items-center justify-center shadow-card">
-              <Pill className="w-5 h-5 text-primary-foreground" />
-            </div>
             <span className="text-2xl font-extrabold tracking-tight">
-              <span className="gradient-text">Med</span>Buddy
+              <span className="gradient-text">MEDDI</span>BUDDY
             </span>
           </motion.div>
 
@@ -264,7 +263,7 @@ const Landing = () => {
       </motion.nav>
 
       {/* Hero Section */}
-      <section className="relative pt-28 pb-20 md:pt-40 md:pb-32 overflow-hidden">
+      <section className="relative pt-24 pb-16 md:pt-40 md:pb-32 overflow-hidden">
         <FloatingParticles />
 
         {/* Background blobs */}
@@ -272,37 +271,31 @@ const Landing = () => {
         <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-secondary/20 rounded-full blur-3xl translate-y-1/2" />
 
         <div className="container relative">
-          <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
+          <div className="grid lg:grid-cols-2 gap-8 lg:gap-20 items-center min-w-0">
             {/* Left content */}
             <motion.div
               style={{ y: heroY, opacity, scale }}
-              className="relative z-10"
+              className="relative z-10 min-w-0"
             >
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.1 }}
-                className="inline-flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-full text-sm font-semibold mb-8"
+                className="inline-flex items-center gap-2 bg-primary/10 text-primary px-3 py-2 rounded-full text-xs sm:text-sm font-semibold mb-8 max-w-full"
               >
-                <Sparkles className="w-4 h-4" />
-                <span>AI-Powered Medicine Management</span>
+                <Sparkles className="w-4 h-4 shrink-0" />
+                <span className="truncate">AI-Powered Medicine Management</span>
               </motion.div>
 
               <motion.h1
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.7, delay: 0.2 }}
-                className="text-5xl md:text-6xl lg:text-7xl font-extrabold leading-[1.05] tracking-tight mb-6"
+                className="text-[2rem] sm:text-5xl md:text-6xl lg:text-7xl font-extrabold leading-[1.05] tracking-tight mb-6 break-words max-w-full"
               >
                 Never Miss a{" "}
                 <span className="relative">
                   <span className="gradient-text">Medicine</span>
-                  <motion.span
-                    className="absolute -bottom-2 left-0 right-0 h-3 bg-primary/20 rounded-full -z-10"
-                    initial={{ scaleX: 0 }}
-                    animate={{ scaleX: 1 }}
-                    transition={{ duration: 0.8, delay: 0.8 }}
-                  />
                 </span>
                 <br />Again
               </motion.h1>
@@ -322,205 +315,57 @@ const Landing = () => {
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.4 }}
-                className="flex flex-col sm:flex-row gap-4 mb-10"
+                className="flex flex-col sm:flex-row gap-4 mb-10 min-w-0"
               >
                 <Button
                   variant="hero"
                   size="xl"
-                  className="group"
+                  className="group w-full sm:w-auto whitespace-normal text-base sm:text-xl px-6 sm:px-10"
                   onClick={() => navigate("/auth")}
                 >
                   Start Free — No Credit Card
-                  <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  <ArrowRight className="ml-2 w-5 h-5 shrink-0 group-hover:translate-x-1 transition-transform" />
                 </Button>
                 <Button
                   variant="outline"
                   size="xl"
-                  className="group"
+                  className="group w-full sm:w-auto whitespace-normal text-base sm:text-xl px-6 sm:px-10"
                   onClick={() => {
                     document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" });
                   }}
                 >
-                  <Play className="mr-2 w-5 h-5" />
+                  <Play className="mr-2 w-5 h-5 shrink-0" />
                   See How It Works
                 </Button>
               </motion.div>
 
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.6, delay: 0.6 }}
-                className="flex flex-wrap items-center gap-6 text-sm"
-              >
-                {[
-                  { icon: CheckCircle2, text: "Free forever plan" },
-                  { icon: CheckCircle2, text: "8 languages" },
-                  { icon: CheckCircle2, text: "HIPAA Compliant" },
-                ].map((item, i) => (
-                  <motion.span
-                    key={i}
-                    className="flex items-center gap-2 text-muted-foreground"
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.7 + i * 0.1 }}
-                  >
-                    <item.icon className="w-4 h-4 text-secondary" />
-                    {item.text}
-                  </motion.span>
-                ))}
-              </motion.div>
+
             </motion.div>
 
-            {/* Right content - Dashboard mockup */}
+            {/* Right content - 3D Interactive Robot */}
             <motion.div
               style={{ y }}
-              className="relative hidden lg:block"
+              className="relative h-full self-stretch min-w-0"
             >
-              {/* Main dashboard card */}
+              {/* Main 3D robot container */}
               <motion.div
                 initial={{ opacity: 0, x: 60 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.8, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                className="relative"
+                className="relative w-full h-full"
               >
-                <div className="bg-card rounded-3xl shadow-float border border-border/50 p-8">
-                  <div className="flex items-center justify-between mb-8">
-                    <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 rounded-2xl gradient-warm flex items-center justify-center shadow-card">
-                        <Pill className="w-7 h-7 text-primary-foreground" />
-                      </div>
-                      <div>
-                        <p className="text-xl font-bold">Today's Schedule</p>
-                        <p className="text-sm text-muted-foreground">Monday, April 13</p>
-                      </div>
-                    </div>
-                    <div className="bg-secondary/10 text-secondary px-3 py-1.5 rounded-full text-sm font-semibold">
-                      3 of 4 Done
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    {[
-                      { name: "Metformin 500mg", time: "7:00 AM", status: "taken", icon: "💊" },
-                      { name: "Amlodipine 5mg", time: "8:00 AM", status: "taken", icon: "💊" },
-                      { name: "Paracetamol 650mg", time: "2:00 PM", status: "current", icon: "⏰" },
-                      { name: "Omeprazole 20mg", time: "10:00 PM", status: "pending", icon: "⏳" },
-                    ].map((med, i) => (
-                      <motion.div
-                        key={med.name}
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.6 + i * 0.1 }}
-                        className={`flex items-center justify-between p-4 rounded-2xl transition-all ${
-                          med.status === "taken" ? "bg-secondary/5 border border-secondary/10" :
-                          med.status === "current" ? "bg-primary/5 border-2 border-primary/30 shadow-lg" :
-                          "bg-muted/50 border border-border/50"
-                        }`}
-                      >
-                        <div className="flex items-center gap-4">
-                          <span className="text-2xl">{med.icon}</span>
-                          <div>
-                            <p className={`font-semibold ${med.status === "pending" ? "text-muted-foreground" : ""}`}>
-                              {med.name}
-                            </p>
-                            <p className="text-sm text-muted-foreground">{med.time}</p>
-                          </div>
-                        </div>
-                        <span className={`text-sm font-semibold px-3 py-1.5 rounded-xl ${
-                          med.status === "taken" ? "bg-secondary/10 text-secondary" :
-                          med.status === "current" ? "bg-primary text-primary-foreground" :
-                          "bg-muted text-muted-foreground"
-                        }`}>
-                          {med.status === "taken" ? "✓ Taken" : med.status === "current" ? "Now" : "Later"}
-                        </span>
-                      </motion.div>
-                    ))}
-                  </div>
-
-                  {/* Progress bar */}
-                  <div className="mt-8">
-                    <div className="flex justify-between text-sm mb-2">
-                      <span className="text-muted-foreground">Weekly Progress</span>
-                      <span className="font-semibold text-secondary">75%</span>
-                    </div>
-                    <div className="h-3 bg-muted rounded-full overflow-hidden">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: "75%" }}
-                        transition={{ delay: 1, duration: 1, ease: [0.16, 1, 0.3, 1] }}
-                        className="h-full gradient-warm rounded-full"
-                      />
-                    </div>
-                  </div>
+                <div className="relative w-full h-[250px] sm:h-[320px] lg:h-full lg:min-h-[500px] overflow-hidden bg-transparent">
+                  <Spotlight className="-top-40 left-0" size={500} />
+                  <SplineScene
+                    scene="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
+                    className="w-full h-full"
+                  />
                 </div>
-
-                {/* Floating notification */}
-                <motion.div
-                  animate={{ y: [0, -12, 0] }}
-                  transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                  className="absolute -top-6 -right-6 bg-card rounded-2xl shadow-float border border-border/50 p-5 max-w-[240px]"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                      <Bell className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-sm">⏰ Time for medicine!</p>
-                      <p className="text-xs text-muted-foreground mt-1">Paracetamol 650mg</p>
-                      <p className="text-xs text-primary font-medium mt-1">Tap to mark as taken</p>
-                    </div>
-                  </div>
-                </motion.div>
-
-                {/* Language card */}
-                <motion.div
-                  animate={{ y: [0, 10, 0] }}
-                  transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-                  className="absolute -bottom-4 -left-8 bg-card rounded-2xl shadow-float border border-border/50 p-4"
-                >
-                  <div className="flex items-center gap-3">
-                    <Globe className="w-6 h-6 text-primary" />
-                    <div>
-                      <p className="text-sm font-bold">📱 Telugu Reminder</p>
-                      <p className="text-xs text-muted-foreground">"దయచేసి మందు తీసుకోండి"</p>
-                    </div>
-                  </div>
-                </motion.div>
-
-                {/* AI badge */}
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 1.2 }}
-                  className="absolute top-4 -left-4 bg-background/80 backdrop-blur-sm rounded-xl border border-border/50 px-4 py-2 shadow-lg"
-                >
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-gradient-to-r from-violet-500 to-purple-500 flex items-center justify-center">
-                      <Zap className="w-3 h-3 text-white" />
-                    </div>
-                    <span className="text-sm font-medium">AI-Powered</span>
-                  </div>
-                </motion.div>
               </motion.div>
             </motion.div>
           </div>
 
-          {/* Trusted by section */}
-          <motion.div
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1 }}
-            className="mt-20 md:mt-28 text-center"
-          >
-            <p className="text-sm font-medium text-muted-foreground mb-8">Trusted by families across India</p>
-            <div className="flex flex-wrap justify-center items-center gap-8 md:gap-12 opacity-60">
-              {trustedBy.map((company) => (
-                <span key={company} className="text-lg font-semibold text-muted-foreground">
-                  {company}
-                </span>
-              ))}
-            </div>
-          </motion.div>
+
         </div>
       </section>
 
@@ -532,7 +377,7 @@ const Landing = () => {
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true, margin: "-100px" }}
-            className="grid grid-cols-2 md:grid-cols-5 gap-8 md:gap-4"
+            className="grid grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8"
           >
             {stats.map((stat, i) => (
               <motion.div
@@ -540,7 +385,7 @@ const Landing = () => {
                 variants={fadeInUp}
                 className="text-center"
               >
-                <div className="text-4xl md:text-5xl lg:text-6xl font-extrabold gradient-text mb-2">
+                <div className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold gradient-text mb-2">
                   {stat.value}{stat.suffix}
                 </div>
                 <p className="text-sm md:text-base text-muted-foreground font-medium">{stat.label}</p>
@@ -563,7 +408,7 @@ const Landing = () => {
             <motion.p variants={fadeInUp} className="text-primary font-semibold mb-4 tracking-wide uppercase">
               The Challenge
             </motion.p>
-            <motion.h2 variants={fadeInUp} className="text-4xl md:text-5xl font-extrabold mb-6 tracking-tight">
+            <motion.h2 variants={fadeInUp} className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-6 tracking-tight">
               Medicine Management is Broken
             </motion.h2>
             <motion.p variants={fadeInUp} className="text-lg text-muted-foreground">
@@ -572,22 +417,22 @@ const Landing = () => {
             </motion.p>
           </motion.div>
 
-          <div className="grid md:grid-cols-3 gap-6 md:gap-8">
+          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6 md:gap-8">
             {[
               {
-                emoji: "😟",
+                icon: BellOff,
                 title: "Forgetting Medicines",
                 desc: "Without reminders, elderly patients miss doses regularly, leading to serious health complications.",
                 stat: "50% miss doses"
               },
               {
-                emoji: "🗣️",
+                icon: Languages,
                 title: "Language Barriers",
                 desc: "Most apps are English-only. Your parents need reminders in their native language to feel comfortable.",
                 stat: "8 major languages"
               },
               {
-                emoji: "😰",
+                icon: HeartCrack,
                 title: "Caregiver Anxiety",
                 desc: "When you live far away, you constantly worry if your parents took their medicines today.",
                 stat: "1000s affected"
@@ -598,7 +443,9 @@ const Landing = () => {
                 variants={fadeInUp}
                 className="group bg-card rounded-3xl border border-border/50 p-8 md:p-10 shadow-card hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1"
               >
-                <span className="text-5xl mb-6 block">{item.emoji}</span>
+                <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                  <item.icon className="w-8 h-8 text-primary" />
+                </div>
                 <h3 className="text-2xl font-bold mb-3">{item.title}</h3>
                 <p className="text-muted-foreground mb-6 leading-relaxed">{item.desc}</p>
                 <div className="inline-flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-full text-sm font-semibold">
@@ -624,7 +471,7 @@ const Landing = () => {
             <motion.p variants={fadeInUp} className="text-primary font-semibold mb-4 tracking-wide uppercase">
               How It Works
             </motion.p>
-            <motion.h2 variants={fadeInUp} className="text-4xl md:text-5xl font-extrabold mb-6 tracking-tight">
+            <motion.h2 variants={fadeInUp} className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-6 tracking-tight">
               Simple as 1-2-3-4
             </motion.h2>
             <motion.p variants={fadeInUp} className="text-lg text-muted-foreground">
@@ -632,7 +479,7 @@ const Landing = () => {
             </motion.p>
           </motion.div>
 
-          <div className="grid md:grid-cols-4 gap-6 md:gap-8">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
             {steps.map((step, i) => (
               <motion.div
                 key={step.step}
@@ -650,7 +497,7 @@ const Landing = () => {
 
                 {/* Connector arrow */}
                 {i < steps.length - 1 && (
-                  <div className="hidden md:block absolute top-1/2 -right-4 transform -translate-y-1/2">
+                  <div className="hidden lg:block absolute top-1/2 -right-4 transform -translate-y-1/2">
                     <ArrowRight className="w-8 h-8 text-border" />
                   </div>
                 )}
@@ -658,18 +505,7 @@ const Landing = () => {
             ))}
           </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.4 }}
-            className="text-center mt-12"
-          >
-            <Button variant="hero" size="xl" onClick={() => navigate("/auth")}>
-              Try It Now — It's Free
-              <ArrowRight className="ml-2 w-5 h-5" />
-            </Button>
-          </motion.div>
+
         </div>
       </section>
 
@@ -686,7 +522,7 @@ const Landing = () => {
             <motion.p variants={fadeInUp} className="text-primary font-semibold mb-4 tracking-wide uppercase">
               Features
             </motion.p>
-            <motion.h2 variants={fadeInUp} className="text-4xl md:text-5xl font-extrabold mb-6 tracking-tight">
+            <motion.h2 variants={fadeInUp} className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-6 tracking-tight">
               Everything Your Family Needs
             </motion.h2>
             <motion.p variants={fadeInUp} className="text-lg text-muted-foreground">
@@ -694,18 +530,18 @@ const Landing = () => {
             </motion.p>
           </motion.div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
             {features.map((feature, i) => (
               <motion.div
                 key={feature.title}
                 variants={scaleIn}
-                className="group bg-card rounded-3xl border border-border/50 p-8 shadow-card hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1"
+                className="group bg-card rounded-3xl border border-border/50 p-5 sm:p-6 md:p-8 shadow-card hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1"
               >
-                <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
-                  <feature.icon className="w-8 h-8 text-primary" />
+                <div className="w-11 h-11 sm:w-12 sm:h-12 md:w-16 md:h-16 rounded-xl md:rounded-2xl bg-primary/10 flex items-center justify-center mb-4 md:mb-6 group-hover:scale-110 transition-transform duration-300">
+                  <feature.icon className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 text-primary" />
                 </div>
-                <h3 className="text-xl font-bold mb-3">{feature.title}</h3>
-                <p className="text-muted-foreground mb-6 leading-relaxed">{feature.description}</p>
+                <h3 className="text-base sm:text-lg md:text-xl font-bold mb-2 md:mb-3">{feature.title}</h3>
+                <p className="text-sm md:text-base text-muted-foreground mb-4 md:mb-6 leading-relaxed">{feature.description}</p>
                 <div className="inline-flex items-center gap-2 bg-secondary/10 text-secondary px-3 py-1.5 rounded-full text-xs font-semibold">
                   <Zap className="w-3 h-3" />
                   {feature.highlight}
@@ -729,17 +565,17 @@ const Landing = () => {
             <motion.p variants={fadeInUp} className="text-primary font-semibold mb-4 tracking-wide uppercase">
               Testimonials
             </motion.p>
-            <motion.h2 variants={fadeInUp} className="text-4xl md:text-5xl font-extrabold mb-6 tracking-tight">
+            <motion.h2 variants={fadeInUp} className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-6 tracking-tight">
               Loved by Families
             </motion.h2>
             <motion.p variants={fadeInUp} className="text-lg text-muted-foreground">
-              Join thousands of families who trust MedBuddy for their health.
+              Join thousands of families who trust MEDDIBUDDY for their health.
             </motion.p>
           </motion.div>
 
           <div className="max-w-4xl mx-auto">
-            <div className="relative bg-card rounded-3xl border border-border/50 p-8 md:p-12 shadow-float">
-              <Quote className="absolute top-8 left-8 w-16 h-16 text-primary/10" />
+            <div className="relative bg-card rounded-3xl border border-border/50 p-6 sm:p-8 md:p-12 shadow-float">
+              <Quote className="absolute top-6 left-6 sm:top-8 sm:left-8 w-10 h-10 sm:w-16 sm:h-16 text-primary/10" />
 
               <AnimatePresence mode="wait">
                 <motion.div
@@ -756,7 +592,7 @@ const Landing = () => {
                     ))}
                   </div>
 
-                  <p className="text-2xl md:text-3xl font-medium leading-relaxed mb-8">
+                  <p className="text-xl sm:text-2xl md:text-3xl font-medium leading-relaxed mb-8">
                     "{testimonials[activeTestimonial].text}"
                   </p>
 
@@ -802,11 +638,11 @@ const Landing = () => {
             <motion.p variants={fadeInUp} className="text-primary font-semibold mb-4 tracking-wide uppercase">
               Multilingual
             </motion.p>
-            <motion.h2 variants={fadeInUp} className="text-4xl md:text-5xl font-extrabold mb-6 tracking-tight">
+            <motion.h2 variants={fadeInUp} className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-6 tracking-tight">
               Speaks Your Language
             </motion.h2>
             <motion.p variants={fadeInUp} className="text-lg text-muted-foreground">
-              MedBuddy sends reminders in 8 Indian languages. Your parents feel right at home.
+              MEDDIBUDDY sends reminders in 8 Indian languages. Your parents feel right at home.
             </motion.p>
           </motion.div>
 
@@ -818,7 +654,7 @@ const Landing = () => {
                 whileInView={{ opacity: 1, scale: 1 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.05 }}
-                className="bg-card rounded-2xl border border-border/50 p-6 text-center shadow-card hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1 cursor-default"
+                className="bg-card rounded-2xl border border-border/50 p-4 sm:p-6 text-center shadow-card hover:shadow-card-hover transition-all duration-300 hover:-translate-y-1 cursor-default"
               >
                 <span className="text-4xl mb-3 block">{lang.flag}</span>
                 <p className="text-xl font-bold mb-1">{lang.native}</p>
@@ -842,7 +678,7 @@ const Landing = () => {
             <motion.p variants={fadeInUp} className="text-primary font-semibold mb-4 tracking-wide uppercase">
               FAQ
             </motion.p>
-            <motion.h2 variants={fadeInUp} className="text-4xl md:text-5xl font-extrabold tracking-tight">
+            <motion.h2 variants={fadeInUp} className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight">
               Questions? Answers.
             </motion.h2>
           </motion.div>
@@ -859,9 +695,9 @@ const Landing = () => {
               >
                 <button
                   onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                  className="w-full flex items-center justify-between p-6 text-left"
+                  className="w-full flex items-center justify-between p-4 sm:p-6 text-left min-h-[44px]"
                 >
-                  <span className="font-semibold text-lg pr-4">{faq.q}</span>
+                  <span className="font-semibold text-base sm:text-lg pr-4">{faq.q}</span>
                   <motion.div
                     animate={{ rotate: openFaq === i ? 180 : 0 }}
                     transition={{ duration: 0.2 }}
@@ -910,12 +746,12 @@ const Landing = () => {
               <Heart className="w-12 h-12 text-primary-foreground" />
             </motion.div>
 
-            <motion.h2 variants={fadeInUp} className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-primary-foreground mb-6 tracking-tight">
+            <motion.h2 variants={fadeInUp} className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-primary-foreground mb-6 tracking-tight">
               Give Your Parents the Care They Deserve
             </motion.h2>
 
             <motion.p variants={fadeInUp} className="text-xl text-primary-foreground/80 mb-10 max-w-xl mx-auto leading-relaxed">
-              Join 10,000+ families who trust MedBuddy. It's free, simple, and works in your language.
+              Free to start, simple to set up, and works in your language.
             </motion.p>
 
             <motion.div variants={fadeInUp} className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -931,7 +767,7 @@ const Landing = () => {
               <Button
                 variant="outline"
                 size="xl"
-                className="text-lg border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10"
+                className="text-lg bg-transparent hover:bg-primary-foreground/10 text-primary-foreground hover:text-primary-foreground border-primary-foreground/30 hover:border-primary-foreground/50"
                 onClick={() => {
                   document.getElementById("features")?.scrollIntoView({ behavior: "smooth" });
                 }}
@@ -940,9 +776,7 @@ const Landing = () => {
               </Button>
             </motion.div>
 
-            <motion.p variants={fadeInUp} className="mt-8 text-sm text-primary-foreground/60">
-              No credit card required • Free forever • Setup in 2 minutes
-            </motion.p>
+
           </motion.div>
         </div>
       </section>
@@ -950,14 +784,11 @@ const Landing = () => {
       {/* Footer */}
       <footer className="border-t border-border/50 bg-card py-16">
         <div className="container">
-          <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-12 mb-12">
+          <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-8 lg:gap-12 mb-12">
             <div className="lg:col-span-2">
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-10 h-10 rounded-xl gradient-warm flex items-center justify-center">
-                  <Pill className="w-5 h-5 text-primary-foreground" />
-                </div>
                 <span className="text-2xl font-extrabold tracking-tight">
-                  <span className="gradient-text">Med</span>Buddy
+                  <span className="gradient-text">MEDDI</span>BUDDY
                 </span>
               </div>
               <p className="text-muted-foreground mb-6 max-w-sm leading-relaxed">
@@ -1011,7 +842,7 @@ const Landing = () => {
 
           <div className="border-t border-border/50 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
             <p className="text-sm text-muted-foreground">
-              © 2026 MedBuddy. Made with ❤️ for healthier Indian families.
+              © 2026 MEDDIBUDDY. Made with ❤️ for healthier Indian families.
             </p>
             <div className="flex items-center gap-6 text-sm text-muted-foreground">
               <a href="#" className="hover:text-foreground transition-colors">Twitter</a>
