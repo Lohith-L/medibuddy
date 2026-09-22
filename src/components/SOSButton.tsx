@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, createContext, useContext, ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { PhoneCall, Siren, AlertTriangle, X, Check, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,19 @@ interface SOSButtonProps {
   variant?: "floating" | "header" | "inline";
 }
 
-export const SOSButton = ({ variant = "floating" }: SOSButtonProps) => {
+interface SOSContextType {
+  open: boolean;
+  setOpen: (open: boolean) => void;
+  calling: string | null;
+  copied: string | null;
+  handleCall: (number: string) => void;
+  handleCopy: (number: string) => void;
+  t: (key: string) => string;
+}
+
+const SOSContext = createContext<SOSContextType | undefined>(undefined);
+
+export const SOSProvider = ({ children }: { children: ReactNode }) => {
   const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [calling, setCalling] = useState<string | null>(null);
@@ -27,8 +40,6 @@ export const SOSButton = ({ variant = "floating" }: SOSButtonProps) => {
 
     return () => listener.subscription.unsubscribe();
   }, []);
-
-  if (!isLoggedIn) return null;
 
   const logSosEvent = async (numberDialed: string) => {
     try {
@@ -74,6 +85,173 @@ export const SOSButton = ({ variant = "floating" }: SOSButtonProps) => {
     setTimeout(() => setCopied(null), 2000);
   };
 
+  if (!isLoggedIn) return <>{children}</>;
+
+  return (
+    <SOSContext.Provider value={{ open, setOpen, calling, copied, handleCall, handleCopy, t }}>
+      {children}
+      <SOSModal />
+    </SOSContext.Provider>
+  );
+};
+
+export const useSOS = () => {
+  const context = useContext(SOSContext);
+  // Graceful fallback — should always be inside SOSProvider in practice
+  return context ?? { open: false, setOpen: () => {}, calling: null, copied: null, handleCall: () => {}, handleCopy: () => {}, t: (k: string) => k };
+};
+
+
+export const SOSModal = () => {
+  const context = useContext(SOSContext);
+  if (!context) return null;
+  const { open, setOpen, calling, copied, handleCall, handleCopy, t } = context;
+
+  if (!open) return null;
+
+  return createPortal(
+    <div
+      className="animate-fade-in"
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 99999,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "1rem",
+      }}
+    >
+      {/* Backdrop */}
+      <div
+        style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}
+        onClick={() => setOpen(false)}
+      />
+
+      {/* Modal Panel */}
+      <div className="relative bg-card border-2 border-red-500/40 rounded-3xl shadow-2xl max-w-md w-full p-6 space-y-6 overflow-hidden">
+        {/* Top Red Gradient Bar */}
+        <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-red-600 via-rose-500 to-red-700" />
+
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 pt-2">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-red-500/15 flex items-center justify-center text-red-600 shrink-0">
+              <AlertTriangle className="w-7 h-7 animate-pulse" />
+            </div>
+            <div>
+              <h2 className="text-xl font-extrabold text-foreground">{t("sosModalTitle")}</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">India National Health Helplines</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setOpen(false)}
+            className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          {t("sosModalDesc")}
+        </p>
+
+        {/* Helpline Actions */}
+        <div className="space-y-3.5">
+          {/* 108 Ambulance */}
+          <div className="p-4 rounded-2xl border-2 border-red-500/30 bg-red-500/5 hover:bg-red-500/10 transition-all flex items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl font-black text-red-600">108</span>
+                <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-600 text-white">
+                  Ambulance
+                </span>
+              </div>
+              <p className="text-xs font-medium text-muted-foreground mt-1">
+                Emergency Medical Services &amp; Disaster Response
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleCopy("108")}
+                className="p-2 rounded-xl bg-card border text-muted-foreground hover:text-foreground transition-colors"
+                title="Copy 108"
+              >
+                {copied === "108" ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+              </button>
+              <a
+                href="tel:108"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleCall("108");
+                }}
+                className="px-4 py-2.5 rounded-xl bg-red-600 text-white font-bold text-sm shadow-md hover:bg-red-700 flex items-center gap-2 transition-all"
+              >
+                <PhoneCall className="w-4 h-4" />
+                <span>{calling === "108" ? "Calling..." : "Call 108"}</span>
+              </a>
+            </div>
+          </div>
+
+          {/* 104 Health Helpline */}
+          <div className="p-4 rounded-2xl border bg-muted/40 hover:bg-muted/70 transition-all flex items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl font-bold text-foreground">104</span>
+                <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                  Advisory
+                </span>
+              </div>
+              <p className="text-xs font-medium text-muted-foreground mt-1">
+                Health Information, Counseling &amp; Doctor Advice
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleCopy("104")}
+                className="p-2 rounded-xl bg-card border text-muted-foreground hover:text-foreground transition-colors"
+                title="Copy 104"
+              >
+                {copied === "104" ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+              </button>
+              <a
+                href="tel:104"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleCall("104");
+                }}
+                className="px-4 py-2.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-sm hover:opacity-90 flex items-center gap-2 transition-all"
+              >
+                <PhoneCall className="w-4 h-4" />
+                <span>{calling === "104" ? "Calling..." : "Call 104"}</span>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        {/* Desktop / Manual Dial Helper */}
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-3.5 flex items-start gap-3 text-xs text-amber-700 dark:text-amber-300">
+          <Siren className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+          <div>
+            <p className="font-semibold">Desktop / Web Browser Notice:</p>
+            <p className="text-amber-700/80 dark:text-amber-300/80 mt-0.5">
+              If clicking does not initiate a call on your device, dial <strong className="font-bold text-red-600">108</strong> directly from any mobile phone immediately.
+            </p>
+          </div>
+        </div>
+
+        <Button variant="outline" className="w-full rounded-xl" onClick={() => setOpen(false)}>
+          Close Window
+        </Button>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
+export const SOSButton = ({ variant = "floating" }: SOSButtonProps) => {
+  const { setOpen, t } = useSOS();
+
   return (
     <>
       {/* Trigger Button Variant */}
@@ -107,127 +285,6 @@ export const SOSButton = ({ variant = "floating" }: SOSButtonProps) => {
           <Siren className="w-6 h-6 animate-pulse" />
           <span>{t("sosEmergency")} — Call 108</span>
         </Button>
-      )}
-
-      {/* Emergency Modal / Desktop Fallback */}
-      {open && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-card border-2 border-red-500/40 rounded-3xl shadow-2xl max-w-md w-full p-6 space-y-6 relative overflow-hidden">
-            {/* Top Red Gradient Bar */}
-            <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-red-600 via-rose-500 to-red-700" />
-
-            {/* Header */}
-            <div className="flex items-start justify-between gap-4 pt-2">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-red-500/15 flex items-center justify-center text-red-600 shrink-0">
-                  <AlertTriangle className="w-7 h-7 animate-pulse" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-extrabold text-foreground">{t("sosModalTitle")}</h2>
-                  <p className="text-xs text-muted-foreground mt-0.5">India National Health Helplines</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setOpen(false)}
-                className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              {t("sosModalDesc")}
-            </p>
-
-            {/* Helpline Actions */}
-            <div className="space-y-3.5">
-              {/* 108 Ambulance */}
-              <div className="p-4 rounded-2xl border-2 border-red-500/30 bg-red-500/5 hover:bg-red-500/10 transition-all flex items-center justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl font-black text-red-600">108</span>
-                    <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-600 text-white">
-                      Ambulance
-                    </span>
-                  </div>
-                  <p className="text-xs font-medium text-muted-foreground mt-1">
-                    Emergency Medical Services & Disaster Response
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleCopy("108")}
-                    className="p-2 rounded-xl bg-card border text-muted-foreground hover:text-foreground transition-colors"
-                    title="Copy 108"
-                  >
-                    {copied === "108" ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-                  </button>
-                  <a
-                    href="tel:108"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      handleCall("108");
-                    }}
-                    className="px-4 py-2.5 rounded-xl bg-red-600 text-white font-bold text-sm shadow-md hover:bg-red-700 flex items-center gap-2 transition-all"
-                  >
-                    <PhoneCall className="w-4 h-4" />
-                    <span>{calling === "108" ? "Calling..." : "Call 108"}</span>
-                  </a>
-                </div>
-              </div>
-
-              {/* 104 Health Helpline */}
-              <div className="p-4 rounded-2xl border bg-muted/40 hover:bg-muted/70 transition-all flex items-center justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl font-bold text-foreground">104</span>
-                    <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                      Advisory
-                    </span>
-                  </div>
-                  <p className="text-xs font-medium text-muted-foreground mt-1">
-                    Health Information, Counseling & Doctor Advice
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleCopy("104")}
-                    className="p-2 rounded-xl bg-card border text-muted-foreground hover:text-foreground transition-colors"
-                    title="Copy 104"
-                  >
-                    {copied === "104" ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-                  </button>
-                  <a
-                    href="tel:104"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      handleCall("104");
-                    }}
-                    className="px-4 py-2.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-sm hover:opacity-90 flex items-center gap-2 transition-all"
-                  >
-                    <PhoneCall className="w-4 h-4" />
-                    <span>{calling === "104" ? "Calling..." : "Call 104"}</span>
-                  </a>
-                </div>
-              </div>
-            </div>
-
-            {/* Desktop / Manual Dial Helper */}
-            <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-3.5 flex items-start gap-3 text-xs text-amber-700 dark:text-amber-300">
-              <Siren className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
-              <div>
-                <p className="font-semibold">Desktop / Web Browser Notice:</p>
-                <p className="text-amber-700/80 dark:text-amber-300/80 mt-0.5">
-                  If clicking does not initiate a call on your device, dial <strong className="font-bold text-red-600">108</strong> directly from any mobile phone immediately.
-                </p>
-              </div>
-            </div>
-
-            <Button variant="outline" className="w-full rounded-xl" onClick={() => setOpen(false)}>
-              Close Window
-            </Button>
-          </div>
-        </div>
       )}
     </>
   );

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Upload as UploadIcon, FileImage, Loader2, Check, Pencil, Trash2, Plus, Clock, X, Camera, ImagePlus, ImageOff, Pill } from "lucide-react";
@@ -8,6 +8,13 @@ import { toast } from "sonner";
 import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { supabase } from "@/integrations/supabase/client";
+import { generateUUID } from "@/lib/uuid";
+import {
+  validateImageFile,
+  createSafePreviewUrl,
+  revokeSafePreviewUrl,
+  fileToOptimizedDataUrl,
+} from "@/lib/imageUtils";
 
 interface ExtractedMedicine {
   name: string;
@@ -171,6 +178,8 @@ const UploadPrescription = () => {
   };
 
   const removeMedicine = (index: number) => {
+    const prevPreview = medicines[index]?.photoPreview;
+    revokeSafePreviewUrl(prevPreview);
     setMedicines((prev) => prev.filter((_, i) => i !== index));
   };
 
@@ -182,32 +191,40 @@ const UploadPrescription = () => {
   };
 
   const handleMedicinePhoto = (index: number, f: File) => {
-    if (!f.type.startsWith("image/")) {
-      toast.error("Please select an image file (JPG/PNG)");
+    const validation = validateImageFile(f);
+    if (!validation.valid) {
+      toast.error(validation.error || "Please select a valid image file");
       return;
     }
-    if (f.size > 5 * 1024 * 1024) {
-      toast.error("Image must be under 5MB");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setMedicines((prev) =>
-        prev.map((m, i) =>
-          i === index ? { ...m, photoFile: f, photoPreview: e.target?.result as string } : m
-        )
-      );
-    };
-    reader.readAsDataURL(f);
+
+    // Revoke previous blob URL if any to prevent memory leaks
+    const prevPreview = medicines[index]?.photoPreview;
+    revokeSafePreviewUrl(prevPreview);
+
+    const objectUrl = createSafePreviewUrl(f);
+    setMedicines((prev) =>
+      prev.map((m, i) =>
+        i === index ? { ...m, photoFile: f, photoPreview: objectUrl } : m
+      )
+    );
   };
 
   const removeMedicinePhoto = (index: number) => {
+    const prevPreview = medicines[index]?.photoPreview;
+    revokeSafePreviewUrl(prevPreview);
     setMedicines((prev) =>
       prev.map((m, i) =>
         i === index ? { ...m, photoFile: undefined, photoPreview: undefined, medicine_photo_url: undefined } : m
       )
     );
   };
+
+  // Revoke object URLs on component unmount
+  useEffect(() => {
+    return () => {
+      medicines.forEach((m) => revokeSafePreviewUrl(m.photoPreview));
+    };
+  }, [medicines]);
 
   const handleSave = async () => {
     if (medicines.length === 0) return;
@@ -237,31 +254,76 @@ const UploadPrescription = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { toast.error("Please log in first"); return; }
 
-      const { data: patient } = await supabase
+      let { data: patient } = await supabase
         .from("patients")
         .select("id")
         .eq("user_id", user.id)
         .maybeSingle();
 
-      if (!patient) { toast.error("Patient profile not found"); return; }
+      if (!patient) {
+        // Attempt to auto-create patient profile if missing
+        const { data: newPatient, error: createPatientErr } = await supabase
+          .from("patients")
+          .insert({
+            user_id: user.id,
+            full_name: user.user_metadata?.full_name || "Patient",
+          })
+          .select("id")
+          .single();
+
+        if (createPatientErr || !newPatient) {
+          toast.error("Patient profile not found. Please log in again.");
+          return;
+        }
+        patient = newPatient;
+      }
 
       const today = new Date().toISOString().split("T")[0];
 
-      // Upload medicine photos first
+      // Upload medicine photos with safe UUID and fallback
       const photoUrls: (string | null)[] = await Promise.all(
         medicines.map(async (m) => {
           if (!m.photoFile) return m.medicine_photo_url || null;
-          const ext = m.photoFile.name.split(".").pop() || "jpg";
-          const path = `${patient.id}/${crypto.randomUUID()}.${ext}`;
-          const { error: uploadErr } = await supabase.storage
-            .from("medicine-photos")
-            .upload(path, m.photoFile, { contentType: m.photoFile.type });
-          if (uploadErr) {
-            console.error("Photo upload error:", uploadErr);
-            return null;
+
+          const ext = (m.photoFile.name.split(".").pop() || "jpg").toLowerCase();
+          const uniqueId = generateUUID();
+          const path = `${patient.id}/${uniqueId}.${ext}`;
+
+          let publicUrl: string | null = null;
+
+          // Attempt upload to Supabase storage bucket
+          try {
+            const { error: uploadErr } = await supabase.storage
+              .from("medicine-photos")
+              .upload(path, m.photoFile, { contentType: m.photoFile.type, upsert: true });
+
+            if (!uploadErr) {
+              const { data: urlData } = supabase.storage
+                .from("medicine-photos")
+                .getPublicUrl(path);
+              if (urlData?.publicUrl) {
+                publicUrl = urlData.publicUrl;
+              }
+            } else {
+              console.warn("Supabase storage bucket upload notice:", uploadErr.message);
+            }
+          } catch (storageErr) {
+            console.warn("Storage upload exception, using resilient persistence fallback:", storageErr);
           }
-          const { data: urlData } = supabase.storage.from("medicine-photos").getPublicUrl(path);
-          return urlData.publicUrl;
+
+          if (publicUrl) {
+            return publicUrl;
+          }
+
+          // Resilient persistence fallback: convert the photo to an optimized base64 Data URL
+          // so it is permanently saved in the database text column and never lost.
+          try {
+            const dataUrl = await fileToOptimizedDataUrl(m.photoFile);
+            return dataUrl || null;
+          } catch (convErr: any) {
+            console.error("Failed to convert image to data URL:", convErr);
+            throw new Error(`Failed to process photo for ${m.name}`);
+          }
         })
       );
 
@@ -290,8 +352,12 @@ const UploadPrescription = () => {
         else toast.success("Confirmation email sent! 📧");
       });
 
+      // Revoke any remaining preview URLs
+      medicines.forEach((m) => revokeSafePreviewUrl(m.photoPreview));
+
       navigate("/medicines");
     } catch (err: any) {
+      console.error("Save medicines error:", err);
       toast.error(err.message || "Failed to save medicines");
     } finally {
       setSaving(false);
@@ -389,6 +455,16 @@ const UploadPrescription = () => {
                 )}
               </Button>
             )}
+
+            <div className="text-center pt-2">
+              <button
+                type="button"
+                onClick={addMedicine}
+                className="text-sm font-semibold text-primary hover:underline inline-flex items-center gap-1.5"
+              >
+                <Plus className="w-4 h-4" /> Enter details manually
+              </button>
+            </div>
           </motion.div>
         )}
 
@@ -487,9 +563,13 @@ const UploadPrescription = () => {
                     <input
                       id={`med-photo-${i}`}
                       type="file"
-                      accept="image/jpeg,image/png"
+                      accept="image/jpeg,image/png,image/webp"
                       className="hidden"
-                      onChange={(e) => e.target.files?.[0] && handleMedicinePhoto(i, e.target.files[0])}
+                      onChange={(e) => {
+                        const selectedFile = e.target.files?.[0];
+                        if (selectedFile) handleMedicinePhoto(i, selectedFile);
+                        e.target.value = "";
+                      }}
                     />
                     <input
                       id={`med-camera-${i}`}
@@ -497,7 +577,11 @@ const UploadPrescription = () => {
                       accept="image/*"
                       capture="environment"
                       className="hidden"
-                      onChange={(e) => e.target.files?.[0] && handleMedicinePhoto(i, e.target.files[0])}
+                      onChange={(e) => {
+                        const selectedFile = e.target.files?.[0];
+                        if (selectedFile) handleMedicinePhoto(i, selectedFile);
+                        e.target.value = "";
+                      }}
                     />
                   </div>
                   {timeSlotCount > 0 && (
@@ -542,7 +626,17 @@ const UploadPrescription = () => {
             })}
 
             <div className="flex flex-col sm:flex-row gap-3">
-              <Button variant="outline" className="flex-1" size="lg" onClick={() => { setMedicines([]); setFile(null); setPreview(null); }}>
+              <Button
+                variant="outline"
+                className="flex-1"
+                size="lg"
+                onClick={() => {
+                  medicines.forEach((m) => revokeSafePreviewUrl(m.photoPreview));
+                  setMedicines([]);
+                  setFile(null);
+                  setPreview(null);
+                }}
+              >
                 Upload Another
               </Button>
               <Button variant="hero" className="flex-1" size="lg" onClick={handleSave} disabled={saving}>
