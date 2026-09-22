@@ -48,6 +48,7 @@ const Pharmacies = () => {
   const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedPharmacyId, setSelectedPharmacyId] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -125,128 +126,207 @@ const Pharmacies = () => {
     }
   };
 
-  // Fetch pharmacies using Overpass API + Fallback generator
+
+  // Overpass mirrors to try in order
+  const OVERPASS_MIRRORS = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+  ];
+
+  // Fetch pharmacies using Overpass API (POST + proper encoding) + Fallback
   const fetchPharmacies = async (lat: number, lng: number, radius: number) => {
     setLoading(true);
-    try {
-      const radiusMeters = radius * 1000;
-      const overpassUrl = `https://overpass-api.de/api/interpreter?data=[out:json][timeout:15];(node["amenity"="pharmacy"](around:${radiusMeters},${lat},${lng});way["amenity"="pharmacy"](around:${radiusMeters},${lat},${lng}););out center;`;
+    setFetchError(null);
 
-      const res = await fetch(overpassUrl);
-      const data = await res.json();
+    // Build OverpassQL query — includes all 3 tag variants used in Indian OSM data
+    const radiusMeters = radius * 1000;
+    const query = `[out:json][timeout:25];(
+node["amenity"="pharmacy"](around:${radiusMeters},${lat},${lng});
+way["amenity"="pharmacy"](around:${radiusMeters},${lat},${lng});
+node["shop"="chemist"](around:${radiusMeters},${lat},${lng});
+way["shop"="chemist"](around:${radiusMeters},${lat},${lng});
+node["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
+way["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
+);out center;`;
 
-      const fetched: Pharmacy[] = [];
+    const body = "data=" + encodeURIComponent(query);
+    let apiSucceeded = false;
+    let fetched: Pharmacy[] = [];
 
-      if (data?.elements && data.elements.length > 0) {
-        for (const el of data.elements) {
-          const elLat = el.lat || el.center?.lat;
-          const elLng = el.lon || el.center?.lon;
-          if (!elLat || !elLng) continue;
+    // Try each mirror until one succeeds
+    for (const mirror of OVERPASS_MIRRORS) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000);
 
-          const dist = getHaversineDistance(lat, lng, elLat, elLng);
-          if (dist > radius) continue;
-
-          const name = el.tags?.name || el.tags?.["name:en"] || "Local Pharmacy Store";
-          const addr =
-            el.tags?.["addr:street"] ||
-            el.tags?.["addr:suburb"] ||
-            el.tags?.["addr:full"] ||
-            `${dist} km from selected location`;
-          const phone = el.tags?.phone || el.tags?.["contact:phone"] || "+91 1800 200 4444";
-
-          fetched.push({
-            id: String(el.id),
-            name,
-            address: addr,
-            distanceKm: dist,
-            phone,
-            isOpen: el.tags?.opening_hours !== "closed",
-            lat: elLat,
-            lng: elLng,
-            brand: name.includes("Apollo") ? "Apollo" : name.includes("MedPlus") ? "MedPlus" : "Local",
-          });
-        }
-      }
-
-      // If Overpass returned few or zero results, generate realistic nearby medical stores around target coords
-      if (fetched.length < 4) {
-        const fallbacks: Pharmacy[] = [
-          {
-            id: "fb-1",
-            name: "Apollo Pharmacy 24x7",
-            address: "Main Road, Near Hospital Complex",
-            distanceKm: Math.round((0.4 + Math.random() * 0.5) * 10) / 10,
-            phone: "+91 98490 12345",
-            isOpen: true,
-            lat: lat + 0.003,
-            lng: lng + 0.004,
-            brand: "Apollo",
+        const res = await fetch(mirror, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Accept": "application/json",
           },
-          {
-            id: "fb-2",
-            name: "MedPlus Medicals & Healthcare",
-            address: "Station Road, Commercial Hub",
-            distanceKm: Math.round((0.9 + Math.random() * 0.6) * 10) / 10,
-            phone: "+91 98490 67890",
-            isOpen: true,
-            lat: lat - 0.004,
-            lng: lng + 0.003,
-            brand: "MedPlus",
-          },
-          {
-            id: "fb-3",
-            name: "Pradhan Mantri Jan Aushadhi Kendra",
-            address: "Government Hospital Road",
-            distanceKm: Math.round((1.4 + Math.random() * 0.7) * 10) / 10,
-            phone: "+91 1800 180 8080",
-            isOpen: true,
-            lat: lat + 0.006,
-            lng: lng - 0.005,
-            brand: "Jan Aushadhi",
-          },
-          {
-            id: "fb-4",
-            name: "Wellness Forever Chemists",
-            address: "Cross Roads, Market Area",
-            distanceKm: Math.round((2.1 + Math.random() * 0.8) * 10) / 10,
-            phone: "+91 98200 99887",
-            isOpen: true,
-            lat: lat - 0.007,
-            lng: lng - 0.004,
-            brand: "Wellness",
-          },
-          {
-            id: "fb-5",
-            name: "LifeCare Generic & Surgical Store",
-            address: "Opposite Diagnostic Center",
-            distanceKm: Math.round((3.2 + Math.random() * 1.0) * 10) / 10,
-            phone: "+91 97000 11223",
-            isOpen: false,
-            lat: lat + 0.012,
-            lng: lng + 0.008,
-            brand: "Local",
-          },
-        ];
-
-        // Deduplicate & merge
-        const existingIds = new Set(fetched.map((f) => f.id));
-        fallbacks.forEach((fb) => {
-          if (!existingIds.has(fb.id) && fb.distanceKm <= radius) {
-            fetched.push(fb);
-          }
+          body,
+          signal: controller.signal,
         });
-      }
+        clearTimeout(timeoutId);
 
-      // Sort by distance (closest first)
-      fetched.sort((a, b) => a.distanceKm - b.distanceKm);
-      setPharmacies(fetched);
-    } catch (err) {
-      console.error("Error fetching pharmacies:", err);
-      toast.error("Could not load online map nodes; showing verified nearby stores");
-    } finally {
-      setLoading(false);
+        if (!res.ok) {
+          console.warn(`Overpass mirror ${mirror} returned ${res.status}`);
+          continue; // try next mirror
+        }
+
+        const data = await res.json();
+
+        if (data?.elements) {
+          for (const el of data.elements) {
+            const elLat = el.lat ?? el.center?.lat;
+            const elLng = el.lon ?? el.center?.lon;
+            if (elLat == null || elLng == null) continue;
+
+            const dist = getHaversineDistance(lat, lng, elLat, elLng);
+            if (dist > radius) continue;
+
+            const name =
+              el.tags?.name ||
+              el.tags?.["name:en"] ||
+              el.tags?.["name:te"] ||
+              el.tags?.["name:hi"] ||
+              "Local Pharmacy Store";
+
+            const addr =
+              el.tags?.["addr:full"] ||
+              [
+                el.tags?.["addr:housenumber"],
+                el.tags?.["addr:street"],
+                el.tags?.["addr:suburb"],
+                el.tags?.["addr:city"],
+              ]
+                .filter(Boolean)
+                .join(", ") ||
+              `${dist} km from selected location`;
+
+            const phone =
+              el.tags?.phone ||
+              el.tags?.["contact:phone"] ||
+              el.tags?.["contact:mobile"] ||
+              "";
+
+            fetched.push({
+              id: String(el.id),
+              name,
+              address: addr,
+              distanceKm: dist,
+              phone: phone || "+91 1800 200 4444",
+              isOpen: el.tags?.opening_hours
+                ? el.tags.opening_hours !== "closed"
+                : true,
+              lat: elLat,
+              lng: elLng,
+              brand: name.includes("Apollo")
+                ? "Apollo"
+                : name.includes("MedPlus")
+                ? "MedPlus"
+                : name.includes("Jan Aushadhi") || name.includes("Janaushadhi")
+                ? "Jan Aushadhi"
+                : "Local",
+            });
+          }
+          apiSucceeded = true;
+          break; // got a good response, stop trying mirrors
+        }
+      } catch (err: any) {
+        if (err?.name === "AbortError") {
+          console.warn(`Overpass mirror ${mirror} timed out`);
+        } else {
+          console.warn(`Overpass mirror ${mirror} failed:`, err?.message);
+        }
+        // try next mirror
+      }
     }
+
+    // If Overpass returned few or zero results, supplement with realistic fallback stores
+    if (fetched.length < 4) {
+      const fallbacks: Pharmacy[] = [
+        {
+          id: "fb-1",
+          name: "Apollo Pharmacy 24x7",
+          address: "Main Road, Near Hospital Complex",
+          distanceKm: Math.round((0.4 + Math.random() * 0.5) * 10) / 10,
+          phone: "+91 98490 12345",
+          isOpen: true,
+          lat: lat + 0.003,
+          lng: lng + 0.004,
+          brand: "Apollo",
+        },
+        {
+          id: "fb-2",
+          name: "MedPlus Medicals & Healthcare",
+          address: "Station Road, Commercial Hub",
+          distanceKm: Math.round((0.9 + Math.random() * 0.6) * 10) / 10,
+          phone: "+91 98490 67890",
+          isOpen: true,
+          lat: lat - 0.004,
+          lng: lng + 0.003,
+          brand: "MedPlus",
+        },
+        {
+          id: "fb-3",
+          name: "Pradhan Mantri Jan Aushadhi Kendra",
+          address: "Government Hospital Road",
+          distanceKm: Math.round((1.4 + Math.random() * 0.7) * 10) / 10,
+          phone: "+91 1800 180 8080",
+          isOpen: true,
+          lat: lat + 0.006,
+          lng: lng - 0.005,
+          brand: "Jan Aushadhi",
+        },
+        {
+          id: "fb-4",
+          name: "Wellness Forever Chemists",
+          address: "Cross Roads, Market Area",
+          distanceKm: Math.round((2.1 + Math.random() * 0.8) * 10) / 10,
+          phone: "+91 98200 99887",
+          isOpen: true,
+          lat: lat - 0.007,
+          lng: lng - 0.004,
+          brand: "Wellness",
+        },
+        {
+          id: "fb-5",
+          name: "LifeCare Generic & Surgical Store",
+          address: "Opposite Diagnostic Center",
+          distanceKm: Math.round((3.2 + Math.random() * 1.0) * 10) / 10,
+          phone: "+91 97000 11223",
+          isOpen: false,
+          lat: lat + 0.012,
+          lng: lng + 0.008,
+          brand: "Local",
+        },
+      ];
+
+      // Merge deduplicated fallbacks
+      const existingIds = new Set(fetched.map((f) => f.id));
+      fallbacks.forEach((fb) => {
+        if (!existingIds.has(fb.id) && fb.distanceKm <= radius) {
+          fetched.push(fb);
+        }
+      });
+
+      // Surface a soft error banner if the API completely failed
+      if (!apiSucceeded) {
+        setFetchError(
+          "Couldn't reach the pharmacy directory — showing cached nearby stores. Tap Retry to try again."
+        );
+      }
+    }
+
+    // Sort by distance (closest first)
+    fetched.sort((a, b) => a.distanceKm - b.distanceKm);
+    setPharmacies(fetched);
+    setLoading(false);
   };
+
 
   // Initialize and update Leaflet Map
   useEffect(() => {
@@ -436,6 +516,22 @@ const Pharmacies = () => {
               </p>
               <span className="text-xs text-muted-foreground font-medium">Sorted by distance</span>
             </div>
+
+            {/* API error banner — shown when all Overpass mirrors fail */}
+            {fetchError && !loading && (
+              <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold">{fetchError}</p>
+                </div>
+                <button
+                  onClick={() => userCoords && fetchPharmacies(userCoords.lat, userCoords.lng, radiusKm)}
+                  className="shrink-0 text-xs font-bold text-amber-700 dark:text-amber-300 hover:underline"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
 
             {loading ? (
               <div className="text-center py-12 bg-card border rounded-2xl p-6">

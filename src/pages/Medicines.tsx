@@ -9,6 +9,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
+import { generateUUID } from "@/lib/uuid";
+import { validateImageFile, fileToOptimizedDataUrl } from "@/lib/imageUtils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -90,7 +92,13 @@ const Medicines = () => {
     if (!user) return;
     const { data: patients } = await supabase.from("patients").select("id").eq("user_id", user.id).limit(1);
     if (patients && patients.length > 0) {
-      const { data } = await supabase.from("medicines").select("*").eq("patient_id", patients[0].id).eq("is_active", true);
+      const { data } = await supabase
+        .from("medicines")
+        .select("*")
+        .eq("patient_id", patients[0].id)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+
       if (data && data.length > 0) {
         setMedicines(data as Medicine[]);
         setIsDemo(false);
@@ -109,25 +117,50 @@ const Medicines = () => {
 
   // ── Photo upload ───────────────────────────────────────────────────
   const handlePhotoUpload = async (file: File, medicineId: string) => {
-    if (!file.type.startsWith("image/")) { toast.error("Please select an image file"); return; }
-    if (file.size > 5 * 1024 * 1024) { toast.error("Image must be under 5MB"); return; }
+    const validation = validateImageFile(file);
+    if (!validation.valid) {
+      toast.error(validation.error || "Please select a valid image");
+      return;
+    }
 
     setUploadingId(medicineId);
     try {
-      const ext = file.name.split(".").pop() || "jpg";
-      const filePath = `${medicineId}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from("medicine-photos").upload(filePath, file, { upsert: true });
-      if (uploadError) throw uploadError;
+      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+      const uniqueId = generateUUID();
+      const filePath = `${medicineId}_${uniqueId}.${ext}`;
+      let finalPhotoUrl: string | null = null;
 
-      const { data: urlData } = supabase.storage.from("medicine-photos").getPublicUrl(filePath);
-      const publicUrl = urlData.publicUrl;
+      try {
+        const { error: uploadError } = await supabase.storage
+          .from("medicine-photos")
+          .upload(filePath, file, { contentType: file.type, upsert: true });
 
-      const { error: updateError } = await supabase.from("medicines").update({ medicine_photo_url: publicUrl } as any).eq("id", medicineId);
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage.from("medicine-photos").getPublicUrl(filePath);
+          if (urlData?.publicUrl) {
+            finalPhotoUrl = urlData.publicUrl;
+          }
+        }
+      } catch (storageErr) {
+        console.warn("Storage upload exception, using fallback:", storageErr);
+      }
+
+      if (!finalPhotoUrl) {
+        finalPhotoUrl = await fileToOptimizedDataUrl(file);
+      }
+
+      const { error: updateError } = await supabase
+        .from("medicines")
+        .update({ medicine_photo_url: finalPhotoUrl } as any)
+        .eq("id", medicineId);
       if (updateError) throw updateError;
 
-      setMedicines((prev) => prev.map((m) => m.id === medicineId ? { ...m, medicine_photo_url: publicUrl } : m));
+      setMedicines((prev) =>
+        prev.map((m) => (m.id === medicineId ? { ...m, medicine_photo_url: finalPhotoUrl } : m))
+      );
       toast.success("Medicine photo updated! 📸");
     } catch (err: any) {
+      console.error("Photo upload error:", err);
       toast.error(err.message || "Failed to upload photo");
     } finally {
       setUploadingId(null);
@@ -268,7 +301,7 @@ const Medicines = () => {
           </Button>
         </div>
 
-        <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onFileSelected} />
+        <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" className="hidden" onChange={onFileSelected} />
 
         {loading ? (
           <div className="space-y-4">

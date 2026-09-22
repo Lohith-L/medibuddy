@@ -12,7 +12,7 @@ import { languageLabelByCode, languageOptions, normalizeLanguageCode, resolvePre
 import BottomNav from "@/components/BottomNav";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { format } from "date-fns";
-import SOSButton from "@/components/SOSButton";
+import SOSButton, { SOSProvider } from "@/components/SOSButton";
 
 interface AlertItem {
   id: string;
@@ -224,6 +224,7 @@ const DashboardLayout = ({ children }: Props) => {
   }
 
   return (
+    <SOSProvider>
     <div className="min-h-screen flex bg-background">
       {/* Desktop Sidebar */}
       <aside className="hidden lg:flex flex-col w-[260px] border-r bg-card fixed inset-y-0 left-0 z-40">
@@ -326,6 +327,7 @@ const DashboardLayout = ({ children }: Props) => {
       <BottomNav />
       <SOSButton variant="floating" />
     </div>
+    </SOSProvider>
   );
 };
 
