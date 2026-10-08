@@ -1,4 +1,4 @@
-﻿import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -14,22 +14,35 @@ const AuthContext = createContext<AuthContextValue>({
   loading: true,
 });
 
+/** Returns true when the URL hash contains an OAuth access_token (post-Google-redirect) */
+const hasOAuthHash = () =>
+  typeof window !== "undefined" &&
+  window.location.hash.includes("access_token");
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Load existing session immediately
+    // If there's an OAuth hash in the URL, Supabase will fire onAuthStateChange
+    // with SIGNED_IN once it exchanges the token. Don't resolve loading from
+    // getSession() in that case — it would return null and cause an immediate
+    // bounce to /auth before the session exists.
+    const oauthRedirect = hasOAuthHash();
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      setLoading(false);
+      // Only mark loading done here if there's no pending OAuth token exchange
+      if (!oauthRedirect) {
+        setLoading(false);
+      }
     });
 
-    // 2. Subscribe to auth changes (handles OAuth callback token exchange)
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      // This always fires — safe to clear loading regardless
       setLoading(false);
     });
 
@@ -45,3 +58,4 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => useContext(AuthContext);
+

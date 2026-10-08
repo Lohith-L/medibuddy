@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,6 +21,15 @@ const Onboarding = () => {
   const navigate = useNavigate();
   const [selected, setSelected] = useState("en");
   const [loading, setLoading] = useState(false);
+
+  // Strip the #access_token hash from the address bar after OAuth redirect.
+  // Supabase has already read and exchanged the token by the time this component
+  // mounts, so clearing it is safe and prevents the token from staying visible.
+  useEffect(() => {
+    if (window.location.hash.includes("access_token")) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
 
   const handleContinue = async () => {
     setLoading(true);
