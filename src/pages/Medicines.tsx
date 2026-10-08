@@ -64,16 +64,10 @@ function getDefaultTimes(count: number): string[] {
   return [];
 }
 
-const demoMedicines: Medicine[] = [
-  { id: "demo-1", name: "Paracetamol", dosage: "500mg", frequency: "Twice daily", instructions: "After food", reminder_times: ["08:00", "20:00"], is_active: true, medicine_photo_url: null, patient_id: "" },
-  { id: "demo-2", name: "Metformin", dosage: "500mg", frequency: "Once daily", instructions: null, reminder_times: ["14:00"], is_active: true, medicine_photo_url: null, patient_id: "" },
-];
-
 const Medicines = () => {
   const navigate = useNavigate();
   const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isDemo, setIsDemo] = useState(false);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [targetMedId, setTargetMedId] = useState<string | null>(null);
@@ -89,7 +83,7 @@ const Medicines = () => {
 
   const fetchMedicines = async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) { setLoading(false); return; }
     const { data: patients } = await supabase.from("patients").select("id").eq("user_id", user.id).limit(1);
     if (patients && patients.length > 0) {
       const { data } = await supabase
@@ -99,16 +93,7 @@ const Medicines = () => {
         .eq("is_active", true)
         .order("created_at", { ascending: false });
 
-      if (data && data.length > 0) {
-        setMedicines(data as Medicine[]);
-        setIsDemo(false);
-      } else {
-        setMedicines(demoMedicines);
-        setIsDemo(true);
-      }
-    } else {
-      setMedicines(demoMedicines);
-      setIsDemo(true);
+      setMedicines((data ?? []) as Medicine[]);
     }
     setLoading(false);
   };
@@ -329,8 +314,8 @@ const Medicines = () => {
                 <div className="flex items-start gap-4">
                   {/* Medicine Photo */}
                   <button
-                    onClick={() => !isDemo && triggerPhotoUpload(med.id)}
-                    disabled={uploadingId === med.id || isDemo}
+                    onClick={() => triggerPhotoUpload(med.id)}
+                    disabled={uploadingId === med.id}
                     className="relative w-14 h-14 rounded-xl overflow-hidden flex items-center justify-center shadow-card group shrink-0"
                   >
                     {med.medicine_photo_url ? (
@@ -368,21 +353,19 @@ const Medicines = () => {
                   </div>
 
                   {/* Actions */}
-                  {!isDemo && (
-                    <div className="flex flex-col gap-1 shrink-0">
-                      <Button variant="ghost" size="icon" className="h-9 w-9 text-primary hover:bg-primary/10" onClick={() => openEdit(med)}>
-                        <Pencil className="w-4 h-4" />
+                  <div className="flex flex-col gap-1 shrink-0">
+                    <Button variant="ghost" size="icon" className="h-9 w-9 text-primary hover:bg-primary/10" onClick={() => openEdit(med)}>
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    {med.medicine_photo_url && (
+                      <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:bg-muted" onClick={() => removePhoto(med)} title="Remove photo">
+                        <ImageOff className="w-4 h-4" />
                       </Button>
-                      {med.medicine_photo_url && (
-                        <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:bg-muted" onClick={() => removePhoto(med)} title="Remove photo">
-                          <ImageOff className="w-4 h-4" />
-                        </Button>
-                      )}
-                      <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:bg-destructive/10" onClick={() => setDeletingMed(med)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  )}
+                    )}
+                    <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:bg-destructive/10" onClick={() => setDeletingMed(med)}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               </motion.div>
             ))}
