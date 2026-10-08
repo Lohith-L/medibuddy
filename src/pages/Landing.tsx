@@ -6,8 +6,8 @@ import { SplineScene } from "@/components/ui/splite";
 import { Spotlight } from "@/components/ui/spotlight";
 import {
   Clock, Heart, Shield, Users, Smartphone, ArrowRight,
-  Menu, X, Upload, Bell, BarChart3, Globe, Star, Check,
-  Brain, MessageSquare, Activity, ChevronDown, Play, Quote,
+  Menu, X, Upload, Bell, BarChart3, Globe, Check,
+  Brain, MessageSquare, Activity, ChevronDown, Play,
   Sparkles, Zap, Lock, HeartHandshake, ArrowUpRight,
   BellOff, Languages, HeartCrack, MapPin, Siren
 } from "lucide-react";
@@ -32,7 +32,6 @@ const scaleIn = {
 const navLinks = [
   { label: "Features", href: "#features" },
   { label: "How it Works", href: "#how-it-works" },
-  { label: "Testimonials", href: "#testimonials" },
   { label: "Languages", href: "#languages" },
 ];
 
@@ -52,13 +51,6 @@ const steps = [
   { step: "02", icon: Brain, title: "AI Extraction", description: "Gemini AI identifies every medicine, dosage, frequency, and timing automatically.", color: "from-violet-500 to-purple-400" },
   { step: "03", icon: Bell, title: "Set Reminders", description: "Choose your reminder times and language. We handle the rest automatically.", color: "from-emerald-500 to-teal-400" },
   { step: "04", icon: HeartHandshake, title: "Family Stays Connected", description: "Caregivers get notified of missed doses. Everyone sleeps better.", color: "from-rose-500 to-pink-400" },
-];
-
-const testimonials = [
-  { name: "Lakshmi Devi", location: "Hyderabad", text: "My mother finally takes her medicines on time. The Telugu reminders make her feel so comfortable and cared for!", rating: 5, avatar: "LD" },
-  { name: "Ramesh Kumar", location: "New Jersey, USA", text: "I live abroad but MEDDIBUDDY keeps me connected to my father's health. The family alerts are a lifesaver.", rating: 5, avatar: "RK" },
-  { name: "Priya Nair", location: "Mumbai", text: "The AI prescription scanner is incredible. It saved me hours of manual entry and works flawlessly.", rating: 5, avatar: "PN" },
-  { name: "Anil Agarwal", location: "Jaipur", text: "My mom takes 6 medicines daily. MEDDIBUDDY helped us achieve 100% adherence for 3 months straight.", rating: 5, avatar: "AA" },
 ];
 
 const languages = [
@@ -148,20 +140,11 @@ const useCounter = (end: number, duration: number = 2000, suffix: string = "") =
 const Landing = () => {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [activeTestimonial, setActiveTestimonial] = useState(0);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const { scrollYProgress } = useScroll();
   const y = useTransform(scrollYProgress, [0, 1], [0, -100]);
   const opacity = useTransform(scrollYProgress, [0, 0.5], [1, 0]);
   const scale = useTransform(scrollYProgress, [0, 0.5], [1, 0.95]);
-
-  // Auto-rotate testimonials
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setActiveTestimonial((prev) => (prev + 1) % testimonials.length);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
 
   const springOption = { stiffness: 100, damping: 30 };
   const heroY = useSpring(useTransform(scrollYProgress, [0, 0.3], [0, -50]), springOption);
@@ -548,79 +531,6 @@ const Landing = () => {
                 </div>
               </motion.div>
             ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials */}
-      <section id="testimonials" className="py-24 md:py-32 gradient-soft">
-        <div className="container">
-          <motion.div
-            variants={staggerContainer}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            className="text-center max-w-3xl mx-auto mb-16"
-          >
-            <motion.p variants={fadeInUp} className="text-primary font-semibold mb-4 tracking-wide uppercase">
-              Testimonials
-            </motion.p>
-            <motion.h2 variants={fadeInUp} className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-6 tracking-tight">
-              Loved by Families
-            </motion.h2>
-            <motion.p variants={fadeInUp} className="text-lg text-muted-foreground">
-              Join thousands of families who trust MEDDIBUDDY for their health.
-            </motion.p>
-          </motion.div>
-
-          <div className="max-w-4xl mx-auto">
-            <div className="relative bg-card rounded-3xl border border-border/50 p-6 sm:p-8 md:p-12 shadow-float">
-              <Quote className="absolute top-6 left-6 sm:top-8 sm:left-8 w-10 h-10 sm:w-16 sm:h-16 text-primary/10" />
-
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={activeTestimonial}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  transition={{ duration: 0.4 }}
-                  className="relative z-10"
-                >
-                  <div className="flex gap-1 mb-6">
-                    {[...Array(testimonials[activeTestimonial].rating)].map((_, i) => (
-                      <Star key={i} className="w-6 h-6 fill-warning text-warning" />
-                    ))}
-                  </div>
-
-                  <p className="text-xl sm:text-2xl md:text-3xl font-medium leading-relaxed mb-8">
-                    "{testimonials[activeTestimonial].text}"
-                  </p>
-
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-full gradient-warm flex items-center justify-center text-primary-foreground font-bold text-lg">
-                      {testimonials[activeTestimonial].avatar}
-                    </div>
-                    <div>
-                      <p className="font-bold text-lg">{testimonials[activeTestimonial].name}</p>
-                      <p className="text-muted-foreground">{testimonials[activeTestimonial].location}</p>
-                    </div>
-                  </div>
-                </motion.div>
-              </AnimatePresence>
-
-              {/* Testimonial indicators */}
-              <div className="flex justify-center gap-2 mt-8">
-                {testimonials.map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setActiveTestimonial(i)}
-                    className={`w-3 h-3 rounded-full transition-all ${
-                      i === activeTestimonial ? "bg-primary w-8" : "bg-muted hover:bg-primary/50"
-                    }`}
-                  />
-                ))}
-              </div>
-            </div>
           </div>
         </div>
       </section>
