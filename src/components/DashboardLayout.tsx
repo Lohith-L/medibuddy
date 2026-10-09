@@ -225,7 +225,7 @@ const DashboardLayout = ({ children }: Props) => {
 
   return (
     <SOSProvider>
-    <div className="min-h-screen flex bg-background">
+    <div className="min-h-screen flex bg-background w-full max-w-full overflow-x-clip">
       {/* Desktop Sidebar */}
       <aside className="hidden lg:flex flex-col w-[260px] border-r bg-card fixed inset-y-0 left-0 z-40">
         <SidebarContent />
@@ -233,7 +233,7 @@ const DashboardLayout = ({ children }: Props) => {
 
 
       {/* Main content */}
-      <div className="flex-1 lg:ml-[260px] flex flex-col min-h-screen">
+      <div className="flex-1 min-w-0 w-full lg:ml-[260px] flex flex-col min-h-screen">
         {/* Top header — compact on mobile */}
         <header className="sticky top-0 z-30 bg-card/80 backdrop-blur-lg border-b px-3 lg:px-8">
           <div className="flex items-center justify-between h-14 lg:h-[72px]">
@@ -280,7 +280,7 @@ const DashboardLayout = ({ children }: Props) => {
                   )}
                 </Button>
                 {notifOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-card border rounded-xl shadow-float z-50 animate-fade-in max-h-[400px] overflow-hidden flex flex-col">
+                  <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 max-w-[calc(100vw-1.5rem)] bg-card border rounded-xl shadow-float z-50 animate-fade-in max-h-[400px] overflow-hidden flex flex-col">
                     <div className="flex items-center justify-between px-4 py-3 border-b">
                       <p className="font-bold text-sm">Notifications</p>
                       <button onClick={() => { navigate("/family-alerts"); setNotifOpen(false); }} className="text-xs text-primary font-semibold hover:underline">
@@ -318,7 +318,7 @@ const DashboardLayout = ({ children }: Props) => {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 p-3 sm:p-4 lg:p-8 pb-20 lg:pb-8">
+        <main className="flex-1 min-w-0 w-full max-w-full p-3 sm:p-4 lg:p-8 pb-20 lg:pb-8">
           {children}
         </main>
       </div>
