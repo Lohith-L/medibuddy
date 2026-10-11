@@ -3,7 +3,8 @@ import type { Dictionary } from "@/i18n";
 import common from "./common";
 import report from "./report";
 import app from "./app";
+import health from "./health";
 
-const dictionary: Dictionary = { ...common, ...report, ...app };
+const dictionary: Dictionary = { ...common, ...report, ...app, ...health };
 
 export default dictionary;

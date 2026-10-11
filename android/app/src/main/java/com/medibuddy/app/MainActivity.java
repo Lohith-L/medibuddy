@@ -5,12 +5,15 @@ import android.webkit.WebView;
 
 import com.getcapacitor.BridgeActivity;
 import com.medibuddy.app.alarm.MedicineAlarmPlugin;
+import com.medibuddy.app.health.MediHealthPlugin;
 
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         // App-local Capacitor plugin for medicine alarms (must register before super.onCreate)
         registerPlugin(MedicineAlarmPlugin.class);
+        // App-local plugin: phone step counter fallback + Health Connect revoke
+        registerPlugin(MediHealthPlugin.class);
         super.onCreate(savedInstanceState);
 
         // The WebView scales text with the phone's system font size, which made

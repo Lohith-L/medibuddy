@@ -43,6 +43,7 @@ import { useDeepLink } from "@/hooks/useDeepLink";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useMobilePolish } from "@/hooks/useMobilePolish";
 import { useMedicineAlarmSync } from "@/hooks/useMedicineAlarmSync";
+import { useHealthAutoSync } from "@/hooks/useHealthAutoSync";
 
 const queryClient = new QueryClient();
 
@@ -56,6 +57,8 @@ const AppRoutes = () => {
   useMobilePolish();
   // Keep phone medicine alarms in sync with the database (no-op on web)
   useMedicineAlarmSync();
+  // Sync Health Connect data to Supabase when the app comes to the foreground (no-op on web)
+  useHealthAutoSync();
 
   return (
     <Suspense fallback={<PageLoader />}>
