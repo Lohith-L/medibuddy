@@ -13,8 +13,8 @@ import {
   BellOff, Languages, HeartCrack, MapPin, Siren
 } from "lucide-react";
 
-// In the Android/iOS app the landing page skips the 3D robot and purely
-// decorative, costly effects (floating dots, blurred blobs, scroll parallax,
+// In the Android/iOS app the landing page leaves out the 3D robot column and
+// purely decorative, costly effects (floating dots, blurred blobs, scroll parallax,
 // glass blur). The website renders exactly as before.
 const isNative = Capacitor.isNativePlatform();
 
@@ -142,37 +142,6 @@ const useCounter = (end: number, duration: number = 2000, suffix: string = "") =
 
   return `${count}${suffix}`;
 };
-
-/**
- * Static stand-in for the 3D robot in the Android/iOS app. Plain HTML/CSS
- * with no animation, sized to fill the same box so the layout has no gap.
- */
-const HeroIllustration = () => (
-  <div className="relative w-full h-full flex items-center justify-center" aria-hidden="true">
-    {/* Soft rings (no blur filters) */}
-    <div className="absolute w-56 h-56 sm:w-72 sm:h-72 rounded-full bg-primary/10" />
-    <div className="absolute w-40 h-40 sm:w-52 sm:h-52 rounded-full bg-secondary/15" />
-
-    {/* Centre badge */}
-    <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-3xl gradient-warm shadow-card flex items-center justify-center">
-      <Heart className="w-12 h-12 sm:w-14 sm:h-14 text-white" fill="currentColor" />
-    </div>
-
-    {/* Feature chips around the badge (two on narrow phones so nothing overlaps) */}
-    <div className="absolute top-[4%] left-[2%] sm:top-[12%] sm:left-[12%] flex items-center gap-2 rounded-2xl bg-card border shadow-card px-3 py-2">
-      <Bell className="w-4 h-4 text-primary" />
-      <span className="text-xs font-semibold">8:00 AM reminder</span>
-    </div>
-    <div className="absolute bottom-[4%] right-[2%] sm:bottom-[14%] sm:right-auto sm:left-[10%] flex items-center gap-2 rounded-2xl bg-card border shadow-card px-3 py-2">
-      <Check className="w-4 h-4 text-secondary" />
-      <span className="text-xs font-semibold">Dose taken</span>
-    </div>
-    <div className="absolute hidden sm:flex top-[42%] right-[10%] items-center gap-2 rounded-2xl bg-card border shadow-card px-3 py-2">
-      <HeartHandshake className="w-4 h-4 text-primary" />
-      <span className="text-xs font-semibold">Family notified</span>
-    </div>
-  </div>
-);
 
 const Landing = () => {
   const navigate = useNavigate();
@@ -366,33 +335,31 @@ const Landing = () => {
 
             </motion.div>
 
-            {/* Right content - 3D Interactive Robot */}
-            <motion.div
-              style={isNative ? undefined : { y }}
-              className="relative h-full self-stretch min-w-0"
-            >
-              {/* Main 3D robot container */}
+            {/* Right content - 3D Interactive Robot (website only; the app
+                doesn't render this column at all, so the next section follows
+                the hero buttons directly) */}
+            {!isNative && (
               <motion.div
-                initial={{ opacity: 0, x: 60 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.8, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                className="relative w-full h-full"
+                style={{ y }}
+                className="relative h-full self-stretch min-w-0"
               >
-                <div className="relative w-full h-[250px] sm:h-[320px] lg:h-full lg:min-h-[500px] overflow-hidden bg-transparent">
-                  {isNative ? (
-                    <HeroIllustration />
-                  ) : (
-                    <>
-                      <Spotlight className="-top-40 left-0" size={500} />
-                      <SplineScene
-                        scene="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
-                        className="w-full h-full"
-                      />
-                    </>
-                  )}
-                </div>
+                {/* Main 3D robot container */}
+                <motion.div
+                  initial={{ opacity: 0, x: 60 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.8, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                  className="relative w-full h-full"
+                >
+                  <div className="relative w-full h-[250px] sm:h-[320px] lg:h-full lg:min-h-[500px] overflow-hidden bg-transparent">
+                    <Spotlight className="-top-40 left-0" size={500} />
+                    <SplineScene
+                      scene="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
+                      className="w-full h-full"
+                    />
+                  </div>
+                </motion.div>
               </motion.div>
-            </motion.div>
+            )}
           </div>
 
 
