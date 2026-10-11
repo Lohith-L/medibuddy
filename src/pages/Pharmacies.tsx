@@ -11,6 +11,7 @@ import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
 import L from "leaflet";
+import { getCurrentLocation, LocationError } from "@/lib/location";
 
 interface Pharmacy {
   id: string;
@@ -42,6 +43,8 @@ const Pharmacies = () => {
 
   const [locationStatus, setLocationStatus] = useState<"requesting" | "granted" | "denied" | "error">("requesting");
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
+  // Native-only explanation of why location failed (permission off, GPS off, ...)
+  const [locationMessage, setLocationMessage] = useState<string | null>(null);
   const [manualQuery, setManualQuery] = useState("");
   const [searchLocationName, setSearchLocationName] = useState("Your Current Location");
   const [radiusKm, setRadiusKm] = useState<number>(5);
@@ -60,25 +63,27 @@ const Pharmacies = () => {
   }, []);
 
   const requestUserLocation = () => {
-    if (!navigator.geolocation) {
-      setLocationStatus("denied");
-      toast.error("Geolocation is not supported by your browser");
-      return;
-    }
-
     setLocationStatus("requesting");
+    setLocationMessage(null);
     setLoading(true);
 
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    getCurrentLocation({ timeout: 10000, enableHighAccuracy: true })
+      .then((coords) => {
         setUserCoords(coords);
         setLocationStatus("granted");
         setSearchLocationName("Your Current Location");
         fetchPharmacies(coords.lat, coords.lng, radiusKm);
-      },
-      (err) => {
+      })
+      .catch((err: LocationError) => {
         console.warn("Geolocation error:", err);
+        if (err.reason === "unsupported") {
+          toast.error("Geolocation is not supported by your browser");
+        }
+        // On the phone, explain how to turn location back on
+        if (err.userMessage) {
+          setLocationMessage(err.userMessage);
+          toast.error(err.userMessage, { id: "location-error" });
+        }
         setLocationStatus("denied");
         setLoading(false);
         // Fallback default coordinates (Hyderabad city center)
@@ -86,9 +91,7 @@ const Pharmacies = () => {
         setUserCoords(defaultCoords);
         setSearchLocationName("Hyderabad (Default)");
         fetchPharmacies(defaultCoords.lat, defaultCoords.lng, radiusKm);
-      },
-      { timeout: 10000, enableHighAccuracy: true }
-    );
+      });
   };
 
   // Search manual location via Nominatim API
@@ -449,6 +452,11 @@ way["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
                 <p className="font-bold text-amber-800 dark:text-amber-200 text-sm sm:text-base">
                   Location Permission Denied
                 </p>
+                {locationMessage && (
+                  <p className="text-xs sm:text-sm font-medium text-amber-800 dark:text-amber-200 mt-0.5">
+                    {locationMessage}
+                  </p>
+                )}
                 <p className="text-xs sm:text-sm text-amber-700/90 dark:text-amber-300/90 mt-0.5">
                   Enter your city, landmark or 6-digit pincode to locate pharmacies in your area:
                 </p>

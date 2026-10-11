@@ -48,6 +48,11 @@
     <!-- Permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Location: used by the weather card and the nearby pharmacy finder -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+
     <!--
         POST_NOTIFICATIONS is required for local notifications on Android 13+.
         SCHEDULE_EXACT_ALARM is required for exact alarms on Android 12+.

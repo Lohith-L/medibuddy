@@ -5,6 +5,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
+import { getCurrentLocation, LocationError } from "@/lib/location";
 
 interface WeatherState {
   temp: number;
@@ -56,23 +58,19 @@ export const WeatherHealthCard = () => {
     setLoading(true);
     setError(false);
 
-    if (!navigator.geolocation) {
-      // Default to Hyderabad fallback if geolocation unavailable
-      fetchOpenMeteo(17.385, 78.4867, "Hyderabad (Default)");
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        fetchOpenMeteo(pos.coords.latitude, pos.coords.longitude, "Your Location");
-      },
-      (err) => {
+    getCurrentLocation({ timeout: 8000 })
+      .then(({ lat, lng }) => fetchOpenMeteo(lat, lng, "Your Location"))
+      .catch((err: LocationError) => {
         console.warn("Geolocation fallback:", err);
+        // On the phone, tell the user how to fix it (web stays silent as before)
+        if (err.userMessage) toast.error(err.userMessage, { id: "location-error" });
         // Fallback default coordinates (Hyderabad)
-        fetchOpenMeteo(17.385, 78.4867, "Hyderabad");
-      },
-      { timeout: 8000 }
-    );
+        fetchOpenMeteo(
+          17.385,
+          78.4867,
+          err.reason === "unsupported" ? "Hyderabad (Default)" : "Hyderabad",
+        );
+      });
   };
 
   const fetchOpenMeteo = async (lat: number, lng: number, cityLabel: string) => {
