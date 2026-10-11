@@ -22,6 +22,7 @@ import Health from "./pages/Health";
 import Pharmacies from "./pages/Pharmacies";
 import NotFound from "./pages/NotFound";
 import { useDeepLink } from "@/hooks/useDeepLink";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 
 const queryClient = new QueryClient();
 
@@ -29,6 +30,8 @@ const queryClient = new QueryClient();
 const AppRoutes = () => {
   // Handle OAuth deep links on Android/iOS (no-op on web)
   useDeepLink();
+  // Register with FCM and save token to Supabase (no-op on web)
+  usePushNotifications();
 
   return (
     <Routes>
