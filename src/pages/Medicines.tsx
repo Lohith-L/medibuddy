@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useRealtimeTable } from "@/hooks/useRealtimeTable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -68,6 +69,7 @@ const Medicines = () => {
   const navigate = useNavigate();
   const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [loading, setLoading] = useState(true);
+  const [patientId, setPatientId] = useState<string | null>(null); // for Realtime
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [targetMedId, setTargetMedId] = useState<string | null>(null);
@@ -86,6 +88,7 @@ const Medicines = () => {
     if (!user) { setLoading(false); return; }
     const { data: patients } = await supabase.from("patients").select("id").eq("user_id", user.id).limit(1);
     if (patients && patients.length > 0) {
+      setPatientId(patients[0].id); // store for Realtime subscription
       const { data } = await supabase
         .from("medicines")
         .select("*")
@@ -99,6 +102,9 @@ const Medicines = () => {
   };
 
   useEffect(() => { fetchMedicines(); }, []);
+
+  // ── Realtime: re-fetch whenever the website changes medicines ──────
+  useRealtimeTable('medicines', 'patient_id', patientId, fetchMedicines);
 
   // ── Photo upload ───────────────────────────────────────────────────
   const handlePhotoUpload = async (file: File, medicineId: string) => {

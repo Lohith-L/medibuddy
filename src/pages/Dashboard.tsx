@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useRealtimeTable } from "@/hooks/useRealtimeTable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Pill, Check, BarChart3, Bell, Upload, Clock, Users, Plus, CheckCircle2, XCircle, Hourglass, Store, MapPin } from "lucide-react";
@@ -296,6 +297,11 @@ const Dashboard = () => {
     };
     fetchData();
   }, []);
+
+  // ── Realtime: re-fetch when medicines or reminder_events change ───
+  // This fires whenever the website (or another device) makes a change.
+  useRealtimeTable('medicines', 'patient_id', patientId, () => patientId && fetchSchedule(patientId));
+  useRealtimeTable('reminder_events', 'patient_id', patientId, () => patientId && fetchSchedule(patientId));
 
   const nextPending = schedule.find((s) => s.status === "pending");
 
