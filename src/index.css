@@ -4,8 +4,22 @@
 @tailwind components;
 @tailwind utilities;
 
-.safe-bottom {
+/* ── Safe-area utilities for Capacitor (iOS notch / Android status bar) ── */
+.safe-top    { padding-top:    env(safe-area-inset-top,    0px); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.safe-left   { padding-left:   env(safe-area-inset-left,   0px); }
+.safe-right  { padding-right:  env(safe-area-inset-right,  0px); }
+.safe-all    {
+  padding-top:    env(safe-area-inset-top,    0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left:   env(safe-area-inset-left,   0px);
+  padding-right:  env(safe-area-inset-right,  0px);
+}
+
+/* Full-screen app shell — prevents content from hiding behind status bar */
+#root {
+  min-height: 100dvh;
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
 @layer base {

@@ -23,6 +23,7 @@ import Pharmacies from "./pages/Pharmacies";
 import NotFound from "./pages/NotFound";
 import { useDeepLink } from "@/hooks/useDeepLink";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { useMobilePolish } from "@/hooks/useMobilePolish";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +33,8 @@ const AppRoutes = () => {
   useDeepLink();
   // Register with FCM and save token to Supabase (no-op on web)
   usePushNotifications();
+  // Status bar, splash screen, back button (no-op on web)
+  useMobilePolish();
 
   return (
     <Routes>
