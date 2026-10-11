@@ -21,8 +21,39 @@ import HealthReports from "./pages/HealthReports";
 import Health from "./pages/Health";
 import Pharmacies from "./pages/Pharmacies";
 import NotFound from "./pages/NotFound";
+import { useDeepLink } from "@/hooks/useDeepLink";
 
 const queryClient = new QueryClient();
+
+/** Inner component so hooks can access the Router context */
+const AppRoutes = () => {
+  // Handle OAuth deep links on Android/iOS (no-op on web)
+  useDeepLink();
+
+  return (
+    <Routes>
+      {/* Public routes – redirect to /dashboard if already logged in */}
+      <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
+      <Route path="/auth" element={<PublicRoute><Auth /></PublicRoute>} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+
+      {/* Semi-public: onboarding runs right after Google OAuth callback */}
+      <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
+
+      {/* Protected routes – redirect to /auth if not logged in */}
+      <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+      <Route path="/upload" element={<ProtectedRoute><UploadPrescription /></ProtectedRoute>} />
+      <Route path="/medicines" element={<ProtectedRoute><Medicines /></ProtectedRoute>} />
+      <Route path="/log" element={<ProtectedRoute><MedicineLog /></ProtectedRoute>} />
+      <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+      <Route path="/family-alerts" element={<ProtectedRoute><FamilyAlerts /></ProtectedRoute>} />
+      <Route path="/health-reports" element={<ProtectedRoute><HealthReports /></ProtectedRoute>} />
+      <Route path="/health" element={<ProtectedRoute><Health /></ProtectedRoute>} />
+      <Route path="/pharmacies" element={<ProtectedRoute><Pharmacies /></ProtectedRoute>} />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -32,27 +63,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <HashRouter>
-            <Routes>
-              {/* Public routes – redirect to /dashboard if already logged in */}
-              <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
-              <Route path="/auth" element={<PublicRoute><Auth /></PublicRoute>} />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
-
-              {/* Semi-public: onboarding runs right after Google OAuth callback */}
-              <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
-
-              {/* Protected routes – redirect to /auth if not logged in */}
-              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/upload" element={<ProtectedRoute><UploadPrescription /></ProtectedRoute>} />
-              <Route path="/medicines" element={<ProtectedRoute><Medicines /></ProtectedRoute>} />
-              <Route path="/log" element={<ProtectedRoute><MedicineLog /></ProtectedRoute>} />
-              <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-              <Route path="/family-alerts" element={<ProtectedRoute><FamilyAlerts /></ProtectedRoute>} />
-              <Route path="/health-reports" element={<ProtectedRoute><HealthReports /></ProtectedRoute>} />
-              <Route path="/health" element={<ProtectedRoute><Health /></ProtectedRoute>} />
-              <Route path="/pharmacies" element={<ProtectedRoute><Pharmacies /></ProtectedRoute>} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            <AppRoutes />
           </HashRouter>
         </AuthProvider>
       </LanguageProvider>

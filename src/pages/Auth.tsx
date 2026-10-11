@@ -205,9 +205,17 @@ const Auth = () => {
   };
 
   const handleGoogleLogin = async () => {
+    // On native (Android/iOS) we must use a custom URL scheme so the OS
+    // intercepts the redirect and fires an appUrlOpen event.
+    // On web, use the page origin as before.
+    const { Capacitor } = await import('@capacitor/core');
+    const redirectTo = Capacitor.isNativePlatform()
+      ? 'com.medibuddy.app://login-callback'
+      : `${window.location.origin}/dashboard`;
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/dashboard` },
+      options: { redirectTo },
     });
     if (error) toast.error(error.message);
   };
