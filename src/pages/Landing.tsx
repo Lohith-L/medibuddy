@@ -1,9 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { motion, useScroll, useTransform, useSpring, AnimatePresence } from "framer-motion";
 import { SplineScene } from "@/components/ui/splite";
 import { Spotlight } from "@/components/ui/spotlight";
+import { Capacitor } from "@capacitor/core";
+
+// In the Android/iOS app the landing page skips purely decorative, costly
+// effects (floating dots, blurred blobs, scroll parallax, glass blur).
+// The website renders exactly as before.
+const isNative = Capacitor.isNativePlatform();
 import {
   Clock, Heart, Shield, Users, Smartphone, ArrowRight,
   Menu, X, Upload, Bell, BarChart3, Globe, Check,
@@ -137,6 +143,52 @@ const useCounter = (end: number, duration: number = 2000, suffix: string = "") =
   return `${count}${suffix}`;
 };
 
+/**
+ * The 3D robot is the heaviest thing on the page (WebGL + a large runtime).
+ * On the web it loads straight away, as before. In the app it waits until the
+ * page has painted and the phone is idle, and is unmounted while scrolled off
+ * screen so its render loop stops.
+ */
+const HeroRobot = () => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [ready, setReady] = useState(!isNative);
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    if (!isNative) return;
+    const w = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    if (w.requestIdleCallback) {
+      const id = w.requestIdleCallback(() => setReady(true), { timeout: 2000 });
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const t = setTimeout(() => setReady(true), 1200);
+    return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    if (!isNative || !ref.current) return;
+    const observer = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting), {
+      rootMargin: "100px",
+    });
+    observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={ref} className="w-full h-full">
+      {ready && visible && (
+        <SplineScene
+          scene="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
+          className="w-full h-full"
+        />
+      )}
+    </div>
+  );
+};
+
 const Landing = () => {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -156,7 +208,7 @@ const Landing = () => {
         initial={{ y: -100 }}
         animate={{ y: 0 }}
         transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-        className="fixed top-0 left-0 right-0 z-50 bg-background/60 backdrop-blur-xl border-b border-border/50"
+        className="app-header fixed top-0 left-0 right-0 z-50 bg-background/60 backdrop-blur-xl border-b border-border/50"
       >
         <div className="container flex items-center justify-between h-18 md:h-20">
           <motion.div
@@ -247,17 +299,21 @@ const Landing = () => {
 
       {/* Hero Section */}
       <section className="relative pt-24 pb-16 md:pt-40 md:pb-32 overflow-hidden">
-        <FloatingParticles />
+        {!isNative && (
+          <>
+            <FloatingParticles />
 
-        {/* Background blobs */}
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-3xl -translate-y-1/2" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-secondary/20 rounded-full blur-3xl translate-y-1/2" />
+            {/* Background blobs */}
+            <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-3xl -translate-y-1/2" />
+            <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-secondary/20 rounded-full blur-3xl translate-y-1/2" />
+          </>
+        )}
 
         <div className="container relative">
           <div className="grid lg:grid-cols-2 gap-8 lg:gap-20 items-center min-w-0">
             {/* Left content */}
             <motion.div
-              style={{ y: heroY, opacity, scale }}
+              style={isNative ? undefined : { y: heroY, opacity, scale }}
               className="relative z-10 min-w-0"
             >
               <motion.div
@@ -327,7 +383,7 @@ const Landing = () => {
 
             {/* Right content - 3D Interactive Robot */}
             <motion.div
-              style={{ y }}
+              style={isNative ? undefined : { y }}
               className="relative h-full self-stretch min-w-0"
             >
               {/* Main 3D robot container */}
@@ -338,11 +394,8 @@ const Landing = () => {
                 className="relative w-full h-full"
               >
                 <div className="relative w-full h-[250px] sm:h-[320px] lg:h-full lg:min-h-[500px] overflow-hidden bg-transparent">
-                  <Spotlight className="-top-40 left-0" size={500} />
-                  <SplineScene
-                    scene="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
-                    className="w-full h-full"
-                  />
+                  {!isNative && <Spotlight className="-top-40 left-0" size={500} />}
+                  <HeroRobot />
                 </div>
               </motion.div>
             </motion.div>
@@ -639,10 +692,12 @@ const Landing = () => {
       {/* Final CTA */}
       <section className="py-24 md:py-32 relative overflow-hidden">
         <div className="absolute inset-0 gradient-dark" />
-        <div className="absolute inset-0 opacity-30">
-          <div className="absolute top-1/2 left-1/4 w-96 h-96 bg-primary/50 rounded-full blur-3xl -translate-y-1/2" />
-          <div className="absolute top-1/2 right-1/4 w-96 h-96 bg-secondary/50 rounded-full blur-3xl -translate-y-1/2" />
-        </div>
+        {!isNative && (
+          <div className="absolute inset-0 opacity-30">
+            <div className="absolute top-1/2 left-1/4 w-96 h-96 bg-primary/50 rounded-full blur-3xl -translate-y-1/2" />
+            <div className="absolute top-1/2 right-1/4 w-96 h-96 bg-secondary/50 rounded-full blur-3xl -translate-y-1/2" />
+          </div>
+        )}
 
         <div className="container relative z-10">
           <motion.div

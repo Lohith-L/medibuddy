@@ -20,9 +20,8 @@ import { SplashScreen } from '@capacitor/splash-screen';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { useNavigate, useLocation } from 'react-router-dom';
 
-/** Routes considered "home" — pressing back here exits the app.
- *  /auth is the first screen for logged-out users (no landing page in the app). */
-const HOME_ROUTES = new Set(['/', '/dashboard', '/auth']);
+/** Routes considered "home" — pressing back here exits the app */
+const HOME_ROUTES = new Set(['/', '/dashboard']);
 
 export function useMobilePolish() {
   const navigate = useNavigate();

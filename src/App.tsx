@@ -1,6 +1,6 @@
 import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
+import { HashRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -56,12 +56,8 @@ const AppRoutes = () => {
   return (
     <Suspense fallback={<PageLoader />}>
     <Routes>
-      {/* Public routes – redirect to /dashboard if already logged in.
-          The app skips the marketing page: logged in → dashboard, else → login. */}
-      <Route
-        path="/"
-        element={<PublicRoute>{isNative ? <Navigate to="/auth" replace /> : <Landing />}</PublicRoute>}
-      />
+      {/* Public routes – redirect to /dashboard if already logged in */}
+      <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
       <Route path="/auth" element={<PublicRoute><Auth /></PublicRoute>} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
 

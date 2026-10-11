@@ -236,11 +236,9 @@ const Auth = () => {
     <div className="min-h-screen gradient-hero flex items-center justify-center px-4 py-12 native:px-3 native:py-6">
       <div className="w-full max-w-md">
         {/* Back */}
-        {!Capacitor.isNativePlatform() && (
-          <Button variant="ghost" size="sm" className="mb-4 text-muted-foreground hover:text-foreground" onClick={() => navigate("/")}>
-            <ArrowLeft className="w-4 h-4 mr-2" /> Back to home
-          </Button>
-        )}
+        <Button variant="ghost" size="sm" className="mb-4 text-muted-foreground hover:text-foreground" onClick={() => navigate("/")}>
+          <ArrowLeft className="w-4 h-4 mr-2" /> Back to home
+        </Button>
 
         {/* Card */}
         <div className="w-full bg-gradient-to-b from-sky-50/50 to-white rounded-3xl shadow-xl border border-blue-100 p-8 native:p-5 text-foreground">
