@@ -74,6 +74,22 @@ public class AlarmActivity extends AppCompatActivity implements AlarmService.Lis
         render(AlarmService.current() != null ? AlarmService.current() : fromIntent, AlarmService.waitingCount());
     }
 
+    /** singleTask: a notification tap while the alarm screen is already open lands here. */
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        AlarmPayload p = AlarmPayload.from(intent);
+        if (ACTION_TAKEN.equals(intent.getStringExtra(EXTRA_ACTION))) {
+            if (p == null) p = AlarmService.current();
+            if (p != null) markTaken(p);
+            return;
+        }
+        if (timeView != null) {
+            render(AlarmService.current() != null ? AlarmService.current() : p, AlarmService.waitingCount());
+        }
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
