@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { normalizePhone } from "@/lib/phone";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -159,12 +160,14 @@ const FamilyAlerts = () => {
     if (!form.full_name.trim()) { toast.error(t("profile.nameRequired")); return; }
     if (!form.email.trim() || !form.email.includes("@")) { toast.error(t("profile.invalidEmail")); return; }
     if (!patientId) { toast.error(t("upload.noPatient")); return; }
+    const phone = form.phone.trim() ? normalizePhone(form.phone) : null;
+    if (form.phone.trim() && !phone) { toast.error(t("auth.invalidMobile")); return; }
     setSaving(true);
     try {
       if (editingId) {
         const { error } = await supabase.from("family_members").update({
           full_name: form.full_name, relationship: form.relationship, email: form.email,
-          phone: form.phone || null, language: form.language, alert_on_missed: form.alert_on_missed,
+          phone, language: form.language, alert_on_missed: form.alert_on_missed,
           alert_on_weekly_report: form.alert_on_weekly_report, alert_on_refill: form.alert_on_refill,
         }).eq("id", editingId);
         if (error) throw error;
@@ -172,7 +175,7 @@ const FamilyAlerts = () => {
       } else {
         const { error } = await supabase.from("family_members").insert({
           patient_id: patientId, full_name: form.full_name, relationship: form.relationship,
-          email: form.email, phone: form.phone || null, language: form.language,
+          email: form.email, phone, language: form.language,
           alert_on_missed: form.alert_on_missed, alert_on_weekly_report: form.alert_on_weekly_report,
           alert_on_refill: form.alert_on_refill,
         });

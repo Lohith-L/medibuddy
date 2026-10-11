@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { languageOptions, normalizeLanguageCode } from "@/lib/language";
+import LinkedLogins from "@/components/LinkedLogins";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -26,7 +27,7 @@ const Profile = () => {
   const { t, language: appLanguage, setLanguage, locale } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
-    name: "", email: "", phone: "", language: "en", caregiverEmail: "",
+    name: "", email: "", language: "en", caregiverEmail: "",
   });
   const [authEmail, setAuthEmail] = useState("");
   const [account, setAccount] = useState({ provider: "", createdAt: "" });
@@ -34,8 +35,7 @@ const Profile = () => {
   const [passwords, setPasswords] = useState({ next: "", confirm: "" });
   const [savingPassword, setSavingPassword] = useState(false);
 
-  useEffect(() => {
-    const loadProfile = async () => {
+  const loadProfile = useCallback(async () => {
       const { data } = await supabase.auth.getSession();
       if (!data.session) {
         navigate("/auth");
@@ -58,14 +58,15 @@ const Profile = () => {
       setForm({
         name: (meta?.name as string) || (meta?.full_name as string) || patient?.name || "",
         email: patient?.email || user.email || "",
-        phone: (meta?.phone as string) || patient?.phone || user.phone || "",
         // The app language is the single source of truth (saved on device + profile).
         language: appLanguage,
         caregiverEmail: (meta?.caregiver_email as string) || patient?.caregiver_email || "",
       });
-    };
+  }, [navigate, appLanguage]);
 
-    loadProfile();
+  useEffect(() => {
+    void loadProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate]);
 
   // Keep the language picker in step when the language is changed elsewhere (header menu).
@@ -81,7 +82,8 @@ const Profile = () => {
     const caregiverEmail = form.caregiverEmail.trim();
 
     if (!name) return toast.error(t("profile.nameRequired"));
-    if (!EMAIL_RE.test(email)) return toast.error(t("profile.invalidEmail"));
+    // Phone-first accounts may have no email yet.
+    if ((email || authEmail) && !EMAIL_RE.test(email)) return toast.error(t("profile.invalidEmail"));
     if (caregiverEmail && !EMAIL_RE.test(caregiverEmail)) return toast.error(t("profile.invalidCaregiverEmail"));
 
     setLoading(true);
@@ -93,14 +95,13 @@ const Profile = () => {
         throw new Error(t("profile.notSignedIn"));
       }
 
-      const emailChanged = email.toLowerCase() !== (authEmail || "").toLowerCase();
+      const emailChanged = !!email && email.toLowerCase() !== (authEmail || "").toLowerCase();
 
       const [{ error: authError }, { error: patientError }] = await Promise.all([
         supabase.auth.updateUser({
           ...(emailChanged ? { email } : {}),
           data: {
             name,
-            phone: form.phone,
             language: normalizedLanguage,
             caregiver_email: caregiverEmail,
           },
@@ -112,7 +113,6 @@ const Profile = () => {
               user_id: user.id,
               name,
               email,
-              phone: form.phone || null,
               language: normalizedLanguage,
               caregiver_email: caregiverEmail || null,
             },
@@ -183,10 +183,6 @@ const Profile = () => {
               <p className="text-xs text-muted-foreground mt-1.5">{t("profile.emailHelp")}</p>
             </div>
             <div>
-              <Label className="text-base font-semibold">{t("profile.phone")}</Label>
-              <Input type="tel" value={form.phone} onChange={(e) => update("phone", e.target.value)} className={inputClass} placeholder="+91 98765 43210" />
-            </div>
-            <div>
               <Label className="text-base font-semibold">{t("profile.language")}</Label>
               <select
                 value={form.language}
@@ -207,6 +203,9 @@ const Profile = () => {
               <Save className="w-5 h-5" /> {loading ? t("saving") : t("profile.saveChanges")}
             </Button>
           </div>
+
+          {/* Sign-in methods: mobile, email, Google — all one account */}
+          <LinkedLogins onChanged={() => void loadProfile()} />
 
           {/* Medicine alarm settings — Android app only */}
           {Capacitor.isNativePlatform() && (

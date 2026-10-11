@@ -15,6 +15,7 @@ import auth from "./auth";
 import alarm from "./alarm";
 import landing from "./landing";
 import health from "./health";
+import account from "./account";
 
 const en = {
   ...common,
@@ -33,6 +34,7 @@ const en = {
   ...alarm,
   ...landing,
   ...health,
+  ...account,
 };
 
 export default en;

@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
+import { normalizePhone } from "@/lib/phone";
 import { ArrowLeft, Mail, Lock, User, Phone, KeyRound, HeartHandshake, LogIn } from "lucide-react";
 
 const Auth = () => {
@@ -77,7 +78,7 @@ const Auth = () => {
         options: {
           data: {
             name: form.name,
-            phone: form.phone,
+            phone: normalizePhone(form.phone) ?? "",
             caregiver_email: form.caregiverEmail,
           },
         },
@@ -92,60 +93,32 @@ const Auth = () => {
     }
   };
 
-  const formatPhoneNumber = (input: string) => {
-    let trimmed = input.trim();
-    if (!trimmed) return "";
-    if (!trimmed.startsWith("+")) {
-      const digits = trimmed.replace(/\D/g, "");
-      if (digits.length === 10) {
-        return `+91${digits}`;
-      } else if (digits.length > 10) {
-        return `+${digits}`;
-      }
-    }
-    return trimmed;
-  };
-
+  // Phone OTP is for SIGNING IN to an existing account only. It never creates
+  // an account: new users sign up with email/Google, then add and verify their
+  // number in Profile, so every login method opens the same account.
   const handleSendPhoneOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    const phoneInput = authMethod === "phone" && tab === "signup" ? form.phone : phone;
-    const formattedPhone = formatPhoneNumber(phoneInput);
-    if (!formattedPhone || formattedPhone.length < 10) {
+    const formattedPhone = normalizePhone(phone);
+    if (!formattedPhone) {
       toast.error(t("auth.invalidMobile"));
       return;
-    }
-    if (tab === "signup") {
-      if (!form.name.trim()) {
-        toast.error(t("auth.enterPatientName"));
-        return;
-      }
-      if (!form.email.trim() || !form.email.includes("@")) {
-        toast.error(t("auth.invalidPatientEmail"));
-        return;
-      }
     }
     setLoading(true);
     try {
       const { error } = await supabase.auth.signInWithOtp({
         phone: formattedPhone,
-        options: {
-          data: {
-            name: form.name || undefined,
-            phone: formattedPhone,
-            email: form.email || undefined,
-            caregiver_email: form.caregiverEmail || undefined,
-          },
-        },
+        options: { shouldCreateUser: false },
       });
       if (error) throw error;
       setPhone(formattedPhone);
       toast.success(t("auth.otpSent", { phone: formattedPhone }));
       setOtpSent(true);
     } catch (err: any) {
-      if (err.message?.includes("Unsupported phone provider")) {
+      const text = `${err?.code ?? ""} ${err?.message ?? ""}`;
+      if (/otp_disabled|signups? not allowed|user not found/i.test(text)) {
+        toast.error(t("auth.noAccountForPhone"), { duration: 8000 });
+      } else if (text.includes("Unsupported phone provider")) {
         toast.error(t("auth.phoneDisabled"));
-      } else if (err.message?.includes("Database error")) {
-        toast.error(t("auth.dbError"));
       } else {
         toast.error(err.message || "Failed to send SMS OTP");
       }
@@ -156,7 +129,6 @@ const Auth = () => {
 
   const handleVerifyPhoneOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    const formattedPhone = formatPhoneNumber(phone);
     if (!phoneOtp.trim()) {
       toast.error(t("auth.enterOtp"));
       return;
@@ -164,45 +136,13 @@ const Auth = () => {
     setLoading(true);
     try {
       const { error } = await supabase.auth.verifyOtp({
-        phone: formattedPhone,
+        phone,
         token: phoneOtp.trim(),
         type: "sms",
       });
       if (error) throw error;
-
-      // Update patient & caregiver metadata and table record
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await Promise.all([
-          supabase.auth.updateUser({
-            email: form.email || user.email || undefined,
-            data: {
-              name: form.name || user.user_metadata?.name || "",
-              phone: formattedPhone,
-              email: form.email || user.email || "",
-              caregiver_email: form.caregiverEmail || user.user_metadata?.caregiver_email || "",
-            },
-          }),
-          supabase.from("patients").upsert(
-            {
-              user_id: user.id,
-              name: form.name || user.user_metadata?.name || formattedPhone,
-              phone: formattedPhone,
-              email: form.email || user.email || "",
-              caregiver_email: form.caregiverEmail || null,
-            },
-            { onConflict: "user_id" }
-          ),
-        ]);
-      }
-
-      if (tab === "signup") {
-        toast.success(t("auth.accountCreated"));
-        navigate("/onboarding");
-      } else {
-        toast.success(t("auth.mobileLoginOk"));
-        navigate("/dashboard");
-      }
+      toast.success(t("auth.mobileLoginOk"));
+      navigate("/dashboard");
     } catch (err: any) {
       toast.error(err.message || "Invalid OTP code");
     } finally {
@@ -274,7 +214,7 @@ const Auth = () => {
             </button>
             <button
               type="button"
-              onClick={() => setTab("signup")}
+              onClick={() => { setTab("signup"); setAuthMethod("email"); setOtpSent(false); }}
               className={`flex-1 py-2.5 rounded-lg font-semibold text-sm transition-all ${
                 tab === "signup" ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
               }`}
@@ -283,7 +223,8 @@ const Auth = () => {
             </button>
           </div>
 
-          {/* Method Selector: Email vs Phone */}
+          {/* Method Selector: Email vs Phone (phone OTP signs in to existing accounts only) */}
+          {tab === "login" && (
           <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100/70 rounded-xl mb-6 text-sm font-medium border border-gray-200/50">
             <button
               type="button"
@@ -304,6 +245,7 @@ const Auth = () => {
               <Phone className="w-4 h-4" /> {t("auth.mobileOtp")}
             </button>
           </div>
+          )}
 
           {/* Google Login (Only for Email tab) */}
           {authMethod === "email" && (
@@ -335,43 +277,6 @@ const Auth = () => {
           {authMethod === "phone" ? (
             !otpSent ? (
               <form onSubmit={handleSendPhoneOtp} className="space-y-4">
-                {tab === "signup" && (
-                  <>
-                    <div>
-                      <Label className="text-sm font-semibold text-foreground mb-1.5 block">
-                        {t("auth.patientName")}
-                      </Label>
-                      <div className="relative">
-                        <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <Input
-                          required
-                          value={form.name}
-                          onChange={(e) => update("name", e.target.value)}
-                          placeholder={t("auth.patientNamePlaceholder")}
-                          className="pl-10 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <Label className="text-sm font-semibold text-foreground mb-1.5 block">
-                        {t("auth.patientEmail")}
-                      </Label>
-                      <div className="relative">
-                        <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <Input
-                          type="email"
-                          required
-                          value={form.email}
-                          onChange={(e) => update("email", e.target.value)}
-                          placeholder="patient@example.com"
-                          className="pl-10 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
-                        />
-                      </div>
-                    </div>
-                  </>
-                )}
-
                 <div>
                   <Label className="text-sm font-semibold text-foreground mb-1.5 block">
                     {t("auth.mobile")}
@@ -381,38 +286,15 @@ const Auth = () => {
                     <Input
                       type="tel"
                       required
-                      value={tab === "signup" ? form.phone : phone}
-                      onChange={(e) => {
-                        update("phone", e.target.value);
-                        setPhone(e.target.value);
-                      }}
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
                       placeholder="+91 98765 43210"
                       className="pl-10 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
                     />
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">{t("auth.countryCodeHelp")}</p>
+                  <p className="text-xs text-muted-foreground mt-2">{t("auth.phoneLoginHelp")}</p>
                 </div>
-
-                {tab === "signup" && (
-                  <div>
-                    <Label className="text-sm font-semibold text-foreground mb-1.5 block">
-                      {t("auth.caregiverOptional")}
-                    </Label>
-                    <div className="relative">
-                      <HeartHandshake className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <Input
-                        type="email"
-                        value={form.caregiverEmail}
-                        onChange={(e) => update("caregiverEmail", e.target.value)}
-                        placeholder="caregiver@example.com"
-                        className="pl-10 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {t("auth.caregiverHelp")}
-                    </p>
-                  </div>
-                )}
 
                 <Button
                   type="submit"
@@ -450,7 +332,7 @@ const Auth = () => {
                   size="lg"
                   disabled={loading}
                 >
-                  {loading ? t("auth.verifying") : tab === "signup" ? t("auth.verifySignup") : t("auth.verifyLogin")}
+                  {loading ? t("auth.verifying") : t("auth.verifyLogin")}
                 </Button>
 
                 <div className="text-center pt-2">

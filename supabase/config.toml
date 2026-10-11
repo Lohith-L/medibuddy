@@ -14,3 +14,7 @@ verify_jwt = false
 
 [functions.send-push-notification]
 verify_jwt = false
+
+# Needs the signed-in user's JWT (main account).
+[functions.merge-accounts]
+verify_jwt = true
