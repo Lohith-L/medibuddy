@@ -261,3 +261,62 @@
     display: none;
   }
 }
+
+/* ── Nearby pharmacies map (Leaflet) ───────────────────────────────────── */
+.pharm-map { font-family: inherit; }
+.pharm-pin, .user-dot, .pharm-cluster { background: transparent; border: 0; }
+.pharm-pin svg {
+  display: block;
+  filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.35));
+  transition: transform 0.15s ease;
+  transform-origin: 50% 100%;
+}
+.pharm-pin:hover svg { transform: scale(1.08); }
+.pharm-pin--selected svg { filter: drop-shadow(0 3px 6px rgb(37 99 235 / 0.55)); }
+
+/* User's location: blue dot with a soft halo */
+.user-dot { position: relative; }
+.user-dot__core {
+  position: absolute; inset: 4px;
+  border-radius: 9999px;
+  background: #2563eb;
+  border: 3px solid #fff;
+  box-shadow: 0 0 6px rgb(37 99 235 / 0.6);
+}
+.user-dot__halo {
+  position: absolute; inset: 0;
+  border-radius: 9999px;
+  background: rgb(37 99 235 / 0.25);
+}
+
+/* Cluster bubble (.leaflet-marker-icon would otherwise force display:block) */
+.leaflet-marker-icon.pharm-cluster {
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 9999px;
+  background: #0d9488;
+  color: #fff;
+  font-weight: 800;
+  font-size: 14px;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 4px rgb(13 148 136 / 0.25), 0 2px 6px rgb(0 0 0 / 0.3);
+}
+
+/* Popup */
+.pharm-map .leaflet-popup-content-wrapper { border-radius: 14px; }
+.pharm-map .leaflet-popup-content { margin: 12px 14px; line-height: 1.35; }
+.pharm-popup { font-family: inherit; color: #0f172a; max-width: min(240px, 70vw); }
+.pharm-popup__name { margin: 0 0 4px; font-weight: 800; font-size: 14px; }
+.pharm-popup__address { margin: 0 0 6px; font-size: 12px; color: #64748b; }
+.pharm-popup__meta { margin: 0 0 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #475569; }
+.pharm-popup__status { padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 800; }
+.pharm-popup__status.is-open { background: rgb(16 185 129 / 0.15); color: #047857; }
+.pharm-popup__status.is-closed { background: rgb(239 68 68 / 0.12); color: #b91c1c; }
+.pharm-popup__actions { display: flex; gap: 6px; }
+.pharm-popup__btn {
+  flex: 1; text-align: center;
+  padding: 7px 10px; border-radius: 10px;
+  font-size: 12px; font-weight: 800;
+  color: #fff !important; text-decoration: none;
+}
+.pharm-popup__btn--call { background: #2563eb; }
+.pharm-popup__btn--dir { background: #0d9488; }

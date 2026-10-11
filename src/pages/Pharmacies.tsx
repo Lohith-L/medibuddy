@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
-import L from "leaflet";
+import { L, clusterIcon, pharmacyPinIcon, pharmacyPopupHtml, userDotIcon } from "@/lib/pharmacyMap";
 import { getCurrentLocation, LocationError } from "@/lib/location";
 
 interface Pharmacy {
@@ -55,7 +55,11 @@ const Pharmacies = () => {
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
-  const markersGroupRef = useRef<L.LayerGroup | null>(null);
+  /** User dot layer (not clustered) and the clustered pharmacy pins. */
+  const userLayerRef = useRef<L.LayerGroup | null>(null);
+  const clusterRef = useRef<L.MarkerClusterGroup | null>(null);
+  /** Pharmacy id → its pin, for highlighting and panning to a selection. */
+  const pinsRef = useRef<Map<string, L.Marker>>(new Map());
 
   // Request browser geolocation on mount
   useEffect(() => {
@@ -331,84 +335,113 @@ way["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
   };
 
 
-  // Initialize and update Leaflet Map
+  // ── Map: created once per search centre ─────────────────────────────
   useEffect(() => {
     if (!mapContainerRef.current || !userCoords) return;
 
-    // Destroy existing map instance if any
     if (mapInstanceRef.current) {
       mapInstanceRef.current.remove();
       mapInstanceRef.current = null;
     }
 
-    const map = L.map(mapContainerRef.current).setView([userCoords.lat, userCoords.lng], 13);
+    const map = L.map(mapContainerRef.current, { zoomControl: true }).setView([userCoords.lat, userCoords.lng], 14);
     mapInstanceRef.current = map;
 
-    // OpenStreetMap Tile Layer
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       maxZoom: 19,
     }).addTo(map);
 
-    // Create marker group
-    const markersGroup = L.layerGroup().addTo(map);
-    markersGroupRef.current = markersGroup;
-
-    // User Location Marker (Blue Dot Icon)
-    const userIcon = L.divIcon({
-      className: "custom-user-marker",
-      html: `<div style="background-color: #2563eb; width: 18px; height: 18px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px rgba(37,99,235,0.6);"></div>`,
-      iconSize: [18, 18],
-      iconAnchor: [9, 9],
-    });
-
-    L.marker([userCoords.lat, userCoords.lng], { icon: userIcon })
-      .addTo(markersGroup)
-      .bindPopup(`<b>📍 ${t("weather.yourLocation")}</b><br/>${t(searchLocationName)}`);
-
-    // Render Pharmacy Markers
-    pharmacies.forEach((p) => {
-      const pharmacyIcon = L.divIcon({
-        className: "custom-pharmacy-marker",
-        html: `<div style="background-color: ${
-          p.isOpen ? "#10b981" : "#ef4444"
-        }; color: white; padding: 4px 8px; border-radius: 12px; font-weight: bold; font-size: 11px; border: 2px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); display: flex; items-center; gap: 4px;">💊 ${
-          t(p.name).split(" ")[0]
-        }</div>`,
-        iconAnchor: [20, 10],
-      });
-
-      const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}`;
-
-      const popupContent = `
-        <div style="font-family: system-ui; max-width: 200px;">
-          <h4 style="margin: 0 0 4px 0; font-weight: bold; font-size: 14px;">${t(p.name)}</h4>
-          <p style="margin: 0 0 6px 0; font-size: 12px; color: #666;">${p.address || t("pharm.kmFromSelected", { km: p.distanceKm })}</p>
-          <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 600; color: #059669;">📍 ${t("pharm.kmAway", { km: p.distanceKm })}</p>
-          <div style="display: flex; gap: 6px;">
-            <a href="tel:${p.phone}" style="background: #2563eb; color: white; padding: 4px 8px; border-radius: 6px; text-decoration: none; font-size: 11px; font-weight: bold;">${t("pharm.callShort")}</a>
-            <a href="${directionsUrl}" target="_blank" style="background: #059669; color: white; padding: 4px 8px; border-radius: 6px; text-decoration: none; font-size: 11px; font-weight: bold;">${t("pharm.directions")} ➔</a>
-          </div>
-        </div>
-      `;
-
-      L.marker([p.lat, p.lng], { icon: pharmacyIcon })
-        .addTo(markersGroup)
-        .bindPopup(popupContent);
-    });
+    userLayerRef.current = L.layerGroup().addTo(map);
+    // Pins that overlap at the current zoom are grouped into a numbered bubble.
+    clusterRef.current = L.markerClusterGroup({
+      showCoverageOnHover: false,
+      spiderfyOnMaxZoom: true,
+      maxClusterRadius: 45,
+      iconCreateFunction: clusterIcon,
+    }).addTo(map);
 
     return () => {
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
-      }
+      map.remove();
+      if (mapInstanceRef.current === map) mapInstanceRef.current = null;
+      clusterRef.current = null;
+      userLayerRef.current = null;
+      pinsRef.current.clear();
     };
+  }, [userCoords]);
+
+  // ── Markers: user's blue dot + one pin per pharmacy ─────────────────
+  useEffect(() => {
+    const cluster = clusterRef.current;
+    const userLayer = userLayerRef.current;
+    if (!cluster || !userLayer || !userCoords) return;
+
+    userLayer.clearLayers();
+    L.marker([userCoords.lat, userCoords.lng], { icon: userDotIcon(), zIndexOffset: 1000, keyboard: false })
+      .addTo(userLayer)
+      .bindPopup(`<b>📍 ${t("weather.yourLocation")}</b><br/>${t(searchLocationName).replace(/</g, "&lt;")}`);
+
+    cluster.clearLayers();
+    pinsRef.current.clear();
+    const pins = pharmacies.map((p) => {
+      const pin = L.marker([p.lat, p.lng], {
+        icon: pharmacyPinIcon(p.id === selectedPharmacyId),
+        title: t(p.name),
+        riseOnHover: true,
+      });
+      pin.bindPopup(
+        pharmacyPopupHtml({
+          name: t(p.name),
+          address: p.address,
+          distanceLabel: t("pharm.kmAway", { km: p.distanceKm }),
+          isOpen: p.isOpen,
+          openLabel: t("openNow"),
+          closedLabel: t("closed"),
+          phone: p.phone,
+          callLabel: t("pharm.callShort"),
+          directionsLabel: t("pharm.directions"),
+          directionsUrl: `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}`,
+        }),
+        { maxWidth: 260, minWidth: 200, autoPanPadding: [16, 16] },
+      );
+      // Tapping a pin highlights the matching card in the list.
+      pin.on("click", () => setSelectedPharmacyId(p.id));
+      pinsRef.current.set(p.id, pin);
+      return pin;
+    });
+    cluster.addLayers(pins);
+  // selectedPharmacyId is applied by the effect below without rebuilding pins
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userCoords, pharmacies, searchLocationName, t]);
 
+  // ── Selection: bigger blue pin for the selected pharmacy ────────────
+  useEffect(() => {
+    pinsRef.current.forEach((pin, id) => {
+      const selected = id === selectedPharmacyId;
+      pin.setIcon(pharmacyPinIcon(selected));
+      pin.setZIndexOffset(selected ? 900 : 0);
+    });
+  }, [selectedPharmacyId, pharmacies]);
+
+  /** Card tapped: highlight its pin, bring it into view and open its popup. */
   const selectAndPanToPharmacy = (p: Pharmacy) => {
     setSelectedPharmacyId(p.id);
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.flyTo([p.lat, p.lng], 16, { duration: 1.2 });
+    const map = mapInstanceRef.current;
+    const pin = pinsRef.current.get(p.id);
+    const cluster = clusterRef.current;
+    if (!map) return;
+    // On phones the map sits above the list: scroll it into view first.
+    if (window.matchMedia("(max-width: 1023px)").matches) {
+      mapContainerRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    if (pin && cluster) {
+      // Zooms in far enough to break up its cluster, then pans to the pin.
+      cluster.zoomToShowLayer(pin, () => {
+        map.panTo(pin.getLatLng(), { animate: true });
+        pin.openPopup();
+      });
+    } else {
+      map.flyTo([p.lat, p.lng], 16, { duration: 1 });
     }
   };
 
@@ -506,14 +539,15 @@ way["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
         {/* Main Content Layout: Map + Pharmacies List */}
         <div className="grid lg:grid-cols-12 gap-6 items-start">
           {/* Leaflet Map Box */}
-          <div className="lg:col-span-6 bg-card border rounded-2xl shadow-card overflow-hidden sticky top-24">
-            <div className="p-3.5 bg-muted/50 border-b flex items-center justify-between">
+          <div className="lg:col-span-6 bg-card border rounded-2xl shadow-card overflow-hidden lg:sticky lg:top-24">
+            <div className="p-3.5 bg-muted/50 border-b flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
               <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
                 <Navigation className="w-4 h-4 text-primary" /> {t("pharm.map", { place: t(searchLocationName) })}
               </span>
               <span className="text-xs text-muted-foreground font-medium">{t("pharm.tapMarkers")}</span>
             </div>
-            <div ref={mapContainerRef} className="w-full h-[380px] sm:h-[480px] z-10" />
+            {/* isolate: keeps Leaflet's internal z-indexes below the sticky header and bottom nav */}
+            <div ref={mapContainerRef} className="pharm-map relative isolate z-0 w-full h-[340px] sm:h-[480px]" />
           </div>
 
           {/* Pharmacies List */}
