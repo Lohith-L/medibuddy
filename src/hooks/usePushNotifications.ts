@@ -10,7 +10,10 @@
  *   3. Download google-services.json → place in android/app/
  *   4. Run the device_tokens SQL migration in Supabase SQL Editor
  *
- * On web this hook is a complete no-op.
+ * On web this hook is a complete no-op. It is also a no-op when the app was
+ * built without google-services.json: registering would throw
+ * "Default FirebaseApp is not initialized" on a native thread and crash the
+ * app. Local notifications do not depend on Firebase and keep working.
  */
 
 import { useEffect } from 'react';
@@ -24,6 +27,10 @@ export function usePushNotifications() {
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
+    if (!__FIREBASE_CONFIGURED__) {
+      console.warn('[Push] Firebase not configured (no google-services.json) — push disabled');
+      return;
+    }
 
     const setup = async () => {
       // ── 1. Request permission ──────────────────────────────────────────
@@ -37,7 +44,7 @@ export function usePushNotifications() {
       await PushNotifications.register();
     };
 
-    setup();
+    setup().catch((err) => console.error('[Push] setup failed:', err));
 
     // ── 3. Save token to Supabase when FCM gives us one ───────────────
     const tokenListener = PushNotifications.addListener(
