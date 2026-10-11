@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
 import {
-  AlarmClock, Bell, BatteryCharging, CheckCircle2, AlertTriangle, Maximize, Volume2, Smartphone, Loader2,
+  AlarmClock, Bell, BatteryCharging, CheckCircle2, AlertTriangle, Maximize, Volume2, Smartphone, Loader2, Speech,
 } from "lucide-react";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { MedicineAlarm, TEST_ALARM_ID, type AlarmPermissionStatus } from "@/plugins/medicineAlarm";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { languageLabelByCode } from "@/lib/language";
 
 const isNative = Capacitor.isNativePlatform();
 
@@ -107,18 +109,29 @@ const StatusRow = ({
 const AlarmSettings = () => {
   const [perms, setPerms] = useState<AlarmPermissionStatus | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  /** null = still checking */
+  const [voiceAvailable, setVoiceAvailable] = useState<boolean | null>(null);
   const [testing, setTesting] = useState(false);
+  const { language } = useLanguage();
+  const languageName = languageLabelByCode[language] ?? "English";
 
   const refresh = useCallback(async () => {
     if (!isNative) return;
     try {
-      const [p, s] = await Promise.all([MedicineAlarm.checkPermissions(), MedicineAlarm.getSettings()]);
+      const [p, s, v] = await Promise.all([
+        MedicineAlarm.checkPermissions(),
+        MedicineAlarm.getSettings(),
+        MedicineAlarm.checkVoice({ language }),
+      ]);
       setPerms(p);
       setSoundEnabled(s.soundEnabled);
+      setVoiceEnabled(s.voiceEnabled);
+      setVoiceAvailable(v.available);
     } catch (e) {
       console.error("[Alarm] status failed", e);
     }
-  }, []);
+  }, [language]);
 
   // Re-check when coming back from a system settings page.
   useEffect(() => {
@@ -144,6 +157,12 @@ const AlarmSettings = () => {
     toast.success(enabled ? "Alarm sound on" : "Alarm sound off: you'll get a normal notification");
   };
 
+  const toggleVoice = async (enabled: boolean) => {
+    setVoiceEnabled(enabled);
+    await MedicineAlarm.setVoiceEnabled({ enabled });
+    toast.success(enabled ? "Voice announcement on" : "Voice announcement off");
+  };
+
   const testAlarm = async () => {
     setTesting(true);
     try {
@@ -151,11 +170,12 @@ const AlarmSettings = () => {
       await MedicineAlarm.scheduleAlarm({
         id: TEST_ALARM_ID,
         medicineId: "test",
-        medicineName: "Test alarm",
-        dose: "This is how your medicine alarm looks",
+        medicineName: "Paracetamol (test)",
+        dose: "1 tablet",
         at,
         repeat: false,
         isTest: true,
+        language,
       });
       const when = new Date(at).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
       toast.success(`Test alarm set for ${when}. You can lock the phone now.`);
@@ -252,9 +272,36 @@ const AlarmSettings = () => {
             </div>
             <Switch checked={soundEnabled} onCheckedChange={(v) => void toggleSound(v)} aria-label="Alarm sound" />
           </div>
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Speech className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm">Voice announcement</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Says “It's time to take your medicine” with the medicine name and dose in {languageName}, every 15 seconds while the alarm rings.
+              </p>
+            </div>
+            <Switch
+              checked={voiceEnabled}
+              disabled={!soundEnabled}
+              onCheckedChange={(v) => void toggleVoice(v)}
+              aria-label="Voice announcement"
+            />
+          </div>
+          {voiceEnabled && soundEnabled && voiceAvailable === false && language !== "en" && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-100 space-y-2">
+              <p className="font-semibold">{languageName} voice isn't installed on this phone, so alarms will speak English.</p>
+              <p>To fix it: Settings &gt; Text-to-speech &gt; Google (Speech Services) &gt; Install voice data &gt; {languageName}. Then come back here.</p>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="secondary" onClick={() => void MedicineAlarm.installVoiceData()}>Install voice</Button>
+                <Button size="sm" variant="outline" onClick={() => void MedicineAlarm.openTtsSettings()}>Text-to-speech settings</Button>
+              </div>
+            </div>
+          )}
           <Button className="w-full" variant="outline" onClick={() => void testAlarm()} disabled={testing}>
             {testing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <AlarmClock className="w-4 h-4 mr-2" />}
-            Test alarm in 1 minute
+            Test alarm in 1 minute{voiceEnabled && soundEnabled ? " (with voice)" : ""}
           </Button>
         </div>
 

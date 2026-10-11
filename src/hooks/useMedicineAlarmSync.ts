@@ -22,13 +22,17 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { languageLabelByCode } from '@/lib/language';
 import { getPatientId, logDoseTaken } from '@/lib/doseLogging';
 import {
   MedicineAlarm,
   MEDICINES_CHANGED_EVENT,
   DOSE_LOGGED_EVENT,
   normalizeTime,
+  notifyMedicinesChanged,
   reminderId,
+  VOICE_TIP_KEY_PREFIX,
   type AlarmReminder,
 } from '@/plugins/medicineAlarm';
 
@@ -54,12 +58,41 @@ async function cancelOldLocalNotifications() {
   }
 }
 
+function voiceTipShown(lang: string): boolean {
+  try {
+    return localStorage.getItem(VOICE_TIP_KEY_PREFIX + lang) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function markVoiceTipShown(lang: string) {
+  try {
+    localStorage.setItem(VOICE_TIP_KEY_PREFIX + lang, '1');
+  } catch {
+    // ignore
+  }
+}
+
 export function useMedicineAlarmSync() {
   const { session, loading } = useAuth();
+  const { language } = useLanguage();
   const navigate = useNavigate();
   const navigateRef = useRef(navigate);
   navigateRef.current = navigate;
+  const languageRef = useRef(language);
+  languageRef.current = language;
   const userId = session?.user?.id;
+
+  // Alarms speak in the app language: reschedule them when it changes.
+  const firstLanguage = useRef(true);
+  useEffect(() => {
+    if (firstLanguage.current) {
+      firstLanguage.current = false;
+      return;
+    }
+    notifyMedicinesChanged();
+  }, [language]);
 
   // Cancel every alarm when the user signs out (not when the session is merely
   // still loading or can't be refreshed offline).
@@ -118,12 +151,13 @@ export function useMedicineAlarmSync() {
             repeat: true,
             startDate: med.start_date,
             endDate: med.end_date,
+            language: languageRef.current,
           });
         }
       }
 
       try {
-        const { scheduled } = await MedicineAlarm.syncAlarms({ reminders });
+        const { scheduled } = await MedicineAlarm.syncAlarms({ reminders, language: languageRef.current });
         console.log(`[Alarm] synced: ${scheduled} alarms for ${data.length} medicines`);
       } catch (e) {
         console.error('[Alarm] sync failed', e);
@@ -166,6 +200,30 @@ export function useMedicineAlarmSync() {
       }
     };
 
+    /**
+     * One-time tip when the phone has no voice for the app language (alarms
+     * then speak English): checked up front, and after an alarm fell back.
+     */
+    const maybeShowVoiceTip = async () => {
+      try {
+        const { voiceEnabled } = await MedicineAlarm.getSettings();
+        const fallback = (await MedicineAlarm.consumeVoiceFallback()).language;
+        const lang = fallback ?? languageRef.current;
+        if (!voiceEnabled || !lang || lang === 'en' || voiceTipShown(lang)) return;
+        const { available } = fallback ? { available: false } : await MedicineAlarm.checkVoice({ language: lang });
+        if (available || disposed) return;
+        markVoiceTipShown(lang);
+        const name = languageLabelByCode[lang] ?? lang;
+        toast.info(`Alarm voice: ${name} isn't installed, so alarms speak English`, {
+          description: 'Install it in Settings > Text-to-speech > Google > Install voice data.',
+          duration: 12000,
+          action: { label: 'How', onClick: () => navigateRef.current('/alarm-settings') },
+        });
+      } catch {
+        // ignore
+      }
+    };
+
     const handleUrl = async (url: string | undefined) => {
       if (!url || !url.startsWith(DOSE_TAKEN_URL)) return;
       await flush();
@@ -184,6 +242,7 @@ export function useMedicineAlarmSync() {
       await sync();
       await flush();
       void cancelOldLocalNotifications();
+      void maybeShowVoiceTip();
 
       const pid = await ensurePatient();
       if (!pid || disposed) return;
@@ -209,6 +268,7 @@ export function useMedicineAlarmSync() {
       App.addListener('resume', () => {
         scheduleSync();
         void flush();
+        void maybeShowVoiceTip();
       }),
     );
     handles.push(App.addListener('appUrlOpen', ({ url }) => void handleUrl(url)));

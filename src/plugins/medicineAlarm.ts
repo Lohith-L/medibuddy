@@ -24,6 +24,8 @@ export interface AlarmReminder {
   startDate?: string | null;
   endDate?: string | null;
   isTest?: boolean;
+  /** App language for the spoken announcement: "en", "hi", "te", "ta", "kn", "mr", "bn", "gu". */
+  language?: string;
 }
 
 export interface AlarmPermissionStatus {
@@ -56,7 +58,7 @@ export interface MedicineAlarmPlugin {
   cancelAlarm(options: { id: number }): Promise<void>;
   cancelAll(): Promise<void>;
   /** Replaces all daily reminders with this list (cancel + reschedule). */
-  syncAlarms(options: { reminders: AlarmReminder[] }): Promise<{ scheduled: number }>;
+  syncAlarms(options: { reminders: AlarmReminder[]; language?: string }): Promise<{ scheduled: number }>;
 
   checkPermissions(): Promise<AlarmPermissionStatus>;
   /** Asks for the notification permission (Android 13+). */
@@ -68,8 +70,16 @@ export interface MedicineAlarmPlugin {
   openAutostartSettings(): Promise<void>;
   openAppSettings(): Promise<void>;
 
-  getSettings(): Promise<{ soundEnabled: boolean }>;
+  getSettings(): Promise<{ soundEnabled: boolean; voiceEnabled: boolean }>;
   setSoundEnabled(options: { enabled: boolean }): Promise<void>;
+  setVoiceEnabled(options: { enabled: boolean }): Promise<void>;
+
+  /** Whether the phone has an installed (offline) text-to-speech voice for this language. */
+  checkVoice(options: { language: string }): Promise<{ available: boolean; language: string; engine: string; ttsWorking: boolean }>;
+  /** Language that had to be spoken in English during an alarm (reported once), or null. */
+  consumeVoiceFallback(): Promise<{ language: string | null }>;
+  openTtsSettings(): Promise<void>;
+  installVoiceData(): Promise<void>;
 
   /** Stops whatever is ringing right now (no dose is logged). */
   stopAlarm(): Promise<void>;
@@ -112,6 +122,9 @@ export function normalizeTime(t: string): string | null {
 export const MEDICINES_CHANGED_EVENT = 'medibuddy:medicines-changed';
 /** Fired after alarm "Taken" presses were written to Supabase. */
 export const DOSE_LOGGED_EVENT = 'medibuddy:dose-logged';
+
+/** localStorage key prefix: the "install voice" tip was shown once for this language. */
+export const VOICE_TIP_KEY_PREFIX = 'medibuddy.voiceTipShown.';
 
 export function notifyMedicinesChanged() {
   window.dispatchEvent(new Event(MEDICINES_CHANGED_EVENT));

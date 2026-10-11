@@ -10,6 +10,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.PowerManager;
 import android.provider.Settings;
+import android.speech.tts.TextToSpeech;
 
 import androidx.core.app.NotificationManagerCompat;
 
@@ -110,6 +111,7 @@ public class MedicineAlarmPlugin extends Plugin {
     public void syncAlarms(PluginCall call) {
         Context ctx = getContext();
         JSArray incoming = call.getArray("reminders", new JSArray());
+        AlarmStore.setLanguage(ctx, call.getString("language"));
 
         List<AlarmStore.Reminder> next = new ArrayList<>();
         try {
@@ -194,7 +196,66 @@ public class MedicineAlarmPlugin extends Plugin {
     public void getSettings(PluginCall call) {
         JSObject ret = new JSObject();
         ret.put("soundEnabled", AlarmStore.isSoundEnabled(getContext()));
+        ret.put("voiceEnabled", AlarmStore.isVoiceEnabled(getContext()));
         call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void setVoiceEnabled(PluginCall call) {
+        AlarmStore.setVoiceEnabled(getContext(), Boolean.TRUE.equals(call.getBoolean("enabled", true)));
+        call.resolve();
+    }
+
+    /**
+     * checkVoice({ language }): can the phone speak this language offline?
+     * Resolves { available, language, engine }.
+     */
+    @PluginMethod
+    public void checkVoice(PluginCall call) {
+        String lang = AlarmVoice.normalize(call.getString("language", "en"));
+        final TextToSpeech[] holder = new TextToSpeech[1];
+        // Post to the main thread: the init callback may run before the constructor returns.
+        holder[0] = new TextToSpeech(getContext().getApplicationContext(), status -> new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+            JSObject ret = new JSObject();
+            ret.put("language", lang);
+            TextToSpeech tts = holder[0];
+            if (status != TextToSpeech.SUCCESS || tts == null) {
+                ret.put("available", false);
+                ret.put("engine", "");
+                ret.put("ttsWorking", false);
+            } else {
+                ret.put("available", AlarmVoice.hasInstalledVoice(tts, AlarmVoice.locale(lang)));
+                ret.put("engine", tts.getDefaultEngine());
+                ret.put("ttsWorking", true);
+            }
+            call.resolve(ret);
+            if (tts != null) tts.shutdown();
+        }));
+    }
+
+    /** Language whose voice was missing during an alarm (spoken in English instead), once. */
+    @PluginMethod
+    public void consumeVoiceFallback(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("language", AlarmStore.consumeVoiceFallback(getContext()));
+        call.resolve(ret);
+    }
+
+    /** Opens Settings > Text-to-speech output. */
+    @PluginMethod
+    public void openTtsSettings(PluginCall call) {
+        open(call, new Intent("com.android.settings.TTS_SETTINGS"));
+    }
+
+    /** Opens the TTS engine's "install voice data" screen. */
+    @PluginMethod
+    public void installVoiceData(PluginCall call) {
+        Intent install = new Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA);
+        if (tryStart(install)) {
+            call.resolve();
+            return;
+        }
+        open(call, new Intent("com.android.settings.TTS_SETTINGS"));
     }
 
     @PluginMethod
@@ -362,6 +423,7 @@ public class MedicineAlarmPlugin extends Plugin {
         r.time = o.isNull("time") ? null : o.optString("time", null);
         r.at = o.optLong("at", 0);
         r.isTest = o.optBoolean("isTest", false);
+        r.language = o.isNull("language") ? null : emptyToNull(o.optString("language", null));
         r.repeat = o.has("repeat") ? o.optBoolean("repeat", true) : r.at <= 0;
         r.startDate = o.isNull("startDate") ? null : emptyToNull(o.optString("startDate", null));
         r.endDate = o.isNull("endDate") ? null : emptyToNull(o.optString("endDate", null));

@@ -177,6 +177,7 @@ public final class AlarmScheduler {
         p.date = dateKey(c);
         p.time = r.repeat && r.time != null ? r.time : timeKey(c);
         p.isTest = r.isTest;
+        p.language = r.language;
         return p;
     }
 

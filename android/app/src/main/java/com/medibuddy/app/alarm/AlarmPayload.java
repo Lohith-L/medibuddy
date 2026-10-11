@@ -13,6 +13,7 @@ public final class AlarmPayload {
     static final String EXTRA_DATE = "alarm_date";
     static final String EXTRA_TIME = "alarm_time";
     static final String EXTRA_IS_TEST = "alarm_is_test";
+    static final String EXTRA_LANGUAGE = "alarm_language";
 
     public int id;
     public String medicineId;
@@ -23,6 +24,8 @@ public final class AlarmPayload {
     /** Scheduled dose time, "HH:MM" (local, 24h). Snoozes keep the original time. */
     public String time;
     public boolean isTest;
+    /** App language for the spoken announcement, e.g. "hi". */
+    public String language;
 
     public void writeTo(Intent intent) {
         intent.putExtra(EXTRA_ID, id);
@@ -32,6 +35,7 @@ public final class AlarmPayload {
         intent.putExtra(EXTRA_DATE, date);
         intent.putExtra(EXTRA_TIME, time);
         intent.putExtra(EXTRA_IS_TEST, isTest);
+        intent.putExtra(EXTRA_LANGUAGE, language);
     }
 
     public static AlarmPayload from(Intent intent) {
@@ -46,6 +50,7 @@ public final class AlarmPayload {
         p.date = b.getString(EXTRA_DATE, "");
         p.time = b.getString(EXTRA_TIME, "");
         p.isTest = b.getBoolean(EXTRA_IS_TEST, false);
+        p.language = b.getString(EXTRA_LANGUAGE, null);
         return p;
     }
 

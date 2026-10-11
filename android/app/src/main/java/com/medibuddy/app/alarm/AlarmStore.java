@@ -27,6 +27,9 @@ public final class AlarmStore {
     private static final String KEY_REMINDERS = "reminders";
     private static final String KEY_PENDING_ACTIONS = "pending_dose_actions";
     private static final String KEY_SOUND_ENABLED = "sound_enabled";
+    private static final String KEY_VOICE_ENABLED = "voice_enabled";
+    private static final String KEY_LANGUAGE = "language";
+    private static final String KEY_VOICE_FALLBACK = "voice_fallback_language";
 
     private AlarmStore() {}
 
@@ -137,6 +140,36 @@ public final class AlarmStore {
         prefs(ctx).edit().putBoolean(KEY_SOUND_ENABLED, enabled).apply();
     }
 
+    /** Spoken "time to take your medicine" announcement while the alarm rings. */
+    public static boolean isVoiceEnabled(Context ctx) {
+        return prefs(ctx).getBoolean(KEY_VOICE_ENABLED, true);
+    }
+
+    public static void setVoiceEnabled(Context ctx, boolean enabled) {
+        prefs(ctx).edit().putBoolean(KEY_VOICE_ENABLED, enabled).apply();
+    }
+
+    /** App language ("en", "hi", ...) from the last sync; used when an alarm has none. */
+    public static String getLanguage(Context ctx) {
+        return prefs(ctx).getString(KEY_LANGUAGE, "en");
+    }
+
+    public static void setLanguage(Context ctx, String language) {
+        if (language != null && !language.isEmpty()) prefs(ctx).edit().putString(KEY_LANGUAGE, language).apply();
+    }
+
+    /** Set when an alarm had to speak English because the language's voice is missing. */
+    public static void setVoiceFallback(Context ctx, String language) {
+        prefs(ctx).edit().putString(KEY_VOICE_FALLBACK, language).apply();
+    }
+
+    /** Returns and clears the language that fell back to English, or null. */
+    public static synchronized String consumeVoiceFallback(Context ctx) {
+        String lang = prefs(ctx).getString(KEY_VOICE_FALLBACK, null);
+        if (lang != null) prefs(ctx).edit().remove(KEY_VOICE_FALLBACK).apply();
+        return lang;
+    }
+
     // ── Model ─────────────────────────────────────────────────────────────
 
     /** One alarm: a daily "HH:MM" reminder for a medicine, or a one-shot alarm. */
@@ -154,6 +187,8 @@ public final class AlarmStore {
         public String startDate;
         public String endDate;
         public boolean isTest;
+        /** App language for the spoken announcement ("en", "hi", "te", ...). */
+        public String language;
 
         public JSONObject toJson() throws JSONException {
             JSONObject o = new JSONObject();
@@ -167,6 +202,7 @@ public final class AlarmStore {
             o.put("startDate", startDate);
             o.put("endDate", endDate);
             o.put("isTest", isTest);
+            o.put("language", language);
             return o;
         }
 
@@ -183,6 +219,7 @@ public final class AlarmStore {
             r.startDate = o.isNull("startDate") ? null : o.optString("startDate", null);
             r.endDate = o.isNull("endDate") ? null : o.optString("endDate", null);
             r.isTest = o.optBoolean("isTest", false);
+            r.language = o.isNull("language") ? null : o.optString("language", null);
             return r;
         }
     }
