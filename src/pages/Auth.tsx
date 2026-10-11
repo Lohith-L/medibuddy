@@ -233,15 +233,17 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen gradient-hero flex items-center justify-center px-4 py-12">
+    <div className="min-h-screen gradient-hero flex items-center justify-center px-4 py-12 native:px-3 native:py-6">
       <div className="w-full max-w-md">
         {/* Back */}
-        <Button variant="ghost" size="sm" className="mb-4 text-muted-foreground hover:text-foreground" onClick={() => navigate("/")}>
-          <ArrowLeft className="w-4 h-4 mr-2" /> Back to home
-        </Button>
+        {!Capacitor.isNativePlatform() && (
+          <Button variant="ghost" size="sm" className="mb-4 text-muted-foreground hover:text-foreground" onClick={() => navigate("/")}>
+            <ArrowLeft className="w-4 h-4 mr-2" /> Back to home
+          </Button>
+        )}
 
         {/* Card */}
-        <div className="w-full bg-gradient-to-b from-sky-50/50 to-white rounded-3xl shadow-xl border border-blue-100 p-8 text-foreground">
+        <div className="w-full bg-gradient-to-b from-sky-50/50 to-white rounded-3xl shadow-xl border border-blue-100 p-8 native:p-5 text-foreground">
           {/* Centered Icon Badge & Header */}
           <div className="flex flex-col items-center text-center mb-6">
             <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-white mb-4 shadow-lg shadow-blue-500/5 border border-blue-100/60">
@@ -282,7 +284,7 @@ const Auth = () => {
             <button
               type="button"
               onClick={() => setAuthMethod("email")}
-              className={`py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+              className={`py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 native:text-[13px] native:whitespace-nowrap ${
                 authMethod === "email" ? "bg-white shadow-sm text-foreground font-semibold" : "text-muted-foreground hover:text-foreground"
               }`}
             >

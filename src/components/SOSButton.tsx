@@ -258,7 +258,7 @@ export const SOSButton = ({ variant = "floating" }: SOSButtonProps) => {
       {variant === "floating" && (
         <button
           onClick={() => setOpen(true)}
-          className="fixed bottom-20 right-4 lg:bottom-6 lg:right-8 z-50 group flex items-center gap-2 px-4 py-3 rounded-full bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white font-extrabold shadow-lg hover:shadow-red-500/30 hover:scale-105 active:scale-95 transition-all duration-200 animate-pulse border-2 border-white/20"
+          className="sos-floating fixed bottom-20 right-4 lg:bottom-6 lg:right-8 z-50 group flex items-center gap-2 px-4 py-3 rounded-full bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white font-extrabold shadow-lg hover:shadow-red-500/30 hover:scale-105 active:scale-95 transition-all duration-200 animate-pulse border-2 border-white/20"
           title="Emergency SOS Call"
           aria-label="Emergency SOS Call"
         >

@@ -22,6 +22,71 @@
   padding-top: env(safe-area-inset-top, 0px);
 }
 
+/* ── Android / iOS app only (html.native-app is set in main.tsx) ──────────
+   Capacitor 8 draws the WebView edge-to-edge (Android 15+ enforces it) and
+   exposes the system bar sizes both as env(safe-area-inset-*) and as the
+   injected --safe-area-inset-* variables. Use whichever is larger. */
+.native-app {
+  --app-safe-top: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+  --app-safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+}
+.native-app #root { padding-top: var(--app-safe-top); }
+/* Solid strip behind the status bar so scrolled content never shows under
+   the clock and battery icons. Matches the header colour. */
+.native-app body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--app-safe-top);
+  background: hsl(var(--card));
+  z-index: 60;
+  pointer-events: none;
+}
+/* Sticky / fixed top bars start below the status bar */
+.native-app .app-header { top: var(--app-safe-top); }
+.native-app .safe-bottom { padding-bottom: var(--app-safe-bottom); }
+@media (max-width: 1023px) {
+  .native-app .app-main { padding-bottom: calc(5rem + var(--app-safe-bottom)); }
+  .native-app .sos-floating { bottom: calc(5rem + var(--app-safe-bottom)); }
+}
+
+/* Performance on phones: blur and large shadows are expensive in the
+   Android WebView, so use solid surfaces and light shadows instead. */
+.native-app *,
+.native-app *::before,
+.native-app *::after {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+.native-app .app-header,
+.native-app .app-bottom-nav { background-color: hsl(var(--card)); }
+.native-app {
+  --shadow-card: 0 1px 3px hsl(220 30% 10% / 0.08);
+  --shadow-hover: 0 2px 6px hsl(220 30% 10% / 0.10);
+  --shadow-float: 0 4px 12px hsl(220 30% 10% / 0.12);
+}
+.native-app .shadow-xl,
+.native-app .shadow-2xl { box-shadow: var(--shadow-float) !important; }
+/* Endless decorative animations (bounce / ping / pulse on buttons) */
+.native-app .animate-bounce,
+.native-app .animate-ping,
+.native-app button.animate-pulse,
+.native-app button .animate-pulse { animation: none !important; }
+
+/* Respect the system "reduce motion" setting on every platform */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 @layer base {
   :root {
     --background: 210 25% 98%;

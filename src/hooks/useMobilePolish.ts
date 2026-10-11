@@ -3,7 +3,9 @@
  *
  * Handles Android/iOS-specific UX polish:
  *   - Hides the splash screen once the app is ready
- *   - Configures the status bar (dark icons on light, light on dark)
+ *   - Configures the status bar: dark icons to match the white app header.
+ *     Placement under the bar is handled by Capacitor's SystemBars (edge-to-edge)
+ *     plus the safe-area CSS for html.native-app in index.css.
  *   - Handles the Android hardware back button:
  *       • On inner screens: navigate(-1)
  *       • On the home screen (/dashboard or /): ask twice then exit
@@ -18,8 +20,9 @@ import { SplashScreen } from '@capacitor/splash-screen';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { useNavigate, useLocation } from 'react-router-dom';
 
-/** Routes considered "home" — pressing back here exits the app */
-const HOME_ROUTES = new Set(['/', '/dashboard']);
+/** Routes considered "home" — pressing back here exits the app.
+ *  /auth is the first screen for logged-out users (no landing page in the app). */
+const HOME_ROUTES = new Set(['/', '/dashboard', '/auth']);
 
 export function useMobilePolish() {
   const navigate = useNavigate();
@@ -31,8 +34,10 @@ export function useMobilePolish() {
     if (!Capacitor.isNativePlatform()) return;
 
     // ── Status bar ─────────────────────────────────────────────────────
-    StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
-    StatusBar.setBackgroundColor({ color: '#0f172a' }).catch(() => {});
+    // Style.Light = dark text/icons for a light background.
+    StatusBar.setStyle({ style: Style.Light }).catch(() => {});
+    // Only has an effect below Android 15; newer versions are always edge-to-edge.
+    StatusBar.setBackgroundColor({ color: '#ffffff' }).catch(() => {});
 
     // ── Splash screen ──────────────────────────────────────────────────
     // Hide after a short delay so the React tree has rendered.

@@ -26,7 +26,7 @@ const BottomNav = () => {
   };
 
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-lg border-t safe-bottom">
+    <nav className="app-bottom-nav lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-lg border-t safe-bottom">
       <div className="flex items-stretch h-16 overflow-x-auto scrollbar-hide">
         {bottomNavItems.map((item) => {
           const active = location.pathname === item.path;

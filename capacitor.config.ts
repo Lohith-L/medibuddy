@@ -20,9 +20,17 @@ const config: CapacitorConfig = {
       androidSplashResourceName: 'splash',
       showSpinner: false,
     },
+    // Capacitor 8 built-in edge-to-edge handling (required on Android 15+).
+    // 'css' passes real safe-area insets to env(safe-area-inset-*) and also
+    // injects --safe-area-inset-* variables, used in index.css.
+    SystemBars: {
+      insetsHandling: 'css',
+      style: 'LIGHT',               // dark icons on the white header
+      initialViewportFitValueHint: 'cover',
+    },
     StatusBar: {
-      style: 'dark',                // use 'dark' icons on light bg
-      backgroundColor: '#0f172a',
+      style: 'LIGHT',               // dark icons on the white header
+      backgroundColor: '#ffffff',   // only applies below Android 15
     },
     LocalNotifications: {
       smallIcon: 'ic_stat_icon_config_sample',

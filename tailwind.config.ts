@@ -113,5 +113,12 @@ export default {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [
+    require("tailwindcss-animate"),
+    // `native:` styles apply only inside the Android/iOS app (html.native-app),
+    // so phone-specific tweaks never change the website.
+    ({ addVariant }: { addVariant: (name: string, selector: string) => void }) => {
+      addVariant("native", ".native-app &");
+    },
+  ],
 } satisfies Config;

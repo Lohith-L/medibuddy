@@ -235,23 +235,25 @@ const DashboardLayout = ({ children }: Props) => {
       {/* Main content */}
       <div className="flex-1 min-w-0 w-full lg:ml-[260px] flex flex-col min-h-screen">
         {/* Top header — compact on mobile */}
-        <header className="sticky top-0 z-30 bg-card/80 backdrop-blur-lg border-b px-3 lg:px-8">
-          <div className="flex items-center justify-between h-14 lg:h-[72px]">
-            <div className="flex items-center gap-3">
-              <div>
+        <header className="app-header sticky top-0 z-30 bg-card/80 backdrop-blur-lg border-b px-3 lg:px-8">
+          <div className="flex items-center justify-between gap-2 h-14 lg:h-[72px]">
+            {/* min-w-0 lets the greeting shrink so the buttons (incl. the bell) always fit */}
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="min-w-0">
                 <h1 className="text-base lg:text-xl font-bold truncate max-w-[200px] sm:max-w-none">{greeting}, {userName}! 👋</h1>
                 <p className="text-sm text-muted-foreground hidden sm:block">{dateStr}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
               <SOSButton variant="header" />
               <div className="relative" ref={langRef}>
                 <button
                   onClick={() => setLangDropdownOpen(!langDropdownOpen)}
-                  className="px-3 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-semibold border border-primary/20 hover:bg-primary/20 transition-colors flex items-center gap-1.5"
+                  className="px-2.5 sm:px-3 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-semibold border border-primary/20 hover:bg-primary/20 transition-colors flex items-center gap-1.5"
+                  aria-label="Change language"
                 >
-                  <Globe className="w-3.5 h-3.5" />
-                  {languageLabelByCode[patientLanguage] || patientLanguage}
+                  <Globe className="w-3.5 h-3.5 shrink-0" />
+                  <span className="max-[380px]:hidden">{languageLabelByCode[patientLanguage] || patientLanguage}</span>
                 </button>
                 {langDropdownOpen && (
                   <div className="absolute right-0 top-full mt-2 w-48 bg-card border rounded-xl shadow-float z-50 py-1 animate-fade-in">
@@ -271,7 +273,7 @@ const DashboardLayout = ({ children }: Props) => {
                 )}
               </div>
               <div className="relative" ref={notifRef}>
-                <Button variant="ghost" size="icon" className="relative" onClick={() => setNotifOpen(!notifOpen)}>
+                <Button variant="ghost" size="icon" className="relative shrink-0" aria-label="Notifications" onClick={() => setNotifOpen(!notifOpen)}>
                   <Bell className="w-5 h-5" />
                   {unreadCount > 0 && (
                     <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center border-2 border-card">
@@ -318,7 +320,7 @@ const DashboardLayout = ({ children }: Props) => {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 min-w-0 w-full max-w-full p-3 sm:p-4 lg:p-8 pb-20 lg:pb-8">
+        <main className="app-main flex-1 min-w-0 w-full max-w-full p-3 sm:p-4 lg:p-8 pb-20 lg:pb-8">
           {children}
         </main>
       </div>

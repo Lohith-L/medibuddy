@@ -1,5 +1,6 @@
+import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { HashRouter, Route, Routes } from "react-router-dom";
+import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,20 +8,36 @@ import { LanguageProvider } from "@/contexts/LanguageContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import PublicRoute from "@/components/PublicRoute";
-import Landing from "./pages/Landing";
-import Auth from "./pages/Auth";
-import ForgotPassword from "./pages/ForgotPassword";
-import Onboarding from "./pages/Onboarding";
-import Dashboard from "./pages/Dashboard";
-import UploadPrescription from "./pages/UploadPrescription";
-import Medicines from "./pages/Medicines";
-import MedicineLog from "./pages/MedicineLog";
-import Profile from "./pages/Profile";
-import FamilyAlerts from "./pages/FamilyAlerts";
-import HealthReports from "./pages/HealthReports";
-import Health from "./pages/Health";
-import Pharmacies from "./pages/Pharmacies";
-import NotFound from "./pages/NotFound";
+import { MotionConfig } from "framer-motion";
+import { Capacitor } from "@capacitor/core";
+
+// Pages are loaded on demand so the first screen downloads and parses less
+// JavaScript. Heavy libraries (Spline 3D, Leaflet maps, Recharts) now only
+// load with the page that needs them.
+const Landing = lazy(() => import("./pages/Landing"));
+const Auth = lazy(() => import("./pages/Auth"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const Onboarding = lazy(() => import("./pages/Onboarding"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const UploadPrescription = lazy(() => import("./pages/UploadPrescription"));
+const Medicines = lazy(() => import("./pages/Medicines"));
+const MedicineLog = lazy(() => import("./pages/MedicineLog"));
+const Profile = lazy(() => import("./pages/Profile"));
+const FamilyAlerts = lazy(() => import("./pages/FamilyAlerts"));
+const HealthReports = lazy(() => import("./pages/HealthReports"));
+const Health = lazy(() => import("./pages/Health"));
+const Pharmacies = lazy(() => import("./pages/Pharmacies"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+
+const isNative = Capacitor.isNativePlatform();
+
+/** Shown while a page's code is loading */
+const PageLoader = () => (
+  <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="w-10 h-10 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+  </div>
+);
+
 import { useDeepLink } from "@/hooks/useDeepLink";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useMobilePolish } from "@/hooks/useMobilePolish";
@@ -37,9 +54,14 @@ const AppRoutes = () => {
   useMobilePolish();
 
   return (
+    <Suspense fallback={<PageLoader />}>
     <Routes>
-      {/* Public routes – redirect to /dashboard if already logged in */}
-      <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
+      {/* Public routes – redirect to /dashboard if already logged in.
+          The app skips the marketing page: logged in → dashboard, else → login. */}
+      <Route
+        path="/"
+        element={<PublicRoute>{isNative ? <Navigate to="/auth" replace /> : <Landing />}</PublicRoute>}
+      />
       <Route path="/auth" element={<PublicRoute><Auth /></PublicRoute>} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
 
@@ -58,10 +80,14 @@ const AppRoutes = () => {
       <Route path="/pharmacies" element={<ProtectedRoute><Pharmacies /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
+    </Suspense>
   );
 };
 
 const App = () => (
+  // Honour the system "reduce motion" setting; in the app, skip movement
+  // animations entirely (fades still run) to keep phones smooth.
+  <MotionConfig reducedMotion={isNative ? "always" : "user"}>
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <LanguageProvider>
@@ -75,6 +101,7 @@ const App = () => (
       </LanguageProvider>
     </TooltipProvider>
   </QueryClientProvider>
+  </MotionConfig>
 );
 
 export default App;
