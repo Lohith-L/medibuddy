@@ -22,7 +22,7 @@
 
             <!--
                 Deep-link intent filter for Supabase OAuth callbacks.
-                Supabase redirects to: com.medibuddy.app://login-callback#access_token=...
+                Supabase redirects to: com.medibuddy.app://login-callback?code=... (PKCE)
                 Android intercepts this URL and fires an appUrlOpen Capacitor event.
 
                 Supabase Dashboard -> Auth -> URL Configuration:
@@ -32,7 +32,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="com.medibuddy.app" />
+                <data android:scheme="com.medibuddy.app" android:host="login-callback" />
             </intent-filter>
         </activity>
 

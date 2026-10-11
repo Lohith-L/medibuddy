@@ -3,6 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Capacitor } from "@capacitor/core";
+import { Browser } from "@capacitor/browser";
+import { OAUTH_REDIRECT_URL } from "@/hooks/useDeepLink";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ArrowLeft, Mail, Lock, User, Phone, KeyRound, HeartHandshake, LogIn } from "lucide-react";
@@ -205,17 +208,26 @@ const Auth = () => {
   };
 
   const handleGoogleLogin = async () => {
-    // On native (Android/iOS) we must use a custom URL scheme so the OS
-    // intercepts the redirect and fires an appUrlOpen event.
-    // On web, use the page origin as before.
-    const { Capacitor } = await import('@capacitor/core');
-    const redirectTo = Capacitor.isNativePlatform()
-      ? 'com.medibuddy.app://login-callback'
-      : `${window.location.origin}/dashboard`;
+    if (Capacitor.isNativePlatform()) {
+      // On Android/iOS, open Google in the system browser, not the WebView.
+      // Google blocks sign-in inside embedded WebViews, and only the system
+      // browser can hand the com.medibuddy.app:// callback back to the app.
+      // useDeepLink finishes the sign-in when that callback arrives.
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: OAUTH_REDIRECT_URL, skipBrowserRedirect: true },
+      });
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      if (data?.url) await Browser.open({ url: data.url });
+      return;
+    }
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo },
+      options: { redirectTo: `${window.location.origin}/dashboard` },
     });
     if (error) toast.error(error.message);
   };

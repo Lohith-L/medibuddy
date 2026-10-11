@@ -14,10 +14,11 @@ const AuthContext = createContext<AuthContextValue>({
   loading: true,
 });
 
-/** Returns true when the URL hash contains an OAuth access_token (post-Google-redirect) */
+/** True right after an OAuth redirect: ?code= (PKCE) or #access_token (implicit) */
 const hasOAuthHash = () =>
   typeof window !== "undefined" &&
-  window.location.hash.includes("access_token");
+  (window.location.hash.includes("access_token") ||
+    new URLSearchParams(window.location.search).has("code"));
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);

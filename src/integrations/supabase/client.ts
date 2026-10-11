@@ -16,6 +16,9 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     storage: getSupabaseStorage(),
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: true,   // reads #access_token from URL after OAuth redirect
+    // PKCE: OAuth and email links return a one-time ?code= that the client
+    // exchanges for a session. Needed for the Android deep-link sign-in.
+    flowType: 'pkce',
+    detectSessionInUrl: true,   // on web, exchanges ?code= from the URL after a redirect
   }
 });

@@ -24,10 +24,12 @@ const ForgotPassword = () => {
       }
     });
 
-    // Check if URL hash contains recovery parameters from email link click
+    // Check if the URL came from the email link: ?code= (PKCE) or the older
+    // #access_token&type=recovery hash.
     if (
       window.location.hash.includes("type=recovery") ||
-      window.location.hash.includes("access_token")
+      window.location.hash.includes("access_token") ||
+      new URLSearchParams(window.location.search).has("code")
     ) {
       setStep("newPassword");
     }
