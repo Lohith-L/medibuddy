@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useRealtimeTable } from "@/hooks/useRealtimeTable";
-import { useMedicineNotifications } from "@/hooks/useMedicineNotifications";
+import { notifyMedicinesChanged } from "@/plugins/medicineAlarm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -107,9 +107,7 @@ const Medicines = () => {
   // ── Realtime: re-fetch whenever the website changes medicines ──────
   useRealtimeTable('medicines', 'patient_id', patientId, fetchMedicines);
 
-  // ── Native phone notifications (no-op on web) ────────────────────
-  // Re-schedules device alarms whenever medicines list changes (incl. Realtime).
-  useMedicineNotifications(medicines);
+  // Phone alarms are kept in sync app-wide by useMedicineAlarmSync (App.tsx).
 
   // ── Photo upload ───────────────────────────────────────────────────
   const handlePhotoUpload = async (file: File, medicineId: string) => {
@@ -251,6 +249,7 @@ const Medicines = () => {
         )
       );
       toast.success("Medicine updated ✅");
+      notifyMedicinesChanged(); // resync phone alarms right away
       setEditingMed(null);
     } catch (err: any) {
       toast.error(err.message || "Failed to update");
@@ -277,6 +276,7 @@ const Medicines = () => {
 
       setMedicines((prev) => prev.filter((m) => m.id !== deletingMed.id));
       toast.success("Medicine deleted");
+      notifyMedicinesChanged(); // resync phone alarms right away
       setDeletingMed(null);
     } catch (err: any) {
       toast.error(err.message || "Failed to delete");

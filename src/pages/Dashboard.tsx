@@ -11,6 +11,8 @@ import DashboardLayout from "@/components/DashboardLayout";
 import MedicineTrackingChart from "@/components/MedicineTrackingChart";
 import SOSButton from "@/components/SOSButton";
 import WeatherHealthCard from "@/components/WeatherHealthCard";
+import AlarmSetupBanner from "@/components/AlarmSetupBanner";
+import { DOSE_LOGGED_EVENT } from "@/plugins/medicineAlarm";
 
 const fadeIn = (i: number) => ({
   initial: { opacity: 0, y: 16 },
@@ -303,6 +305,14 @@ const Dashboard = () => {
   useRealtimeTable('medicines', 'patient_id', patientId, () => patientId && fetchSchedule(patientId));
   useRealtimeTable('reminder_events', 'patient_id', patientId, () => patientId && fetchSchedule(patientId));
 
+  // Refresh after an alarm "Taken" press has been written to Supabase
+  useEffect(() => {
+    const onLogged = () => { if (patientId) fetchSchedule(patientId); };
+    window.addEventListener(DOSE_LOGGED_EVENT, onLogged);
+    return () => window.removeEventListener(DOSE_LOGGED_EVENT, onLogged);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientId]);
+
   const nextPending = schedule.find((s) => s.status === "pending");
 
   const statCards = [
@@ -339,6 +349,9 @@ const Dashboard = () => {
   return (
     <DashboardLayout>
       <div className="space-y-6 max-w-6xl">
+        {/* Android app: prompt to finish alarm permissions (renders nothing otherwise) */}
+        <AlarmSetupBanner />
+
         {/* Weather & Health Tips Card */}
         <motion.div {...fadeIn(0)}>
           <WeatherHealthCard />

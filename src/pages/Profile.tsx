@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Save, User, Lock, ShieldCheck } from "lucide-react";
+import { Save, User, Lock, ShieldCheck, AlarmClock, ChevronRight } from "lucide-react";
+import { Capacitor } from "@capacitor/core";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -196,6 +197,23 @@ const Profile = () => {
               <Save className="w-5 h-5" /> {loading ? "Saving..." : "Save Changes"}
             </Button>
           </div>
+
+          {/* Medicine alarm settings — Android app only */}
+          {Capacitor.isNativePlatform() && (
+            <button
+              onClick={() => navigate("/alarm-settings")}
+              className="w-full bg-card rounded-2xl border p-5 shadow-card flex items-center gap-4 text-left hover:bg-muted/50 transition-colors"
+            >
+              <div className="w-11 h-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <AlarmClock className="w-6 h-6" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-bold">Medicine alarm</p>
+                <p className="text-sm text-muted-foreground">Alarm sound, test alarm and phone permissions</p>
+              </div>
+              <ChevronRight className="w-5 h-5 text-muted-foreground" />
+            </button>
+          )}
 
           {/* Password — only for accounts that sign in with a password */}
           {account.provider === "email" && (

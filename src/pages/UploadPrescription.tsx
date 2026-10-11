@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
+import { notifyMedicinesChanged } from "@/plugins/medicineAlarm";
 import { supabase } from "@/integrations/supabase/client";
 import { generateUUID } from "@/lib/uuid";
 import {
@@ -341,6 +342,7 @@ const UploadPrescription = () => {
 
       const { error } = await supabase.from("medicines").insert(inserts);
       if (error) throw error;
+      notifyMedicinesChanged(); // set phone alarms for the new medicines right away
 
       toast.success("Medicines saved with reminder times! ✅");
 

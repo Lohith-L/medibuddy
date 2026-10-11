@@ -28,6 +28,7 @@ const HealthReports = lazy(() => import("./pages/HealthReports"));
 const Health = lazy(() => import("./pages/Health"));
 const Pharmacies = lazy(() => import("./pages/Pharmacies"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const AlarmSettings = lazy(() => import("./pages/AlarmSettings"));
 
 const isNative = Capacitor.isNativePlatform();
 
@@ -41,6 +42,7 @@ const PageLoader = () => (
 import { useDeepLink } from "@/hooks/useDeepLink";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useMobilePolish } from "@/hooks/useMobilePolish";
+import { useMedicineAlarmSync } from "@/hooks/useMedicineAlarmSync";
 
 const queryClient = new QueryClient();
 
@@ -52,6 +54,8 @@ const AppRoutes = () => {
   usePushNotifications();
   // Status bar, splash screen, back button (no-op on web)
   useMobilePolish();
+  // Keep phone medicine alarms in sync with the database (no-op on web)
+  useMedicineAlarmSync();
 
   return (
     <Suspense fallback={<PageLoader />}>
@@ -74,6 +78,7 @@ const AppRoutes = () => {
       <Route path="/health-reports" element={<ProtectedRoute><HealthReports /></ProtectedRoute>} />
       <Route path="/health" element={<ProtectedRoute><Health /></ProtectedRoute>} />
       <Route path="/pharmacies" element={<ProtectedRoute><Pharmacies /></ProtectedRoute>} />
+      <Route path="/alarm-settings" element={<ProtectedRoute><AlarmSettings /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
     </Suspense>
