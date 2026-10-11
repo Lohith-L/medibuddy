@@ -1,6 +1,7 @@
 // hi: Health Data page (Health Connect) and the More menu.
 const health = {
   "nav.more": "और",
+  "nav.health": "स्वास्थ्य",
   "nav.moreTitle": "और विकल्प",
   "health.demoBadge": "डेमो डेटा",
   "health.connectPrompt": "अपने असली कदम, नींद, हृदय गति और कैलोरी देखने के लिए कनेक्ट करें।",

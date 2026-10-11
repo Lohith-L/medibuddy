@@ -1,6 +1,7 @@
 // gu: Health Data page (Health Connect) and the More menu.
 const health = {
   "nav.more": "વધુ",
+  "nav.health": "આરોગ્ય",
   "nav.moreTitle": "વધુ વિકલ્પો",
   "health.demoBadge": "ડેમો ડેટા",
   "health.connectPrompt": "તમારાં સાચાં પગલાં, ઊંઘ, હૃદયના ધબકારા અને કેલરી જોવા માટે કનેક્ટ કરો.",

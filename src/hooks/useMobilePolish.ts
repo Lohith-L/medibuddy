@@ -14,6 +14,7 @@
  */
 
 import { useEffect, useRef } from 'react';
+import { runBackHandler } from '@/lib/backHandlers';
 import { Capacitor } from '@capacitor/core';
 import { App, BackButtonListenerEvent } from '@capacitor/app';
 import { SplashScreen } from '@capacitor/splash-screen';
@@ -54,6 +55,9 @@ export function useMobilePolish() {
 
     // ── Android back button ────────────────────────────────────────────
     const handleBackButton = (ev: BackButtonListenerEvent) => {
+      // An open sheet/overlay closes first.
+      if (runBackHandler()) return;
+
       const isHome = HOME_ROUTES.has(location.pathname);
 
       if (!isHome) {

@@ -1,15 +1,19 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
-  Home, Pill, Store, Users, Menu, Activity, Camera, BarChart3, Settings, ChevronRight,
+  Home, Camera, Store, Activity, Menu, Pill, Users, BarChart3, Settings, LogOut, ChevronRight,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { pushBackHandler } from "@/lib/backHandlers";
 
 /**
- * Mobile bottom navigation: four main tabs plus "More", which opens a bottom
- * sheet with the remaining pages. Five equal columns fit a 360px screen;
- * long labels wrap onto two lines instead of being cut off.
+ * Mobile bottom navigation (hidden on desktop, where the sidebar is used):
+ * Home, Upload, Pharmacy, Health and "More". More opens a bottom sheet with
+ * Medicines, Alerts, Health Reports, Settings and Logout. Five equal columns
+ * fit a 360px screen; long labels wrap onto two lines instead of being cut off.
  */
 const BottomNav = () => {
   const navigate = useNavigate();
@@ -19,25 +23,41 @@ const BottomNav = () => {
 
   const tabs = [
     { label: t("home"), icon: Home, path: "/dashboard" },
-    { label: t("medicines"), icon: Pill, path: "/medicines" },
+    { label: t("upload"), icon: Camera, path: "/upload" },
     { label: t("pharmacy"), icon: Store, path: "/pharmacies" },
-    { label: t("alerts"), icon: Users, path: "/family-alerts" },
+    { label: t("nav.health"), icon: Activity, path: "/health" },
   ];
 
   const moreItems = [
-    { label: t("healthData"), icon: Activity, path: "/health" },
-    { label: t("uploadPrescription"), icon: Camera, path: "/upload" },
-    { label: t("healthReports"), icon: BarChart3, path: "/health-reports" },
+    { label: t("myMedicines"), icon: Pill, path: "/medicines" },
     { label: t("familyAlerts"), icon: Users, path: "/family-alerts" },
+    { label: t("healthReports"), icon: BarChart3, path: "/health-reports" },
     { label: t("settings"), icon: Settings, path: "/profile" },
   ];
 
-  const isTab = tabs.some((tab) => tab.path === location.pathname);
-  const moreActive = !isTab && moreItems.some((m) => m.path === location.pathname);
+  const moreActive = moreItems.some((m) => m.path === location.pathname);
+
+  // Android back button closes the sheet before navigating back.
+  useEffect(() => {
+    if (!moreOpen) return;
+    return pushBackHandler(() => setMoreOpen(false));
+  }, [moreOpen]);
+
+  // Close the sheet when the page changes (e.g. browser back on the website).
+  useEffect(() => {
+    setMoreOpen(false);
+  }, [location.pathname]);
 
   const go = (path: string) => {
     setMoreOpen(false);
     if (path !== location.pathname) navigate(path);
+  };
+
+  const handleLogout = async () => {
+    setMoreOpen(false);
+    await supabase.auth.signOut();
+    toast.success(t("layout.loggedOut"));
+    navigate("/");
   };
 
   const itemClass = (active: boolean) =>
@@ -45,9 +65,10 @@ const BottomNav = () => {
       active ? "text-primary" : "text-muted-foreground"
     }`;
   const labelClass = (active: boolean) =>
-    `w-full text-center text-[10.5px] tracking-tight leading-[1.15] line-clamp-2 [overflow-wrap:break-word] ${
+    `w-full text-center text-[10.5px] tracking-tight leading-[1.15] line-clamp-2 [overflow-wrap:anywhere] ${
       active ? "font-bold" : "font-medium"
     }`;
+  const indicator = <span className="absolute top-0 w-8 h-0.5 rounded-full bg-primary" />;
 
   return (
     <>
@@ -64,7 +85,7 @@ const BottomNav = () => {
               >
                 <item.icon className={`w-5 h-5 shrink-0 ${active ? "stroke-[2.5]" : ""}`} />
                 <span className={labelClass(active)}>{item.label}</span>
-                {active && <span className="absolute top-0 w-8 h-0.5 rounded-full bg-primary" />}
+                {active && indicator}
               </button>
             );
           })}
@@ -72,17 +93,21 @@ const BottomNav = () => {
             onClick={() => setMoreOpen(true)}
             aria-haspopup="dialog"
             aria-expanded={moreOpen}
+            aria-current={moreActive ? "page" : undefined}
             className={itemClass(moreActive || moreOpen)}
           >
             <Menu className={`w-5 h-5 shrink-0 ${moreActive ? "stroke-[2.5]" : ""}`} />
             <span className={labelClass(moreActive)}>{t("nav.more")}</span>
-            {moreActive && <span className="absolute top-0 w-8 h-0.5 rounded-full bg-primary" />}
+            {moreActive && indicator}
           </button>
         </div>
       </nav>
 
       <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
-        <SheetContent side="bottom" className="lg:hidden rounded-t-2xl px-3 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] max-h-[85vh] overflow-y-auto">
+        <SheetContent
+          side="bottom"
+          className="lg:hidden rounded-t-2xl px-3 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] max-h-[85vh] overflow-y-auto"
+        >
           <SheetHeader className="text-left px-2">
             <SheetTitle>{t("nav.more")}</SheetTitle>
             <SheetDescription className="sr-only">{t("nav.moreTitle")}</SheetDescription>
@@ -91,16 +116,16 @@ const BottomNav = () => {
             {moreItems.map((item) => {
               const active = location.pathname === item.path;
               return (
-                <li key={item.label}>
+                <li key={item.path}>
                   <button
                     onClick={() => go(item.path)}
                     aria-current={active ? "page" : undefined}
-                    className={`w-full flex items-center gap-3 rounded-xl px-3 py-3 text-left text-sm transition-colors active:scale-[0.99] ${
+                    className={`w-full min-h-[56px] flex items-center gap-3 rounded-xl px-3 py-3 text-left text-base transition-colors active:scale-[0.99] ${
                       active ? "bg-primary/10 text-primary font-semibold" : "hover:bg-muted"
                     }`}
                   >
-                    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${active ? "bg-primary/15" : "bg-muted"}`}>
-                      <item.icon className="w-[18px] h-[18px]" />
+                    <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${active ? "bg-primary/15" : "bg-muted"}`}>
+                      <item.icon className="w-5 h-5" />
                     </span>
                     <span className="flex-1 min-w-0">{item.label}</span>
                     <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
@@ -108,6 +133,17 @@ const BottomNav = () => {
                 </li>
               );
             })}
+            <li className="pt-2 mt-2 border-t">
+              <button
+                onClick={() => void handleLogout()}
+                className="w-full min-h-[56px] flex items-center gap-3 rounded-xl px-3 py-3 text-left text-base font-semibold text-destructive hover:bg-destructive/10 transition-colors active:scale-[0.99]"
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-destructive/10">
+                  <LogOut className="w-5 h-5" />
+                </span>
+                <span className="flex-1 min-w-0">{t("logout")}</span>
+              </button>
+            </li>
           </ul>
         </SheetContent>
       </Sheet>

@@ -1,6 +1,7 @@
 // ta: Health Data page (Health Connect) and the More menu.
 const health = {
   "nav.more": "மேலும்",
+  "nav.health": "நலம்",
   "nav.moreTitle": "மேலும் விருப்பங்கள்",
   "health.demoBadge": "டெமோ தரவு",
   "health.connectPrompt": "உங்கள் உண்மையான அடிகள், தூக்கம், இதயத் துடிப்பு மற்றும் கலோரிகளைப் பார்க்க இணைக்கவும்.",

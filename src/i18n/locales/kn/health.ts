@@ -1,6 +1,7 @@
 // kn: Health Data page (Health Connect) and the More menu.
 const health = {
   "nav.more": "ಇನ್ನಷ್ಟು",
+  "nav.health": "ಆರೋಗ್ಯ",
   "nav.moreTitle": "ಇನ್ನಷ್ಟು ಆಯ್ಕೆಗಳು",
   "health.demoBadge": "ಡೆಮೊ ಡೇಟಾ",
   "health.connectPrompt": "ನಿಮ್ಮ ನಿಜವಾದ ಹೆಜ್ಜೆಗಳು, ನಿದ್ರೆ, ಹೃದಯ ಬಡಿತ ಮತ್ತು ಕ್ಯಾಲೊರಿಗಳನ್ನು ನೋಡಲು ಸಂಪರ್ಕಿಸಿ.",
