@@ -70,9 +70,6 @@ const common = {
   "weeklyActivity": "সাপ্তাহিক কার্যকলাপ",
   "weeklySleep": "সাপ্তাহিক ঘুম",
   "sosEmergency": "জরুরী SOS",
-  "sosModalTitle": "জরুরী স্বাস্থ্য হেল্পলাইন",
-  "sosModalDesc": "জাতীয় জরুরী হেল্পলাইন ১০৮ বা ১০৪ এ কল করতে ক্লিক করুন:",
-  "sosLoggedCaregiver": "জরুরী সতর্কতা নথিভুক্ত হয়েছে এবং পরিচর্যাকারীকে জানানো হয়েছে",
 };
 
 export default common;

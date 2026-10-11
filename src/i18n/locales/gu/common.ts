@@ -70,9 +70,6 @@ const common = {
   "weeklyActivity": "સાપ્તાહિક પ્રવૃત્તિ",
   "weeklySleep": "સાપ્તાહিক ઊંઘ",
   "sosEmergency": "ઇમરજન્સી SOS",
-  "sosModalTitle": "ઇમરજન્સી સ્વાસ્થ્ય હેલ્પલાઇન",
-  "sosModalDesc": "રાષ્ટ્રીય ઇમરજન્સી હેલ્પલાઇન 108 અથવા 104 પર કોલ કરવા માટે ક્લિક કરો:",
-  "sosLoggedCaregiver": "ઇમરજન્સી ચેતવણી નોંધાઈ અને સંભાળ રાખનારને જાણ કરી",
 };
 
 export default common;

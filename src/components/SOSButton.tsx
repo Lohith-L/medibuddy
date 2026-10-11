@@ -1,96 +1,124 @@
-import { useState, useEffect, createContext, useContext, ReactNode } from "react";
+import { useState, useEffect, useCallback, createContext, useContext, ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useNavigate } from "react-router-dom";
+import { Capacitor } from "@capacitor/core";
+import { Geolocation } from "@capacitor/geolocation";
 import { supabase } from "@/integrations/supabase/client";
-import { PhoneCall, Siren, AlertTriangle, X, Check, Copy } from "lucide-react";
+import { Siren, X, UserPlus, PhoneCall, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 interface SOSButtonProps {
   variant?: "floating" | "header" | "inline";
 }
 
+/** A caregiver from family_members, primary first. */
+interface Caregiver {
+  id: string;
+  name: string;
+  phone: string | null;
+  relationship: string;
+  primary: boolean;
+}
+
 interface SOSContextType {
   open: boolean;
   setOpen: (open: boolean) => void;
-  calling: string | null;
-  copied: string | null;
-  handleCall: (number: string) => void;
-  handleCopy: (number: string) => void;
   t: (key: string, vars?: Record<string, string | number>) => string;
 }
 
 const SOSContext = createContext<SOSContextType | undefined>(undefined);
 
+/** Fixed emergency numbers, in the order they are shown. */
+const HELPLINES = [
+  { id: "ambulance", emoji: "🚑", labelKey: "sos.ambulanceName", descKey: "sos.ambulanceDesc", number: "108" },
+  { id: "health_helpline", emoji: "🏥", labelKey: "sos.helplineName", descKey: "sos.advisoryDesc", number: "104" },
+  { id: "national_emergency", emoji: "🆘", labelKey: "sos.nationalName", descKey: "sos.nationalDesc", number: "112" },
+] as const;
+
+/** Keeps digits and a leading + so the number works in a tel: link. */
+const dialable = (phone: string) => phone.replace(/[^\d+]/g, "");
+
+/**
+ * Location for the SOS log, only if permission was already given:
+ * never shows a permission prompt in the middle of an emergency.
+ */
+async function quietLocation(): Promise<string | null> {
+  try {
+    if (Capacitor.isNativePlatform()) {
+      const perm = await Geolocation.checkPermissions();
+      if (perm.location !== "granted" && perm.coarseLocation !== "granted") return null;
+      const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: false, timeout: 4000, maximumAge: 120000 });
+      return `${pos.coords.latitude.toFixed(5)},${pos.coords.longitude.toFixed(5)}`;
+    }
+    if (!navigator.geolocation || !navigator.permissions) return null;
+    const status = await navigator.permissions.query({ name: "geolocation" as PermissionName });
+    if (status.state !== "granted") return null;
+    return await new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (p) => resolve(`${p.coords.latitude.toFixed(5)},${p.coords.longitude.toFixed(5)}`),
+        () => resolve(null),
+        { timeout: 4000, maximumAge: 120000 },
+      );
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Records the SOS call in alert_history (alert_type "sos_emergency"), which
+ * already holds SOS events. Runs after the dialer opens and never blocks it.
+ * If the database refuses the insert (row-level security), it is only logged
+ * to the console: the call itself is what matters.
+ */
+async function logSosCall(option: string, number: string, recipientName: string, recipientEmail: string | null) {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data: patient } = await supabase
+      .from("patients")
+      .select("id, name")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (!patient?.id) return;
+
+    const location = await quietLocation();
+    const when = new Date().toISOString();
+    const { error } = await supabase.from("alert_history").insert({
+      patient_id: patient.id,
+      alert_type: "sos_emergency",
+      recipient_email: recipientEmail || `${option}:${number}`,
+      recipient_name: recipientName,
+      status: "sent",
+      delivery_channel: "phone_call",
+      message_preview:
+        `SOS call (${option}) to ${number} by ${patient.name || "patient"} at ${when}` +
+        (location ? ` · location ${location} (https://maps.google.com/?q=${location})` : " · location unavailable"),
+    });
+    if (error) console.warn("[SOS] call not logged:", error.message);
+  } catch (err) {
+    console.warn("[SOS] call not logged:", err);
+  }
+}
+
 export const SOSProvider = ({ children }: { children: ReactNode }) => {
   const { t } = useLanguage();
   const [open, setOpen] = useState(false);
-  const [calling, setCalling] = useState<string | null>(null);
-  const [copied, setCopied] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setIsLoggedIn(!!data.session);
-    });
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsLoggedIn(!!session);
-    });
-
+    supabase.auth.getSession().then(({ data }) => setIsLoggedIn(!!data.session));
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => setIsLoggedIn(!!session));
     return () => listener.subscription.unsubscribe();
   }, []);
-
-  const logSosEvent = async (numberDialed: string) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: patient } = await supabase
-        .from("patients")
-        .select("id, name, caregiver_email")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (patient?.id) {
-        await supabase.from("alert_history").insert({
-          patient_id: patient.id,
-          alert_type: "sos_emergency",
-          recipient_email: patient.caregiver_email || "108 Emergency Services",
-          recipient_name: `Helpline ${numberDialed}`,
-          status: "sent",
-          delivery_channel: "phone_call",
-          message_preview: `Emergency SOS call to ${numberDialed} initiated by ${patient.name || "Patient"} at ${new Date().toLocaleTimeString("en-IN")}`,
-        });
-      }
-      toast.success(t("sosLoggedCaregiver"));
-    } catch (err) {
-      console.error("Failed to log SOS event:", err);
-    }
-  };
-
-  const handleCall = (number: string) => {
-    setCalling(number);
-    logSosEvent(number);
-    setTimeout(() => {
-      window.location.href = `tel:${number}`;
-      setCalling(null);
-    }, 400);
-  };
-
-  const handleCopy = (number: string) => {
-    navigator.clipboard.writeText(number);
-    setCopied(number);
-    toast.success(t("sos.copied", { number }));
-    setTimeout(() => setCopied(null), 2000);
-  };
 
   if (!isLoggedIn) return <>{children}</>;
 
   return (
-    <SOSContext.Provider value={{ open, setOpen, calling, copied, handleCall, handleCopy, t }}>
+    <SOSContext.Provider value={{ open, setOpen, t }}>
       {children}
-      <SOSModal />
+      <SOSSheet />
     </SOSContext.Provider>
   );
 };
@@ -98,154 +126,217 @@ export const SOSProvider = ({ children }: { children: ReactNode }) => {
 export const useSOS = () => {
   const context = useContext(SOSContext);
   // Graceful fallback — should always be inside SOSProvider in practice
-  return context ?? { open: false, setOpen: () => {}, calling: null, copied: null, handleCall: () => {}, handleCopy: () => {}, t: (k: string) => k };
+  return context ?? { open: false, setOpen: () => {}, t: (k: string) => k };
 };
 
-
-export const SOSModal = () => {
+/** Bottom sheet on phones, centred dialog on larger screens. */
+const SOSSheet = () => {
   const context = useContext(SOSContext);
-  if (!context) return null;
-  const { open, setOpen, calling, copied, handleCall, handleCopy, t } = context;
+  const navigate = useNavigate();
+  const [caregivers, setCaregivers] = useState<Caregiver[] | null>(null);
+  const [calling, setCalling] = useState<string | null>(null);
+  const open = context?.open ?? false;
+  const setOpen = context?.setOpen;
+  const t = context?.t ?? ((k: string) => k);
+  const { tOr } = useLanguage();
 
-  if (!open) return null;
+  // Load caregivers each time the sheet opens (they may have changed).
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setCaregivers(null);
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        if (!cancelled) setCaregivers([]);
+        return;
+      }
+      const { data: patient } = await supabase
+        .from("patients")
+        .select("id, caregiver_email")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!patient?.id) {
+        if (!cancelled) setCaregivers([]);
+        return;
+      }
+      const { data: members } = await supabase
+        .from("family_members")
+        .select("id, full_name, phone, relationship, email, is_active, created_at")
+        .eq("patient_id", patient.id)
+        .order("created_at", { ascending: true });
+      const primaryEmail = patient.caregiver_email?.trim().toLowerCase();
+      const list: Caregiver[] = (members ?? [])
+        .filter((m) => m.is_active !== false)
+        .map((m) => ({
+          id: m.id,
+          name: m.full_name,
+          phone: m.phone,
+          relationship: m.relationship,
+          primary: !!primaryEmail && m.email?.trim().toLowerCase() === primaryEmail,
+        }));
+      // Primary caregiver (matching the profile's caregiver email) first, else oldest first.
+      if (!list.some((c) => c.primary) && list.length > 0) list[0].primary = true;
+      list.sort((a, b) => Number(b.primary) - Number(a.primary));
+      if (!cancelled) setCaregivers(list);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  // Escape closes the dialog on desktop.
+  useEffect(() => {
+    if (!open || !setOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, setOpen]);
+
+  /** Opens the dialer (tel: link) and logs the call in the background. */
+  const call = useCallback(
+    (key: string, option: string, number: string, recipientName: string, email: string | null = null) => {
+      setCalling(key);
+      void logSosCall(option, number, recipientName, email);
+      // A real <a href="tel:"> click: on Android, Capacitor hands non-web URLs
+      // to the system, which opens the dialer with the number filled in.
+      const link = document.createElement("a");
+      link.href = `tel:${dialable(number)}`;
+      link.rel = "noopener";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => setCalling(null), 1500);
+    },
+    [],
+  );
+
+  if (!context || !open) return null;
+
+  const close = () => setOpen?.(false);
+
+  const optionClass =
+    "w-full flex items-center gap-3 rounded-2xl border-2 px-4 py-3.5 text-left transition-colors active:scale-[0.99] min-h-[64px]";
 
   return createPortal(
-    <div
-      className="animate-fade-in"
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 99999,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "1rem",
-      }}
-    >
+    <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center" role="presentation">
       {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/60" onClick={close} aria-hidden="true" />
+
+      {/* Sheet / dialog */}
       <div
-        style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}
-        onClick={() => setOpen(false)}
-      />
-
-      {/* Modal Panel */}
-      <div className="relative bg-card border-2 border-red-500/40 rounded-3xl shadow-2xl max-w-md w-full p-6 space-y-6 overflow-hidden">
-        {/* Top Red Gradient Bar */}
-        <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-red-600 via-rose-500 to-red-700" />
-
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4 pt-2">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-red-500/15 flex items-center justify-center text-red-600 shrink-0">
-              <AlertTriangle className="w-7 h-7 animate-pulse" />
-            </div>
-            <div>
-              <h2 className="text-xl font-extrabold text-foreground">{t("sosModalTitle")}</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">{t("sos.helplines")}</p>
-            </div>
-          </div>
-          <button
-            onClick={() => setOpen(false)}
-            className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <p className="text-sm text-muted-foreground leading-relaxed">
-          {t("sosModalDesc")}
-        </p>
-
-        {/* Helpline Actions */}
-        <div className="space-y-3.5">
-          {/* 108 Ambulance */}
-          <div className="p-4 rounded-2xl border-2 border-red-500/30 bg-red-500/5 hover:bg-red-500/10 transition-all flex items-center justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-2xl font-black text-red-600">108</span>
-                <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-600 text-white">
-                  {t("sos.ambulance")}
-                </span>
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="sos-sheet-title"
+        className="sos-sheet relative w-full sm:max-w-md bg-card text-foreground rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[88dvh] overflow-y-auto animate-fade-in"
+      >
+        <div className="sticky top-0 z-10 bg-card px-5 pt-3 pb-3 border-b">
+          <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-muted sm:hidden" aria-hidden="true" />
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center shrink-0">
+                <Siren className="w-5 h-5" />
+              </span>
+              <div className="min-w-0">
+                <h2 id="sos-sheet-title" className="text-lg font-extrabold leading-tight">{t("sos.sheetTitle")}</h2>
+                <p className="text-xs text-muted-foreground">{t("sos.sheetDesc")}</p>
               </div>
-              <p className="text-xs font-medium text-muted-foreground mt-1">
-                {t("sos.ambulanceDesc")}
-              </p>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => handleCopy("108")}
-                className="p-2 rounded-xl bg-card border text-muted-foreground hover:text-foreground transition-colors"
-                title={t("sos.copy", { number: "108" })}
-              >
-                {copied === "108" ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-              </button>
-              <a
-                href="tel:108"
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleCall("108");
-                }}
-                className="px-4 py-2.5 rounded-xl bg-red-600 text-white font-bold text-sm shadow-md hover:bg-red-700 flex items-center gap-2 transition-all"
-              >
-                <PhoneCall className="w-4 h-4" />
-                <span>{calling === "108" ? t("sos.calling") : t("sos.call", { number: "108" })}</span>
-              </a>
-            </div>
-          </div>
-
-          {/* 104 Health Helpline */}
-          <div className="p-4 rounded-2xl border bg-muted/40 hover:bg-muted/70 transition-all flex items-center justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-2xl font-bold text-foreground">104</span>
-                <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                  {t("sos.advisory")}
-                </span>
-              </div>
-              <p className="text-xs font-medium text-muted-foreground mt-1">
-                {t("sos.advisoryDesc")}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => handleCopy("104")}
-                className="p-2 rounded-xl bg-card border text-muted-foreground hover:text-foreground transition-colors"
-                title={t("sos.copy", { number: "104" })}
-              >
-                {copied === "104" ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-              </button>
-              <a
-                href="tel:104"
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleCall("104");
-                }}
-                className="px-4 py-2.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-sm hover:opacity-90 flex items-center gap-2 transition-all"
-              >
-                <PhoneCall className="w-4 h-4" />
-                <span>{calling === "104" ? t("sos.calling") : t("sos.call", { number: "104" })}</span>
-              </a>
-            </div>
+            <button
+              onClick={close}
+              aria-label={t("sos.close")}
+              className="w-10 h-10 rounded-full hover:bg-muted flex items-center justify-center shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
         </div>
 
-        {/* Desktop / Manual Dial Helper */}
-        <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-3.5 flex items-start gap-3 text-xs text-amber-700 dark:text-amber-300">
-          <Siren className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
-          <div>
-            <p className="font-semibold">{t("sos.desktopNotice")}</p>
-            <p className="text-amber-700/80 dark:text-amber-300/80 mt-0.5">
-              {t("sos.desktopNoticeDesc")}
-            </p>
-          </div>
-        </div>
+        <div className="px-4 py-4 space-y-2.5">
+          {HELPLINES.map((h) => (
+            <button
+              key={h.id}
+              onClick={() => call(h.id, h.id, h.number, `${t(h.labelKey)} ${h.number}`)}
+              className={`${optionClass} border-red-200 bg-red-50 hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/30`}
+            >
+              <span className="text-3xl leading-none shrink-0" aria-hidden="true">{h.emoji}</span>
+              <span className="flex-1 min-w-0">
+                <span className="block font-extrabold text-base leading-tight">{t(h.labelKey)}</span>
+                <span className="block text-xs text-muted-foreground line-clamp-2">{t(h.descKey)}</span>
+              </span>
+              <span className="flex items-center gap-1.5 shrink-0 rounded-xl bg-red-600 text-white px-3 py-2 font-black text-lg">
+                {calling === h.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <PhoneCall className="w-4 h-4" />}
+                {h.number}
+              </span>
+            </button>
+          ))}
 
-        <Button variant="outline" className="w-full rounded-xl" onClick={() => setOpen(false)}>
-          {t("sos.close")}
-        </Button>
+          {/* Caregivers */}
+          <p className="pt-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">{t("sos.caregivers")}</p>
+          {caregivers === null ? (
+            <div className="flex justify-center py-4">
+              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : caregivers.length === 0 ? (
+            <div className="rounded-2xl border-2 border-dashed p-4 text-center space-y-3">
+              <p className="text-sm text-muted-foreground">{t("sos.noCaregiver")}</p>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  close();
+                  navigate("/family-alerts");
+                }}
+              >
+                <UserPlus className="w-4 h-4 mr-2" /> {t("sos.addCaregiver")}
+              </Button>
+            </div>
+          ) : (
+            caregivers.map((c) =>
+              c.phone && dialable(c.phone) ? (
+                <button
+                  key={c.id}
+                  onClick={() => call(`cg-${c.id}`, "caregiver", c.phone!, c.name)}
+                  className={`${optionClass} border-emerald-200 bg-emerald-50 hover:bg-emerald-100 dark:border-emerald-900/50 dark:bg-emerald-950/30`}
+                >
+                  <span className="text-3xl leading-none shrink-0" aria-hidden="true">👤</span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block font-extrabold text-base leading-tight truncate">{c.name}</span>
+                    <span className="block text-xs text-muted-foreground truncate">
+                      {tOr(`rel.${c.relationship}`, c.relationship)}
+                      {c.primary ? ` · ${t("sos.primary")}` : ""} · {c.phone}
+                    </span>
+                  </span>
+                  <span className="shrink-0 rounded-xl bg-emerald-600 text-white p-2.5">
+                    {calling === `cg-${c.id}` ? <Loader2 className="w-5 h-5 animate-spin" /> : <PhoneCall className="w-5 h-5" />}
+                  </span>
+                </button>
+              ) : (
+                <button
+                  key={c.id}
+                  onClick={() => {
+                    close();
+                    navigate("/family-alerts");
+                  }}
+                  className={`${optionClass} border-border bg-muted/40`}
+                >
+                  <span className="text-3xl leading-none shrink-0 opacity-60" aria-hidden="true">👤</span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block font-bold text-base leading-tight truncate">{c.name}</span>
+                    <span className="block text-xs text-muted-foreground">{t("sos.noPhone")}</span>
+                  </span>
+                </button>
+              ),
+            )
+          )}
+
+          <Button variant="outline" className="w-full mt-2 min-h-[52px] rounded-2xl text-base font-bold" onClick={close}>
+            {t("cancel")}
+          </Button>
+        </div>
       </div>
     </div>,
-    document.body
+    document.body,
   );
 };
 
@@ -254,16 +345,14 @@ export const SOSButton = ({ variant = "floating" }: SOSButtonProps) => {
 
   return (
     <>
-      {/* Trigger Button Variant */}
       {variant === "floating" && (
         <button
           onClick={() => setOpen(true)}
-          className="sos-floating fixed bottom-20 right-4 lg:bottom-6 lg:right-8 z-50 group flex items-center gap-2 px-4 py-3 rounded-full bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white font-extrabold shadow-lg hover:shadow-red-500/30 hover:scale-105 active:scale-95 transition-all duration-200 animate-pulse border-2 border-white/20"
-          title={t("sos.buttonLabel")}
-          aria-label={t("sos.buttonLabel")}
+          className="sos-floating fixed bottom-20 right-4 lg:bottom-6 lg:right-8 z-50 w-14 h-14 rounded-full bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-600/40 ring-4 ring-red-600/20 flex items-center justify-center active:scale-95 transition-transform"
+          title={t("sos.fabLabel")}
+          aria-label={t("sos.fabLabel")}
         >
-          <Siren className="w-5 h-5 animate-bounce" />
-          <span className="text-sm uppercase tracking-wide">{t("sosEmergency")}</span>
+          <Siren className="w-7 h-7" />
         </button>
       )}
 

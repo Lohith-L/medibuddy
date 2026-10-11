@@ -70,9 +70,6 @@ const common = {
   "weeklyActivity": "साप्ताहिक क्रियाकलाप",
   "weeklySleep": "साप्ताहिक झोप",
   "sosEmergency": "आणीबाणी SOS",
-  "sosModalTitle": "आणीबाणी आरोग्य हेल्पलाइन",
-  "sosModalDesc": "राष्ट्रीय आणीबाणी हेल्पलाइन 108 किंवा 104 वर कॉल करण्यासाठी क्लिक करा:",
-  "sosLoggedCaregiver": "आणीबाणी सूचना नोंदवली गेली व काळजीवाहकाला कळवले गेले",
 };
 
 export default common;

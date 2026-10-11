@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Save, User, Lock, ShieldCheck, AlarmClock, ChevronRight } from "lucide-react";
+import { Save, User, Lock, ShieldCheck, AlarmClock, ChevronRight, LogOut } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { toast } from "sonner";
@@ -151,6 +151,12 @@ const Profile = () => {
     }
   };
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    toast.success(t("layout.loggedOut"));
+    navigate("/");
+  };
+
   const inputClass = "mt-1.5 min-h-btn text-base rounded-xl";
 
   return (
@@ -261,6 +267,11 @@ const Profile = () => {
               </div>
             )}
           </div>
+
+          {/* Logout (on phones this replaces the old bottom-nav logout item) */}
+          <Button variant="outline" size="lg" className="w-full text-destructive border-destructive/40 hover:bg-destructive/10" onClick={handleLogout}>
+            <LogOut className="w-5 h-5" /> {t("logout")}
+          </Button>
         </motion.div>
       </div>
     </DashboardLayout>

@@ -70,9 +70,6 @@ const common = {
   "weeklyActivity": "வாராந்திர செயல்பாடு",
   "weeklySleep": "வாராந்திர தூக்கம்",
   "sosEmergency": "அவசர SOS",
-  "sosModalTitle": "அவசர சுகாதார உதவி",
-  "sosModalDesc": "தேசிய அவசர உதவி எண் 108 அல்லது 104 ஐ அழைக்க கிளிக் செய்யவும்:",
-  "sosLoggedCaregiver": "அவசர எச்சரிக்கை பதிவு செய்யப்பட்டு பராமரிப்பாளருக்கு அறிவிக்கப்பட்டது",
   "nearbyPharmacies": "அருகிலுள்ள மருந்தகங்கள்",
   "weatherAdvisory": "வானிலை மற்றும் சுகாதார ஆலோசனை",
 };
