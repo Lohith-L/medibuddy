@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useRealtimeTable } from "@/hooks/useRealtimeTable";
+import { useMedicineNotifications } from "@/hooks/useMedicineNotifications";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -105,6 +106,10 @@ const Medicines = () => {
 
   // ── Realtime: re-fetch whenever the website changes medicines ──────
   useRealtimeTable('medicines', 'patient_id', patientId, fetchMedicines);
+
+  // ── Native phone notifications (no-op on web) ────────────────────
+  // Re-schedules device alarms whenever medicines list changes (incl. Realtime).
+  useMedicineNotifications(medicines);
 
   // ── Photo upload ───────────────────────────────────────────────────
   const handlePhotoUpload = async (file: File, medicineId: string) => {

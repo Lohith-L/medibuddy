@@ -20,6 +20,7 @@
     "@capacitor/app": "8.1.2",
     "@capacitor/cli": "8.5.3",
     "@capacitor/core": "8.5.3",
+    "@capacitor/local-notifications": "8.3.1",
     "@capacitor/preferences": "8.0.1",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "^1.2.11",
