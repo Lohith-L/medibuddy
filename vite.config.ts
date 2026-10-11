@@ -5,6 +5,8 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  // './' makes all asset paths relative — required for Capacitor's file:// WebView
+  base: "./",
   server: {
     host: "::",
     port: 8080,
