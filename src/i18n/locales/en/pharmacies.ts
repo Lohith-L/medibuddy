@@ -1,0 +1,33 @@
+// Nearby pharmacies page.
+const pharmacies = {
+  "pharm.subtitle": "Find 24/7 chemists, medical stores and prescription refills near you",
+  "pharm.refreshLocation": "Refresh location",
+  "pharm.currentLocation": "Your current location",
+  "pharm.geoUnsupported": "Location isn't supported by your browser",
+  "pharm.permissionDenied": "Location permission denied",
+  "pharm.enterCityHelp": "Enter your city, landmark or 6-digit pincode to find pharmacies in your area:",
+  "pharm.enterCity": "Please enter a city or pincode",
+  "pharm.foundLocation": "Found location: {place}",
+  "pharm.locationNotFound": "Location not found. Try a city name or pincode (e.g. Bengaluru, 560001)",
+  "pharm.geocodeFailed": "Couldn't look up that location. Please try again.",
+  "pharm.searchPlaceholder": "City, area or pincode (e.g. Hyderabad, 560001)",
+  "pharm.searchArea": "Search area",
+  "pharm.searchRadius": "Search radius:",
+  "pharm.km": "{km} km",
+  "pharm.map": "Map ({place})",
+  "pharm.tapMarkers": "Tap markers for details",
+  "pharm.foundCount": "Found {count} pharmacies within {km} km",
+  "pharm.sortedByDistance": "Sorted by distance",
+  "pharm.directoryError": "Couldn't reach the pharmacy directory, so these are saved nearby stores. Tap Retry to try again.",
+  "pharm.retry": "Retry",
+  "pharm.searching": "Searching nearby medical stores...",
+  "pharm.checkingDirectory": "Checking the OpenStreetMap pharmacy directory",
+  "pharm.searchKm": "Search {km} km",
+  "pharm.localStore": "Local pharmacy",
+  "pharm.kmFromSelected": "{km} km from the selected location",
+  "pharm.kmAway": "{km} km away",
+  "pharm.callShort": "Call",
+  "pharm.directions": "Directions",
+};
+
+export default pharmacies;

@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { notifyMedicinesChanged } from "@/plugins/medicineAlarm";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { generateUUID } from "@/lib/uuid";
 import {
@@ -29,11 +30,12 @@ interface ExtractedMedicine {
   medicine_photo_url?: string;
 }
 
+// `value` is stored in the database (English); `labelKey` is shown via t().
 const FREQUENCY_OPTIONS = [
-  { label: "Once daily", value: "Once daily", count: 1 },
-  { label: "Twice daily", value: "Twice daily", count: 2 },
-  { label: "Three times daily", value: "Three times daily", count: 3 },
-  { label: "As needed", value: "As needed", count: 0 },
+  { labelKey: "freq.onceDaily", value: "Once daily", count: 1 },
+  { labelKey: "freq.twiceDaily", value: "Twice daily", count: 2 },
+  { labelKey: "freq.threeTimesDaily", value: "Three times daily", count: 3 },
+  { labelKey: "freq.asNeeded", value: "As needed", count: 0 },
 ];
 
 function getTimeSlotCount(frequency: string): number {
@@ -54,6 +56,7 @@ function getDefaultTimes(count: number): string[] {
 
 const UploadPrescription = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -63,11 +66,11 @@ const UploadPrescription = () => {
 
   const handleFile = useCallback((f: File) => {
     if (!f.type.startsWith("image/") && f.type !== "application/pdf") {
-      toast.error("Please upload an image or PDF file");
+      toast.error(t("upload.wrongFileType"));
       return;
     }
     if (f.size > 10 * 1024 * 1024) {
-      toast.error("File must be under 10MB");
+      toast.error(t("upload.fileTooLarge"));
       return;
     }
     setFile(f);
@@ -124,15 +127,15 @@ const UploadPrescription = () => {
       }) as ExtractedMedicine[];
 
       if (extracted.length === 0) {
-        toast.error("No medicines found. Try a clearer image.");
+        toast.error(t("upload.noneFound"));
         return;
       }
 
       setMedicines(extracted);
-      toast.success(`${extracted.length} medicines extracted! 🎉`);
+      toast.success(t("upload.extracted", { count: extracted.length }));
     } catch (err: any) {
       console.error("Extraction error:", err);
-      toast.error(err.message || "Failed to extract medicines. Please try again.");
+      toast.error(err.message || t("upload.extractFailed"));
     } finally {
       setLoading(false);
     }
@@ -169,7 +172,7 @@ const UploadPrescription = () => {
         const newTimes = [...m.reminder_times];
         // Check for duplicates
         if (newTimes.includes(value) && newTimes[timeIndex] !== value) {
-          toast.error("This time is already set for this medicine");
+          toast.error(t("upload.duplicateTime"));
           return m;
         }
         newTimes[timeIndex] = value;
@@ -231,7 +234,7 @@ const UploadPrescription = () => {
     if (medicines.length === 0) return;
     const invalid = medicines.some((m) => !m.name.trim() || !m.dosage.trim());
     if (invalid) {
-      toast.error("Please fill in at least name and dosage for all medicines.");
+      toast.error(t("upload.fillNameDosage"));
       return;
     }
 
@@ -239,12 +242,12 @@ const UploadPrescription = () => {
     for (const med of medicines) {
       const count = getTimeSlotCount(med.frequency);
       if (count > 0 && med.reminder_times.length === 0) {
-        toast.error(`Please set reminder times for ${med.name}`);
+        toast.error(t("upload.setTimesFor", { name: med.name }));
         return;
       }
-      for (const t of med.reminder_times) {
-        if (!/^\d{2}:\d{2}$/.test(t)) {
-          toast.error(`Invalid time format for ${med.name}. Use HH:MM`);
+      for (const time of med.reminder_times) {
+        if (!/^\d{2}:\d{2}$/.test(time)) {
+          toast.error(t("upload.invalidTime", { name: med.name }));
           return;
         }
       }
@@ -253,7 +256,7 @@ const UploadPrescription = () => {
     setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { toast.error("Please log in first"); return; }
+      if (!user) { toast.error(t("upload.loginFirst")); return; }
 
       let { data: patient } = await supabase
         .from("patients")
@@ -273,7 +276,7 @@ const UploadPrescription = () => {
           .single();
 
         if (createPatientErr || !newPatient) {
-          toast.error("Patient profile not found. Please log in again.");
+          toast.error(t("upload.noPatient"));
           return;
         }
         patient = newPatient;
@@ -344,14 +347,14 @@ const UploadPrescription = () => {
       if (error) throw error;
       notifyMedicinesChanged(); // set phone alarms for the new medicines right away
 
-      toast.success("Medicines saved with reminder times! ✅");
+      toast.success(t("upload.saved"));
 
       // Send confirmation email in background
       supabase.functions.invoke("send-medicine-email", {
         body: { type: "confirmation", patient_id: patient.id },
       }).then(({ error: emailErr }) => {
         if (emailErr) console.error("Confirmation email error:", emailErr);
-        else toast.success("Confirmation email sent! 📧");
+        else toast.success(t("upload.emailSent"));
       });
 
       // Revoke any remaining preview URLs
@@ -369,7 +372,7 @@ const UploadPrescription = () => {
   return (
     <DashboardLayout>
       <div className="w-full max-w-2xl space-y-6 overflow-x-hidden">
-        <h1 className="text-xl sm:text-2xl font-extrabold">Upload Prescription</h1>
+        <h1 className="text-xl sm:text-2xl font-extrabold">{t("uploadPrescription")}</h1>
 
         {medicines.length === 0 && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
@@ -382,8 +385,8 @@ const UploadPrescription = () => {
                 <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-3">
                   <UploadIcon className="w-8 h-8 text-primary" />
                 </div>
-                <p className="font-bold text-base">Upload File</p>
-                <p className="text-sm text-muted-foreground mt-1">Gallery or Files</p>
+                <p className="font-bold text-base">{t("upload.uploadFile")}</p>
+                <p className="text-sm text-muted-foreground mt-1">{t("upload.galleryOrFiles")}</p>
               </button>
               <button
                 onClick={() => document.getElementById("camera-input")?.click()}
@@ -392,8 +395,8 @@ const UploadPrescription = () => {
                 <div className="w-16 h-16 rounded-2xl bg-secondary/10 flex items-center justify-center mx-auto mb-3">
                   <Camera className="w-8 h-8 text-secondary" />
                 </div>
-                <p className="font-bold text-base">Take Photo</p>
-                <p className="text-sm text-muted-foreground mt-1">Use Camera</p>
+                <p className="font-bold text-base">{t("upload.takePhoto")}</p>
+                <p className="text-sm text-muted-foreground mt-1">{t("upload.useCamera")}</p>
               </button>
             </div>
 
@@ -425,7 +428,7 @@ const UploadPrescription = () => {
             >
               {preview ? (
                 <div className="relative">
-                  <img src={preview} alt="Prescription" className="max-h-64 mx-auto rounded-xl mb-4" />
+                  <img src={preview} alt={t("upload.prescriptionAlt")} className="max-h-64 mx-auto rounded-xl mb-4" />
                   <button
                     onClick={(e) => { e.stopPropagation(); setFile(null); setPreview(null); }}
                     className="absolute top-2 right-2 w-8 h-8 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center"
@@ -440,7 +443,7 @@ const UploadPrescription = () => {
                 </div>
               ) : (
                 <div className="flex flex-col items-center gap-2">
-                  <p className="text-muted-foreground">or drag & drop your prescription here</p>
+                  <p className="text-muted-foreground">{t("upload.dragDrop")}</p>
                 </div>
               )}
             </div>
@@ -450,10 +453,10 @@ const UploadPrescription = () => {
                 {loading ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    🤖 AI is reading your prescription...
+                    {t("upload.reading")}
                   </>
                 ) : (
-                  "Extract Medicines with AI ✨"
+                  t("upload.extract")
                 )}
               </Button>
             )}
@@ -464,7 +467,7 @@ const UploadPrescription = () => {
                 onClick={addMedicine}
                 className="text-sm font-semibold text-primary hover:underline inline-flex items-center gap-1.5"
               >
-                <Plus className="w-4 h-4" /> Enter details manually
+                <Plus className="w-4 h-4" /> {t("upload.manual")}
               </button>
             </div>
           </motion.div>
@@ -475,10 +478,10 @@ const UploadPrescription = () => {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-secondary">
                 <Check className="w-6 h-6" />
-                <h2 className="text-xl font-extrabold">{medicines.length} medicines found!</h2>
+                <h2 className="text-xl font-extrabold">{t("upload.foundCount", { count: medicines.length })}</h2>
               </div>
               <Button variant="outline" size="sm" onClick={addMedicine} className="gap-1">
-                <Plus className="w-4 h-4" /> Add
+                <Plus className="w-4 h-4" /> {t("add")}
               </Button>
             </div>
 
@@ -495,7 +498,7 @@ const UploadPrescription = () => {
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                      <Pencil className="w-4 h-4" /> Tap to edit
+                      <Pencil className="w-4 h-4" /> {t("upload.tapToEdit")}
                     </div>
                     <Button variant="ghost" size="sm" onClick={() => removeMedicine(i)} className="text-destructive hover:text-destructive">
                       <Trash2 className="w-4 h-4" />
@@ -504,28 +507,28 @@ const UploadPrescription = () => {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div>
-                      <Label className="text-base font-semibold">Medicine Name *</Label>
-                      <Input value={med.name} onChange={(e) => updateMedicine(i, "name", e.target.value)} className="mt-1.5 min-h-btn text-base rounded-xl" placeholder="e.g. Paracetamol" />
+                      <Label className="text-base font-semibold">{t("upload.medicineName")}</Label>
+                      <Input value={med.name} onChange={(e) => updateMedicine(i, "name", e.target.value)} className="mt-1.5 min-h-btn text-base rounded-xl" placeholder={t("upload.namePlaceholder")} />
                     </div>
                     <div>
-                      <Label className="text-base font-semibold">Dosage *</Label>
-                      <Input value={med.dosage} onChange={(e) => updateMedicine(i, "dosage", e.target.value)} className="mt-1.5 min-h-btn text-base rounded-xl" placeholder="e.g. 500mg" />
+                      <Label className="text-base font-semibold">{t("meds.dosageRequiredLabel")}</Label>
+                      <Input value={med.dosage} onChange={(e) => updateMedicine(i, "dosage", e.target.value)} className="mt-1.5 min-h-btn text-base rounded-xl" placeholder={t("upload.dosagePlaceholder")} />
                     </div>
                     <div>
-                      <Label className="text-base font-semibold">Frequency</Label>
+                      <Label className="text-base font-semibold">{t("meds.frequency")}</Label>
                       <select
                         value={FREQUENCY_OPTIONS.find(o => o.value === med.frequency) ? med.frequency : ""}
                         onChange={(e) => handleFrequencyChange(i, e.target.value)}
                         className="mt-1.5 w-full min-h-btn text-base rounded-xl border bg-background px-3 py-2"
                       >
                         {FREQUENCY_OPTIONS.map((opt) => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
                         ))}
                       </select>
                     </div>
                     <div>
-                      <Label className="text-base font-semibold">Instructions</Label>
-                      <Input value={med.instructions} onChange={(e) => updateMedicine(i, "instructions", e.target.value)} className="mt-1.5 min-h-btn text-base rounded-xl" placeholder="e.g. After food" />
+                      <Label className="text-base font-semibold">{t("meds.instructions")}</Label>
+                      <Input value={med.instructions} onChange={(e) => updateMedicine(i, "instructions", e.target.value)} className="mt-1.5 min-h-btn text-base rounded-xl" placeholder={t("meds.instructionsPlaceholder")} />
                     </div>
                   </div>
 
@@ -533,12 +536,12 @@ const UploadPrescription = () => {
                   <div className="bg-muted/40 rounded-xl p-4 space-y-3">
                     <div className="flex items-center gap-2">
                       <ImagePlus className="w-4 h-4 text-primary" />
-                      <Label className="text-base font-semibold">Medicine Photo</Label>
-                      <span className="text-xs text-muted-foreground">(optional)</span>
+                      <Label className="text-base font-semibold">{t("upload.medicinePhoto")}</Label>
+                      <span className="text-xs text-muted-foreground">{t("upload.optional")}</span>
                     </div>
                     {med.photoPreview ? (
                       <div className="relative inline-block">
-                        <img src={med.photoPreview} alt="Medicine" className="w-24 h-24 object-cover rounded-xl border" />
+                        <img src={med.photoPreview} alt={t("upload.medicineAlt")} className="w-24 h-24 object-cover rounded-xl border" />
                         <button
                           onClick={() => removeMedicinePhoto(i)}
                           className="absolute -top-2 -right-2 w-6 h-6 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center"
@@ -552,13 +555,13 @@ const UploadPrescription = () => {
                           onClick={() => document.getElementById(`med-photo-${i}`)?.click()}
                           className="flex items-center gap-2 px-4 py-2 rounded-xl border bg-background hover:bg-primary/5 transition-colors text-sm font-medium"
                         >
-                          <ImagePlus className="w-4 h-4" /> Upload
+                          <ImagePlus className="w-4 h-4" /> {t("upload")}
                         </button>
                         <button
                           onClick={() => document.getElementById(`med-camera-${i}`)?.click()}
                           className="flex items-center gap-2 px-4 py-2 rounded-xl border bg-background hover:bg-secondary/5 transition-colors text-sm font-medium"
                         >
-                          <Camera className="w-4 h-4" /> Camera
+                          <Camera className="w-4 h-4" /> {t("upload.camera")}
                         </button>
                       </div>
                     )}
@@ -590,7 +593,7 @@ const UploadPrescription = () => {
                     <div className="bg-muted/40 rounded-xl p-4 space-y-3">
                       <div className="flex items-center gap-2">
                         <Clock className="w-4 h-4 text-primary" />
-                        <Label className="text-base font-semibold">Reminder Times</Label>
+                        <Label className="text-base font-semibold">{t("meds.reminderTimes")}</Label>
                       </div>
                       <div className="flex flex-wrap gap-3">
                         {med.reminder_times.map((time, tIdx) => (
@@ -604,13 +607,13 @@ const UploadPrescription = () => {
                               />
                             </div>
                             <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">
-                              Dose {tIdx + 1}
+                              {t("meds.doseN", { n: tIdx + 1 })}
                             </span>
                           </div>
                         ))}
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Set {timeSlotCount} reminder time{timeSlotCount > 1 ? "s" : ""} in HH:MM format
+                        {t(timeSlotCount > 1 ? "upload.setTimesHelpMany" : "upload.setTimesHelpOne", { count: timeSlotCount })}
                       </p>
                     </div>
                   )}
@@ -619,7 +622,7 @@ const UploadPrescription = () => {
                     <div className="bg-muted/40 rounded-xl p-4">
                       <p className="text-sm text-muted-foreground flex items-center gap-2">
                         <Clock className="w-4 h-4" />
-                        No fixed schedule — take as needed
+                        {t("upload.asNeeded")}
                       </p>
                     </div>
                   )}
@@ -639,10 +642,10 @@ const UploadPrescription = () => {
                   setPreview(null);
                 }}
               >
-                Upload Another
+                {t("upload.another")}
               </Button>
               <Button variant="hero" className="flex-1" size="lg" onClick={handleSave} disabled={saving}>
-                {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : "Confirm & Save ✅"}
+                {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : t("upload.confirmSave")}
               </Button>
             </div>
           </motion.div>

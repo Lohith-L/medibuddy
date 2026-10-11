@@ -35,11 +35,14 @@ export class LocationError extends Error {
   readonly reason: LocationReason;
   /** Friendly text to show the user. Only set on native; the website stays silent as before. */
   readonly userMessage: string | null;
+  /** Translation key for userMessage, e.g. "location.permission-denied". Use t(messageKey) in the UI. */
+  readonly messageKey: string;
 
   constructor(reason: LocationReason, cause?: unknown) {
     super(LOCATION_MESSAGES[reason]);
     this.name = 'LocationError';
     this.reason = reason;
+    this.messageKey = `location.${reason}`;
     this.userMessage = Capacitor.isNativePlatform() ? LOCATION_MESSAGES[reason] : null;
     if (cause !== undefined) (this as { cause?: unknown }).cause = cause;
   }

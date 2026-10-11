@@ -29,3 +29,12 @@ dist-ssr
 
 # AI Tooling
 .lovable/
+
+# Secrets: never commit signing keys or service credentials
+*.jks
+*.keystore
+*.p12
+google-services.json
+GoogleService-Info.plist
+*service-account*.json
+*serviceAccount*.json

@@ -13,7 +13,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "i18n:check": "node scripts/i18n-check.mjs",
+    "i18n:scan": "node scripts/i18n-scan-hardcoded.mjs"
   },
   "dependencies": {
     "@capacitor/android": "8.5.3",

@@ -13,6 +13,7 @@ import SOSButton from "@/components/SOSButton";
 import WeatherHealthCard from "@/components/WeatherHealthCard";
 import AlarmSetupBanner from "@/components/AlarmSetupBanner";
 import { DOSE_LOGGED_EVENT } from "@/plugins/medicineAlarm";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const fadeIn = (i: number) => ({
   initial: { opacity: 0, y: 16 },
@@ -49,6 +50,7 @@ interface FamilyMemberBasic {
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { t, tOr, locale } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [medicineCount, setMedicineCount] = useState(0);
   const [patientId, setPatientId] = useState<string | undefined>();
@@ -170,7 +172,7 @@ const Dashboard = () => {
           medicineName: med?.name || "Unknown",
           dosage: med?.dosage || "",
           instructions: med?.instructions || null,
-          time: dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }),
+          time: dt.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit", hour12: true }),
           status: l.status,
           photoUrl: (med as any)?.medicine_photo_url || null,
         };
@@ -184,7 +186,7 @@ const Dashboard = () => {
   const markTaken = async (item: ScheduleItem) => {
     const id = item.reminderEventId || item.logId;
     if (!id) {
-      toast.error("No trackable entry for this dose");
+      toast.error(t("dash.noTrackableEntry"));
       return;
     }
     setUpdatingId(id);
@@ -196,7 +198,7 @@ const Dashboard = () => {
         .update({ status: "taken", taken_at: new Date().toISOString() })
         .eq("id", item.reminderEventId);
 
-      if (error) { toast.error("Failed to update"); setUpdatingId(null); return; }
+      if (error) { toast.error(t("dash.updateFailed")); setUpdatingId(null); return; }
     }
 
     if (item.logId) {
@@ -206,7 +208,7 @@ const Dashboard = () => {
         .eq("id", item.logId);
     }
 
-    toast.success("Marked as Taken! ✅");
+    toast.success(t("dash.markedTaken"));
     if (patientId) fetchSchedule(patientId);
     setUpdatingId(null);
   };
@@ -223,7 +225,7 @@ const Dashboard = () => {
       await supabase.from("medicine_logs").update({ status: "missed" }).eq("id", item.logId);
     }
 
-    toast.success("Marked as Missed");
+    toast.success(t("dash.markedMissed"));
     if (patientId) fetchSchedule(patientId);
     setUpdatingId(null);
   };
@@ -240,7 +242,7 @@ const Dashboard = () => {
       await supabase.from("medicine_logs").update({ status: "pending", taken_at: null }).eq("id", item.logId);
     }
 
-    toast.success("Status reset to Pending");
+    toast.success(t("dash.statusReset"));
     if (patientId) fetchSchedule(patientId);
     setUpdatingId(null);
   };
@@ -316,10 +318,10 @@ const Dashboard = () => {
   const nextPending = schedule.find((s) => s.status === "pending");
 
   const statCards = [
-    { label: "Total Medicines", value: medicineCount > 0 ? String(medicineCount) : "0", icon: Pill, color: "bg-success/15 text-success" },
-    { label: "Taken Today", value: `${takenToday} of ${totalToday || medicineCount}`, icon: Check, color: "bg-accent/15 text-accent-foreground" },
-    { label: "Weekly Adherence", value: "—", icon: BarChart3, color: "bg-success/15 text-success" },
-    { label: "Next Reminder", value: nextPending?.time || "—", sub: nextPending?.medicineName, icon: Bell, color: "bg-warning/15 text-warning" },
+    { label: t("dash.totalMedicines"), value: medicineCount > 0 ? String(medicineCount) : "0", icon: Pill, color: "bg-success/15 text-success" },
+    { label: t("dash.takenToday"), value: t("dash.xOfY", { x: takenToday, y: totalToday || medicineCount }), icon: Check, color: "bg-accent/15 text-accent-foreground" },
+    { label: t("dash.weeklyAdherence"), value: "—", icon: BarChart3, color: "bg-success/15 text-success" },
+    { label: t("dash.nextReminder"), value: nextPending?.time || "—", sub: nextPending?.medicineName, icon: Bell, color: "bg-warning/15 text-warning" },
   ];
 
   const statusPill = (status: string) => {
@@ -366,24 +368,24 @@ const Dashboard = () => {
         <div className="grid md:grid-cols-2 gap-4">
           <motion.div {...fadeIn(0.2)} className="rounded-2xl gradient-dark p-5 flex flex-col justify-between gap-4">
             <div>
-              <p className="text-primary-foreground font-bold text-lg">Have a new prescription? Upload it now 📋</p>
-              <p className="text-primary-foreground/70 text-sm mt-1">Our AI will extract all your medicines automatically</p>
+              <p className="text-primary-foreground font-bold text-lg">{t("dash.uploadBannerTitle")}</p>
+              <p className="text-primary-foreground/70 text-sm mt-1">{t("dash.uploadBannerDesc")}</p>
             </div>
             <Button variant="hero" size="default" className="w-full sm:w-auto self-start" onClick={() => navigate("/upload")}>
-              <Upload className="w-4 h-4" /> Upload Prescription
+              <Upload className="w-4 h-4" /> {t("uploadPrescription")}
             </Button>
           </motion.div>
 
           <motion.div {...fadeIn(0.3)} className="rounded-2xl bg-card border-2 border-emerald-500/30 p-5 flex flex-col justify-between gap-4 shadow-card">
             <div>
               <div className="flex items-center gap-2 text-emerald-600 font-extrabold text-sm uppercase tracking-wider mb-1">
-                <Store className="w-4 h-4" /> Medicine Refills
+                <Store className="w-4 h-4" /> {t("dash.refills")}
               </div>
-              <p className="font-extrabold text-lg text-foreground">Find Nearby Pharmacies 🏪</p>
-              <p className="text-muted-foreground text-sm mt-1">Locate 24/7 chemists, get directions & call stores in 1-click</p>
+              <p className="font-extrabold text-lg text-foreground">{t("dash.pharmacyBannerTitle")}</p>
+              <p className="text-muted-foreground text-sm mt-1">{t("dash.pharmacyBannerDesc")}</p>
             </div>
             <Button variant="outline" size="default" className="w-full sm:w-auto self-start rounded-xl font-bold border-emerald-500/40 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30" onClick={() => navigate("/pharmacies")}>
-              <MapPin className="w-4 h-4 mr-2" /> Find Pharmacies Near Me
+              <MapPin className="w-4 h-4 mr-2" /> {t("dash.findPharmacies")}
             </Button>
           </motion.div>
         </div>
@@ -416,9 +418,9 @@ const Dashboard = () => {
 
           <motion.div {...fadeIn(6)} className="bg-card rounded-2xl border p-5 shadow-card">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">Family & Caregivers</h2>
+              <h2 className="text-xl font-bold">{t("dash.familyTitle")}</h2>
               <Button variant="warm" size="sm" onClick={() => navigate("/family-alerts")}>
-                <Plus className="w-4 h-4" /> Add
+                <Plus className="w-4 h-4" /> {t("add")}
               </Button>
             </div>
             {familyMembers.length === 0 ? (
@@ -426,9 +428,9 @@ const Dashboard = () => {
                 <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-3">
                   <Users className="w-7 h-7 text-primary" />
                 </div>
-                <p className="font-semibold mb-1">No caregivers yet</p>
-                <p className="text-sm text-muted-foreground mb-4">Add family members to keep them informed</p>
-                <Button variant="hero" size="sm" onClick={() => navigate("/family-alerts")}>Add Caregiver</Button>
+                <p className="font-semibold mb-1">{t("dash.noCaregivers")}</p>
+                <p className="text-sm text-muted-foreground mb-4">{t("dash.noCaregiversDesc")}</p>
+                <Button variant="hero" size="sm" onClick={() => navigate("/family-alerts")}>{t("dash.addCaregiver")}</Button>
               </div>
             ) : (
               <>
@@ -444,7 +446,7 @@ const Dashboard = () => {
                     </div>
                   )}
                 </div>
-                <p className="text-sm text-muted-foreground mb-4">{familyMembers.length} caregiver{familyMembers.length !== 1 ? "s" : ""} connected</p>
+                <p className="text-sm text-muted-foreground mb-4">{t(familyMembers.length === 1 ? "dash.caregiverConnected" : "dash.caregiversConnected", { count: familyMembers.length })}</p>
                 <div className="space-y-2">
                   {familyMembers.slice(0, 3).map((m) => (
                     <div key={m.id} className="flex items-center gap-3 p-2.5 rounded-xl bg-muted/40">
@@ -453,13 +455,13 @@ const Dashboard = () => {
                       </div>
                       <div className="min-w-0">
                         <p className="font-semibold text-sm truncate">{m.full_name}</p>
-                        <p className="text-xs text-muted-foreground">{m.relationship}</p>
+                        <p className="text-xs text-muted-foreground">{tOr(`rel.${m.relationship}`, m.relationship)}</p>
                       </div>
                     </div>
                   ))}
                 </div>
                 <Button variant="ghost" className="w-full mt-3 text-primary" onClick={() => navigate("/family-alerts")}>
-                  View All →
+                  {t("viewAll")} →
                 </Button>
               </>
             )}
@@ -469,8 +471,8 @@ const Dashboard = () => {
         {/* Schedule with Taken/Missed actions */}
         <motion.div {...fadeIn(7)} className="bg-card rounded-2xl border shadow-card">
           <div className="flex items-center justify-between p-5 pb-0">
-            <h2 className="text-xl font-bold">Today's Schedule</h2>
-            <button className="text-sm font-semibold text-primary hover:underline" onClick={() => navigate("/log")}>View All</button>
+            <h2 className="text-xl font-bold">{t("dash.todaySchedule")}</h2>
+            <button className="text-sm font-semibold text-primary hover:underline" onClick={() => navigate("/log")}>{t("viewAll")}</button>
           </div>
           <div className="p-5 space-y-3">
             {loading ? (
@@ -478,7 +480,7 @@ const Dashboard = () => {
             ) : schedule.length === 0 ? (
               <div className="text-center py-8">
                 <Pill className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                <p className="text-muted-foreground">No medicines scheduled today</p>
+                <p className="text-muted-foreground">{t("dash.noneToday")}</p>
               </div>
             ) : (
               schedule.slice(0, 6).map((med, idx) => {
@@ -508,7 +510,7 @@ const Dashboard = () => {
                         <Clock className="w-3.5 h-3.5" /> {med.time}
                       </p>
                       <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusPill(med.status)}`}>
-                        {statusIcon(med.status)} {med.status}
+                        {statusIcon(med.status)} {tOr(`status.${med.status}`, med.status)}
                       </span>
                       {isPending && (med.reminderEventId || med.logId) && (
                         <div className="flex gap-1.5 mt-1">
@@ -517,14 +519,14 @@ const Dashboard = () => {
                             onClick={() => markTaken(med)}
                             className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-success/15 text-success hover:bg-success/25 transition-colors disabled:opacity-50"
                           >
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Taken
+                            <CheckCircle2 className="w-3.5 h-3.5" /> {t("chart.taken")}
                           </button>
                           <button
                             disabled={updatingId === itemId}
                             onClick={() => markMissed(med)}
                             className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-destructive/15 text-destructive hover:bg-destructive/25 transition-colors disabled:opacity-50"
                           >
-                            <XCircle className="w-3.5 h-3.5" /> Missed
+                            <XCircle className="w-3.5 h-3.5" /> {t("chart.missed")}
                           </button>
                         </div>
                       )}
@@ -534,7 +536,7 @@ const Dashboard = () => {
                           onClick={() => undoStatus(med)}
                           className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-warning/15 text-warning hover:bg-warning/25 transition-colors disabled:opacity-50 mt-1"
                         >
-                          <Hourglass className="w-3.5 h-3.5" /> Undo
+                          <Hourglass className="w-3.5 h-3.5" /> {t("dash.undo")}
                         </button>
                       )}
                       {isMissed && (med.reminderEventId || med.logId) && (
@@ -543,7 +545,7 @@ const Dashboard = () => {
                           onClick={() => markTaken(med)}
                           className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-success/15 text-success hover:bg-success/25 transition-colors disabled:opacity-50 mt-1"
                         >
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Mark Taken
+                          <CheckCircle2 className="w-3.5 h-3.5" /> {t("dash.markTaken")}
                         </button>
                       )}
                     </div>

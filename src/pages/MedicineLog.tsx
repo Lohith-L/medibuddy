@@ -7,6 +7,7 @@ import { Pill, Clock, CheckCircle2, XCircle, Hourglass, Calendar as CalendarIcon
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface LogItem {
   id: string;
@@ -20,6 +21,7 @@ interface LogItem {
 
 const MedicineLog = () => {
   const navigate = useNavigate();
+  const { t, tOr, locale } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState<LogItem[]>([]);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -62,7 +64,7 @@ const MedicineLog = () => {
           dosage: med?.dosage || "",
           instructions: med?.instructions || null,
           scheduledTime: l.scheduled_time,
-          timeLabel: dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }),
+          timeLabel: dt.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit", hour12: true }),
           status: l.status,
         };
       })
@@ -100,9 +102,9 @@ const MedicineLog = () => {
     }
     const { error } = await supabase.from("medicine_logs").update(updateData).eq("id", logId);
     if (error) {
-      toast.error("Failed to update");
+      toast.error(t("dash.updateFailed"));
     } else {
-      toast.success(`Marked as ${newStatus}`);
+      toast.success(t("log.markedAs", { status: tOr(`status.${newStatus}`, newStatus) }));
       if (patientId) await fetchLogs(patientId);
     }
     setUpdatingId(null);
@@ -132,7 +134,7 @@ const MedicineLog = () => {
     <DashboardLayout>
       <div className="max-w-3xl space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-extrabold">Today's Medicine Log</h1>
+          <h1 className="text-2xl font-extrabold">{t("log.title")}</h1>
         </div>
 
         {/* Summary pills */}
@@ -140,15 +142,15 @@ const MedicineLog = () => {
           <div className="flex flex-wrap gap-3">
             <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-success/10">
               <CheckCircle2 className="w-4 h-4 text-success" />
-              <span className="text-sm font-semibold text-success">{taken} Taken</span>
+              <span className="text-sm font-semibold text-success">{t("log.countTaken", { count: taken })}</span>
             </div>
             <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-warning/10">
               <Hourglass className="w-4 h-4 text-warning" />
-              <span className="text-sm font-semibold text-warning">{pending} Pending</span>
+              <span className="text-sm font-semibold text-warning">{t("log.countPending", { count: pending })}</span>
             </div>
             <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-destructive/10">
               <XCircle className="w-4 h-4 text-destructive" />
-              <span className="text-sm font-semibold text-destructive">{missed} Missed</span>
+              <span className="text-sm font-semibold text-destructive">{t("log.countMissed", { count: missed })}</span>
             </div>
           </div>
         )}
@@ -162,12 +164,12 @@ const MedicineLog = () => {
             <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
               <CalendarIcon className="w-8 h-8 text-primary" />
             </div>
-            <p className="text-lg font-semibold mb-1">No logs for today</p>
+            <p className="text-lg font-semibold mb-1">{t("log.empty")}</p>
             <p className="text-muted-foreground mb-6">
-              Upload a prescription and your schedule will appear here
+              {t("log.emptyDesc")}
             </p>
             <Button variant="hero" onClick={() => navigate("/upload")}>
-              Upload Prescription
+              {t("uploadPrescription")}
             </Button>
           </div>
         ) : (
@@ -196,7 +198,7 @@ const MedicineLog = () => {
                       <Clock className="w-4 h-4" /> {log.timeLabel}
                     </p>
                     <span className={`inline-block mt-1.5 text-xs font-semibold px-3 py-1 rounded-full capitalize ${statusPill(log.status)}`}>
-                      {statusIcon(log.status)} {log.status}
+                      {statusIcon(log.status)} {tOr(`status.${log.status}`, log.status)}
                     </span>
                   </div>
                 </div>
@@ -210,14 +212,14 @@ const MedicineLog = () => {
                         onClick={() => updateStatus(log.id, "taken")}
                         className="flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl bg-success/15 text-success hover:bg-success/25 transition-colors disabled:opacity-50 min-h-[44px]"
                       >
-                        <CheckCircle2 className="w-4 h-4" /> Mark Taken
+                        <CheckCircle2 className="w-4 h-4" /> {t("dash.markTaken")}
                       </button>
                       <button
                         disabled={updatingId === log.id}
                         onClick={() => updateStatus(log.id, "missed")}
                         className="flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl bg-destructive/15 text-destructive hover:bg-destructive/25 transition-colors disabled:opacity-50 min-h-[44px]"
                       >
-                        <XCircle className="w-4 h-4" /> Mark Missed
+                        <XCircle className="w-4 h-4" /> {t("log.markMissed")}
                       </button>
                     </>
                   )}
@@ -227,7 +229,7 @@ const MedicineLog = () => {
                       onClick={() => updateStatus(log.id, "pending")}
                       className="flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl bg-warning/15 text-warning hover:bg-warning/25 transition-colors disabled:opacity-50 min-h-[44px]"
                     >
-                      <Hourglass className="w-4 h-4" /> Undo
+                      <Hourglass className="w-4 h-4" /> {t("dash.undo")}
                     </button>
                   )}
                   {log.status === "missed" && (
@@ -236,7 +238,7 @@ const MedicineLog = () => {
                       onClick={() => updateStatus(log.id, "taken")}
                       className="flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl bg-success/15 text-success hover:bg-success/25 transition-colors disabled:opacity-50 min-h-[44px]"
                     >
-                      <CheckCircle2 className="w-4 h-4" /> Mark Taken
+                      <CheckCircle2 className="w-4 h-4" /> {t("dash.markTaken")}
                     </button>
                   )}
                 </div>

@@ -1,0 +1,30 @@
+// Printable health report.
+const report = {
+  "report.title": "Health Report",
+  "report.subtitle": "Medicine Adherence Report",
+  "report.patient": "Patient",
+  "report.reportDate": "Report Date",
+  "report.period": "Period",
+  "report.lastFourWeeks": "Last 4 Weeks",
+  "report.summary": "Summary",
+  "report.totalDoses": "Total Doses",
+  "report.taken": "Taken",
+  "report.missed": "Missed",
+  "report.pending": "Pending",
+  "report.adherence": "Adherence",
+  "report.streak": "Current Streak",
+  "report.days": "days",
+  "report.activeMedicines": "Active Medicines",
+  "report.weeklyBreakdown": "Weekly Breakdown",
+  "report.week": "Week",
+  "report.doses": "Doses",
+  "report.generatedAt": "Generated on",
+  "report.downloadReport": "Download Report",
+  "report.trend": "Trend",
+  "report.improving": "Improving",
+  "report.declining": "Declining",
+  "report.stable": "Stable",
+  "report.poweredBy": "MEDDIBUDDY - Your Medicine Companion",
+};
+
+export default report;

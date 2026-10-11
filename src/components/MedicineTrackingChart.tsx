@@ -1,5 +1,6 @@
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface ChartDataItem {
   name: string;
@@ -15,6 +16,7 @@ const COLORS = {
 };
 
 const CustomTooltip = ({ active, payload }: any) => {
+  const { t } = useLanguage();
   if (!active || !payload?.length) return null;
   const { name, value, color } = payload[0].payload;
   const total = payload[0].payload.total || 1;
@@ -25,7 +27,7 @@ const CustomTooltip = ({ active, payload }: any) => {
         <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
         <span className="font-semibold">{name}</span>
       </div>
-      <p className="text-muted-foreground mt-1">{value} dose{value !== 1 ? "s" : ""} · {pct}%</p>
+      <p className="text-muted-foreground mt-1">{t(value === 1 ? "chart.dose" : "chart.doses", { count: value })} · {pct}%</p>
     </div>
   );
 };
@@ -36,6 +38,7 @@ interface Props {
 }
 
 const MedicineTrackingChart = ({ schedule = [], loading = false }: Props) => {
+  const { t } = useLanguage();
   const counts = { taken: 0, pending: 0, missed: 0, snoozed: 0, escalated: 0 };
   
   schedule.forEach((l) => {
@@ -46,10 +49,10 @@ const MedicineTrackingChart = ({ schedule = [], loading = false }: Props) => {
   const missedCount = counts.missed + counts.escalated;
 
   const data = [
-    { name: "Taken", value: counts.taken, color: COLORS.taken },
-    { name: "Pending", value: counts.pending, color: COLORS.pending },
-    { name: "Missed", value: missedCount, color: COLORS.missed },
-    { name: "Snoozed", value: counts.snoozed, color: COLORS.snoozed },
+    { name: t("chart.taken"), value: counts.taken, color: COLORS.taken },
+    { name: t("status.pending"), value: counts.pending, color: COLORS.pending },
+    { name: t("chart.missed"), value: missedCount, color: COLORS.missed },
+    { name: t("chart.snoozed"), value: counts.snoozed, color: COLORS.snoozed },
   ];
 
   const total = data.reduce((s, d) => s + d.value, 0);
@@ -60,15 +63,15 @@ const MedicineTrackingChart = ({ schedule = [], loading = false }: Props) => {
 
   return (
     <div className="bg-card rounded-2xl border p-5 shadow-card">
-      <h2 className="text-xl font-bold">Medicine Tracking Overview</h2>
-      <p className="text-sm text-muted-foreground mb-4">Today's intake status</p>
+      <h2 className="text-xl font-bold">{t("chart.title")}</h2>
+      <p className="text-sm text-muted-foreground mb-4">{t("chart.subtitle")}</p>
 
       <div className="flex items-center justify-center">
         <div className="relative w-[200px] h-[200px]">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
-                data={hasData ? chartData : [{ name: "No data", value: 1, color: "hsl(var(--muted))", total: 1 }]}
+                data={hasData ? chartData : [{ name: t("chart.noData"), value: 1, color: "hsl(var(--muted))", total: 1 }]}
                 cx="50%"
                 cy="50%"
                 innerRadius={60}
@@ -88,7 +91,7 @@ const MedicineTrackingChart = ({ schedule = [], loading = false }: Props) => {
           {/* Center text */}
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
             <span className="text-3xl font-extrabold">{total}</span>
-            <span className="text-xs text-muted-foreground">doses today</span>
+            <span className="text-xs text-muted-foreground">{t("chart.dosesToday")}</span>
           </div>
         </div>
       </div>

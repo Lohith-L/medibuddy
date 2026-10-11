@@ -15,61 +15,16 @@ import { languageLabelByCode } from "@/lib/language";
 
 const isNative = Capacitor.isNativePlatform();
 
-/** Phone brands that stop background apps, with the steps to let MediBuddy run. */
-const BRAND_GUIDES: { key: string; match: string[]; title: string; steps: string[] }[] = [
-  {
-    key: "xiaomi",
-    match: ["xiaomi", "redmi", "poco"],
-    title: "Xiaomi / Redmi / POCO",
-    steps: [
-      "Settings > Apps > Manage apps > MediBuddy > Autostart: turn ON.",
-      "Same page > Battery saver: choose “No restrictions”.",
-      "Same page > Other permissions: allow “Show on lock screen” and “Display pop-up windows while running in the background”.",
-      "Open Recent apps, long-press MediBuddy and tap the lock icon so it isn't cleared.",
-    ],
-  },
-  {
-    key: "vivo",
-    match: ["vivo", "iqoo"],
-    title: "Vivo / iQOO",
-    steps: [
-      "Settings > Battery > Background power consumption management > MediBuddy: “Allow”.",
-      "i Manager > App manager > Autostart manager: turn MediBuddy ON.",
-      "Settings > Apps > MediBuddy > Permissions: allow “Display on lock screen” and “Pop-up windows”.",
-      "Lock MediBuddy in Recent apps (pull the card down) so it isn't cleared.",
-    ],
-  },
-  {
-    key: "oppo",
-    match: ["oppo", "realme", "oneplus"],
-    title: "Oppo / Realme / OnePlus",
-    steps: [
-      "Settings > Apps > App management > MediBuddy > Battery usage: allow “Allow background activity” and “Allow auto launch”.",
-      "Settings > Battery > More settings: turn off “Optimize battery use” for MediBuddy.",
-      "Same app page > Notifications: allow “Lock screen” and “Banners”.",
-      "Lock MediBuddy in Recent apps so it isn't cleared.",
-    ],
-  },
-  {
-    key: "samsung",
-    match: ["samsung"],
-    title: "Samsung",
-    steps: [
-      "Settings > Apps > MediBuddy > Battery: choose “Unrestricted”.",
-      "Settings > Battery > Background usage limits: make sure MediBuddy is NOT in “Sleeping apps” or “Deep sleeping apps”.",
-      "Settings > Apps > MediBuddy > Notifications: allow all, including “Alarms and reminders”.",
-    ],
-  },
-  {
-    key: "other",
-    match: [],
-    title: "Other phones",
-    steps: [
-      "Settings > Apps > MediBuddy > Battery: choose “Unrestricted” or “Don't optimise”.",
-      "Allow notifications and “Alarms & reminders” for MediBuddy.",
-      "Don't force-stop MediBuddy: that also cancels its alarms until you open it again.",
-    ],
-  },
+/**
+ * Phone brands that stop background apps. Text lives in the dictionaries:
+ * title = alarm.brand.<key>.title, steps = alarm.brand.<key>.<1..steps>.
+ */
+const BRAND_GUIDES: { key: string; match: string[]; steps: number }[] = [
+  { key: "xiaomi", match: ["xiaomi", "redmi", "poco"], steps: 4 },
+  { key: "vivo", match: ["vivo", "iqoo"], steps: 4 },
+  { key: "oppo", match: ["oppo", "realme", "oneplus"], steps: 4 },
+  { key: "samsung", match: ["samsung"], steps: 3 },
+  { key: "other", match: [], steps: 3 },
 ];
 
 function brandKey(manufacturer: string): string {
@@ -113,7 +68,7 @@ const AlarmSettings = () => {
   /** null = still checking */
   const [voiceAvailable, setVoiceAvailable] = useState<boolean | null>(null);
   const [testing, setTesting] = useState(false);
-  const { language } = useLanguage();
+  const { t, language, locale } = useLanguage();
   const languageName = languageLabelByCode[language] ?? "English";
 
   const refresh = useCallback(async () => {
@@ -154,13 +109,13 @@ const AlarmSettings = () => {
   const toggleSound = async (enabled: boolean) => {
     setSoundEnabled(enabled);
     await MedicineAlarm.setSoundEnabled({ enabled });
-    toast.success(enabled ? "Alarm sound on" : "Alarm sound off: you'll get a normal notification");
+    toast.success(enabled ? t("alarm.soundOnToast") : t("alarm.soundOffToast"));
   };
 
   const toggleVoice = async (enabled: boolean) => {
     setVoiceEnabled(enabled);
     await MedicineAlarm.setVoiceEnabled({ enabled });
-    toast.success(enabled ? "Voice announcement on" : "Voice announcement off");
+    toast.success(enabled ? t("alarm.voiceOnToast") : t("alarm.voiceOffToast"));
   };
 
   const testAlarm = async () => {
@@ -170,17 +125,18 @@ const AlarmSettings = () => {
       await MedicineAlarm.scheduleAlarm({
         id: TEST_ALARM_ID,
         medicineId: "test",
-        medicineName: "Paracetamol (test)",
-        dose: "1 tablet",
+        // The medicine name stays as written; only the "(test)" label is translated.
+        medicineName: t("alarm.testName", { name: "Paracetamol" }),
+        dose: t("alarm.testDose"),
         at,
         repeat: false,
         isTest: true,
         language,
       });
-      const when = new Date(at).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
-      toast.success(`Test alarm set for ${when}. You can lock the phone now.`);
+      const when = new Date(at).toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" });
+      toast.success(t("alarm.testSet", { time: when }));
     } catch (e) {
-      toast.error("Couldn't set the test alarm");
+      toast.error(t("alarm.testFailed"));
       console.error(e);
     } finally {
       setTesting(false);
@@ -191,10 +147,8 @@ const AlarmSettings = () => {
     return (
       <DashboardLayout>
         <div className="max-w-2xl bg-card border rounded-2xl p-6 shadow-card">
-          <h2 className="text-lg font-bold flex items-center gap-2"><AlarmClock className="w-5 h-5 text-primary" /> Medicine alarm</h2>
-          <p className="text-sm text-muted-foreground mt-2">
-            Ringing medicine alarms are available in the MediBuddy Android app. On the website you keep getting your usual reminders.
-          </p>
+          <h2 className="text-lg font-bold flex items-center gap-2"><AlarmClock className="w-5 h-5 text-primary" /> {t("alarm.title")}</h2>
+          <p className="text-sm text-muted-foreground mt-2">{t("alarm.webOnly")}</p>
         </div>
       </DashboardLayout>
     );
@@ -207,123 +161,117 @@ const AlarmSettings = () => {
     <DashboardLayout>
       <div className="max-w-2xl space-y-4">
         <div>
-          <h2 className="text-xl font-bold flex items-center gap-2"><AlarmClock className="w-6 h-6 text-primary" /> Medicine alarm</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            At each reminder time your phone rings like an alarm clock, even when MediBuddy is closed or the phone is locked or on silent.
-          </p>
+          <h2 className="text-xl font-bold flex items-center gap-2"><AlarmClock className="w-6 h-6 text-primary" /> {t("alarm.title")}</h2>
+          <p className="text-sm text-muted-foreground mt-1">{t("alarm.intro")}</p>
         </div>
 
         {/* Permissions */}
         <div className="bg-card border rounded-2xl p-4 shadow-card">
           <div className="flex items-center justify-between mb-1">
-            <h3 className="font-bold text-base">Allow on this phone</h3>
+            <h3 className="font-bold text-base">{t("alarm.allowTitle")}</h3>
             {!perms && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
-            {allGood && <span className="text-xs font-semibold text-emerald-600">All set ✓</span>}
+            {allGood && <span className="text-xs font-semibold text-emerald-600">{t("alarm.allSet")}</span>}
           </div>
           {perms && (
             <>
               <StatusRow
                 icon={Bell}
-                title="Notifications"
-                description="Needed to show the alarm and its Taken / Snooze buttons."
+                title={t("notifications")}
+                description={t("alarm.permNotificationsDesc")}
                 ok={perms.notifications === "granted"}
-                actionLabel="Allow"
+                actionLabel={t("alarm.allow")}
                 onAction={fixNotifications}
               />
               <StatusRow
                 icon={AlarmClock}
-                title="Alarms & reminders"
-                description="Lets the alarm ring at the exact minute, even in battery saver."
+                title={t("alarm.permExact")}
+                description={t("alarm.permExactDesc")}
                 ok={perms.exactAlarm}
-                actionLabel="Open"
+                actionLabel={t("alarm.open")}
                 onAction={() => void MedicineAlarm.openExactAlarmSettings()}
               />
               <StatusRow
                 icon={Maximize}
-                title="Full-screen alarm"
-                description="Shows the alarm screen over the lock screen."
+                title={t("alarm.permFullScreen")}
+                description={t("alarm.permFullScreenDesc")}
                 ok={perms.fullScreenIntent}
-                actionLabel="Open"
+                actionLabel={t("alarm.open")}
                 onAction={() => void MedicineAlarm.openFullScreenIntentSettings()}
               />
               <StatusRow
                 icon={BatteryCharging}
-                title="Battery: unrestricted"
-                description="Stops the phone from blocking MediBuddy's alarms to save battery."
+                title={t("alarm.permBattery")}
+                description={t("alarm.permBatteryDesc")}
                 ok={perms.batteryOptimizationIgnored}
-                actionLabel="Allow"
+                actionLabel={t("alarm.allow")}
                 onAction={() => void MedicineAlarm.openBatteryOptimizationSettings()}
               />
             </>
           )}
         </div>
 
-        {/* Sound + test */}
+        {/* Sound, voice, test */}
         <div className="bg-card border rounded-2xl p-4 shadow-card space-y-4">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
               <Volume2 className="w-5 h-5" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-sm">Alarm sound</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                On: rings with vibration until you tap Taken or Snooze (stops after 2 minutes). Off: a normal notification.
-              </p>
+              <p className="font-semibold text-sm">{t("alarm.sound")}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{t("alarm.soundDesc")}</p>
             </div>
-            <Switch checked={soundEnabled} onCheckedChange={(v) => void toggleSound(v)} aria-label="Alarm sound" />
+            <Switch checked={soundEnabled} onCheckedChange={(v) => void toggleSound(v)} aria-label={t("alarm.sound")} />
           </div>
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
               <Speech className="w-5 h-5" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-sm">Voice announcement</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Says “It's time to take your medicine” with the medicine name and dose in {languageName}, every 15 seconds while the alarm rings.
-              </p>
+              <p className="font-semibold text-sm">{t("alarm.voice")}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{t("alarm.voiceDesc", { language: languageName })}</p>
             </div>
             <Switch
               checked={voiceEnabled}
               disabled={!soundEnabled}
               onCheckedChange={(v) => void toggleVoice(v)}
-              aria-label="Voice announcement"
+              aria-label={t("alarm.voice")}
             />
           </div>
           {voiceEnabled && soundEnabled && voiceAvailable === false && language !== "en" && (
             <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-100 space-y-2">
-              <p className="font-semibold">{languageName} voice isn't installed on this phone, so alarms will speak English.</p>
-              <p>To fix it: Settings &gt; Text-to-speech &gt; Google (Speech Services) &gt; Install voice data &gt; {languageName}. Then come back here.</p>
+              <p className="font-semibold">{t("alarm.voiceMissing", { language: languageName })}</p>
+              <p>{t("alarm.voiceMissingHow", { language: languageName })}</p>
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="secondary" onClick={() => void MedicineAlarm.installVoiceData()}>Install voice</Button>
-                <Button size="sm" variant="outline" onClick={() => void MedicineAlarm.openTtsSettings()}>Text-to-speech settings</Button>
+                <Button size="sm" variant="secondary" onClick={() => void MedicineAlarm.installVoiceData()}>{t("alarm.installVoice")}</Button>
+                <Button size="sm" variant="outline" onClick={() => void MedicineAlarm.openTtsSettings()}>{t("alarm.ttsSettings")}</Button>
               </div>
             </div>
           )}
           <Button className="w-full" variant="outline" onClick={() => void testAlarm()} disabled={testing}>
             {testing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <AlarmClock className="w-4 h-4 mr-2" />}
-            Test alarm in 1 minute{voiceEnabled && soundEnabled ? " (with voice)" : ""}
+            {voiceEnabled && soundEnabled ? t("alarm.testWithVoice") : t("alarm.test")}
           </Button>
         </div>
 
         {/* Brand-specific background settings */}
         <div className="bg-card border rounded-2xl p-4 shadow-card">
-          <h3 className="font-bold text-base flex items-center gap-2"><Smartphone className="w-5 h-5 text-primary" /> Keep alarms working</h3>
-          <p className="text-xs text-muted-foreground mt-1">
-            Some phones close apps in the background, which can stop alarms. Follow the steps for your phone once.
-          </p>
+          <h3 className="font-bold text-base flex items-center gap-2"><Smartphone className="w-5 h-5 text-primary" /> {t("alarm.keepWorking")}</h3>
+          <p className="text-xs text-muted-foreground mt-1">{t("alarm.keepWorkingDesc")}</p>
           <Button size="sm" variant="secondary" className="mt-3" onClick={() => void MedicineAlarm.openAutostartSettings()}>
-            Open autostart / background settings
+            {t("alarm.openAutostart")}
           </Button>
           <Accordion type="single" collapsible defaultValue={myBrand} className="mt-2">
             {BRAND_GUIDES.map((g) => (
               <AccordionItem key={g.key} value={g.key}>
                 <AccordionTrigger className="text-sm">
-                  {g.title}
-                  {g.key === myBrand && g.key !== "other" ? " (your phone)" : ""}
+                  {t(`alarm.brand.${g.key}.title`)}
+                  {g.key === myBrand && g.key !== "other" ? ` ${t("alarm.yourPhone")}` : ""}
                 </AccordionTrigger>
                 <AccordionContent>
                   <ol className="list-decimal pl-5 space-y-1.5 text-sm text-muted-foreground">
-                    {g.steps.map((s) => <li key={s}>{s}</li>)}
+                    {Array.from({ length: g.steps }, (_, i) => (
+                      <li key={i}>{t(`alarm.brand.${g.key}.${i + 1}`)}</li>
+                    ))}
                   </ol>
                 </AccordionContent>
               </AccordionItem>

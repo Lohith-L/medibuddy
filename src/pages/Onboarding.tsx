@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { translate } from "@/i18n";
 import { ArrowRight, Check, Globe } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -19,7 +20,8 @@ const languageOptions = [
 
 const Onboarding = () => {
   const navigate = useNavigate();
-  const [selected, setSelected] = useState("en");
+  const { t, language, setLanguage } = useLanguage();
+  const [selected, setSelected] = useState<string>(language);
   const [loading, setLoading] = useState(false);
 
   // Strip the #access_token hash from the address bar after OAuth redirect.
@@ -34,25 +36,12 @@ const Onboarding = () => {
   const handleContinue = async () => {
     setLoading(true);
     try {
-      // Update user metadata
-      const { error: authError } = await supabase.auth.updateUser({
-        data: { language: selected },
-      });
-      if (authError) throw authError;
-
-      // Update patients table
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase
-          .from("patients")
-          .update({ language: selected })
-          .eq("user_id", user.id);
-      }
-
-      toast.success("Language saved! Welcome to MEDDIBUDDY 🎉");
+      // Switches the whole UI and saves it on this device and in the profile.
+      await setLanguage(selected);
+      toast.success(translate(selected, "onboarding.saved"));
       navigate("/dashboard");
     } catch (err: any) {
-      toast.error(err.message || "Failed to save language");
+      toast.error(err.message || t("onboarding.saveFailed"));
     } finally {
       setLoading(false);
     }
@@ -70,9 +59,9 @@ const Onboarding = () => {
           <div className="w-16 h-16 rounded-2xl gradient-warm flex items-center justify-center mx-auto mb-6 shadow-card">
             <Globe className="w-8 h-8 text-primary-foreground" />
           </div>
-          <h1 className="text-3xl font-extrabold mb-3">Welcome to MEDDIBUDDY! 🤗</h1>
+          <h1 className="text-3xl font-extrabold mb-3">{t("onboarding.title")}</h1>
           <p className="text-muted-foreground text-lg">
-            Choose your preferred language for medicine reminders
+            {t("onboarding.subtitle")}
           </p>
         </motion.div>
 
@@ -109,7 +98,7 @@ const Onboarding = () => {
           onClick={handleContinue}
           disabled={loading}
         >
-          {loading ? "Saving..." : "Continue"} <ArrowRight className="ml-2 w-5 h-5" />
+          {loading ? t("saving") : t("onboarding.continue")} <ArrowRight className="ml-2 w-5 h-5" />
         </Button>
       </div>
     </div>

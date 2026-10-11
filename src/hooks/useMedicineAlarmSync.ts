@@ -24,6 +24,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { languageLabelByCode } from '@/lib/language';
+import { translate } from '@/i18n';
 import { getPatientId, logDoseTaken } from '@/lib/doseLogging';
 import {
   MedicineAlarm,
@@ -188,7 +189,11 @@ export function useMedicineAlarmSync() {
         }
         if (done.length > 0) await MedicineAlarm.removePendingDoseActions({ uids: done });
         if (logged > 0) {
-          toast.success(logged === 1 ? 'Dose marked as taken ✅' : `${logged} doses marked as taken ✅`);
+          toast.success(
+            logged === 1
+              ? translate(languageRef.current, 'alarm.dosesTaken')
+              : translate(languageRef.current, 'alarm.dosesTakenMany', { count: logged }),
+          );
           window.dispatchEvent(new Event(DOSE_LOGGED_EVENT));
         }
         return logged;
@@ -214,10 +219,10 @@ export function useMedicineAlarmSync() {
         if (available || disposed) return;
         markVoiceTipShown(lang);
         const name = languageLabelByCode[lang] ?? lang;
-        toast.info(`Alarm voice: ${name} isn't installed, so alarms speak English`, {
-          description: 'Install it in Settings > Text-to-speech > Google > Install voice data.',
+        toast.info(translate(languageRef.current, 'alarm.voiceTipTitle', { language: name }), {
+          description: translate(languageRef.current, 'alarm.voiceTipDesc'),
           duration: 12000,
-          action: { label: 'How', onClick: () => navigateRef.current('/alarm-settings') },
+          action: { label: translate(languageRef.current, 'alarm.voiceTipAction'), onClick: () => navigateRef.current('/alarm-settings') },
         });
       } catch {
         // ignore

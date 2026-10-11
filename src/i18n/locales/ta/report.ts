@@ -1,0 +1,30 @@
+// Printable health report.
+const report = {
+  "report.title": "சுகாதார அறிக்கை",
+  "report.subtitle": "மருந்து இணக்க அறிக்கை",
+  "report.patient": "நோயாளி",
+  "report.reportDate": "அறிக்கை தேதி",
+  "report.period": "காலம்",
+  "report.lastFourWeeks": "கடந்த 4 வாரங்கள்",
+  "report.summary": "சுருக்கம்",
+  "report.totalDoses": "மொத்த மருந்தளவுகள்",
+  "report.taken": "எடுத்தவை",
+  "report.missed": "தவறியவை",
+  "report.pending": "நிலுவையில்",
+  "report.adherence": "இணக்கம்",
+  "report.streak": "தற்போதைய தொடர்",
+  "report.days": "நாட்கள்",
+  "report.activeMedicines": "செயலில் உள்ள மருந்துகள்",
+  "report.weeklyBreakdown": "வாராந்திர விவரம்",
+  "report.week": "வாரம்",
+  "report.doses": "மருந்தளவு",
+  "report.generatedAt": "உருவாக்கிய தேதி",
+  "report.downloadReport": "அறிக்கையைப் பதிவிறக்கவும்",
+  "report.trend": "போக்கு",
+  "report.improving": "மேம்படுகிறது",
+  "report.declining": "குறைகிறது",
+  "report.stable": "நிலையானது",
+  "report.poweredBy": "MEDDIBUDDY - உங்கள் மருந்துத் தோழன்",
+};
+
+export default report;

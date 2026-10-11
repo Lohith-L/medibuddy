@@ -22,6 +22,8 @@ import { Capacitor } from '@capacitor/core';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { translate } from '@/i18n';
+import { getStoredLanguage } from '@/contexts/LanguageContext';
 
 export const OAUTH_REDIRECT_URL = 'com.medibuddy.app://login-callback';
 
@@ -62,7 +64,7 @@ async function completeOAuth(url: string): Promise<boolean> {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('[DeepLink] OAuth sign-in failed:', message);
-    toast.error(`Google sign-in failed: ${message}`);
+    toast.error(translate(getStoredLanguage(), 'auth.googleFailed', { message }));
     return false;
   } finally {
     // Custom Tabs may still be on screen. close() rejects on Android when

@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useRealtimeTable } from "@/hooks/useRealtimeTable";
 import { notifyMedicinesChanged } from "@/plugins/medicineAlarm";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { FREQUENCY_OPTIONS, frequencyLabelKey } from "@/lib/frequency";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,13 +44,6 @@ interface Medicine {
   patient_id: string;
 }
 
-const FREQUENCY_OPTIONS = [
-  { label: "Once daily", value: "Once daily" },
-  { label: "Twice daily", value: "Twice daily" },
-  { label: "Three times daily", value: "Three times daily" },
-  { label: "As needed", value: "As needed" },
-  { label: "Weekly", value: "Weekly" },
-];
 
 function getTimeSlotCount(frequency: string): number {
   const f = frequency.toLowerCase();
@@ -68,6 +63,12 @@ function getDefaultTimes(count: number): string[] {
 
 const Medicines = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
+  /** Stored frequency (English value or free text from the prescription) → label in the app language. */
+  const frequencyLabel = (value: string) => {
+    const key = frequencyLabelKey(value);
+    return key ? t(key) : value;
+  };
   const [medicines, setMedicines] = useState<Medicine[]>([]);
   const [loading, setLoading] = useState(true);
   const [patientId, setPatientId] = useState<string | null>(null); // for Realtime
@@ -152,10 +153,10 @@ const Medicines = () => {
       setMedicines((prev) =>
         prev.map((m) => (m.id === medicineId ? { ...m, medicine_photo_url: finalPhotoUrl } : m))
       );
-      toast.success("Medicine photo updated! 📸");
+      toast.success(t("meds.photoUpdated"));
     } catch (err: any) {
       console.error("Photo upload error:", err);
-      toast.error(err.message || "Failed to upload photo");
+      toast.error(err.message || t("meds.photoUploadFailed"));
     } finally {
       setUploadingId(null);
     }
@@ -173,9 +174,9 @@ const Medicines = () => {
       if (error) throw error;
 
       setMedicines((prev) => prev.map((m) => m.id === med.id ? { ...m, medicine_photo_url: null } : m));
-      toast.success("Photo removed");
+      toast.success(t("meds.photoRemoved"));
     } catch (err: any) {
-      toast.error(err.message || "Failed to remove photo");
+      toast.error(err.message || t("meds.photoRemoveFailed"));
     }
   };
 
@@ -223,7 +224,7 @@ const Medicines = () => {
   const handleSaveEdit = async () => {
     if (!editingMed) return;
     if (!editForm.name.trim() || !editForm.dosage.trim()) {
-      toast.error("Name and dosage are required");
+      toast.error(t("meds.nameDosageRequired"));
       return;
     }
     setSaving(true);
@@ -248,11 +249,11 @@ const Medicines = () => {
             : m
         )
       );
-      toast.success("Medicine updated ✅");
+      toast.success(t("meds.updated"));
       notifyMedicinesChanged(); // resync phone alarms right away
       setEditingMed(null);
     } catch (err: any) {
-      toast.error(err.message || "Failed to update");
+      toast.error(err.message || t("dash.updateFailed"));
     } finally {
       setSaving(false);
     }
@@ -275,7 +276,7 @@ const Medicines = () => {
       }
 
       setMedicines((prev) => prev.filter((m) => m.id !== deletingMed.id));
-      toast.success("Medicine deleted");
+      toast.success(t("meds.deleted"));
       notifyMedicinesChanged(); // resync phone alarms right away
       setDeletingMed(null);
     } catch (err: any) {
@@ -291,9 +292,9 @@ const Medicines = () => {
     <DashboardLayout>
       <div className="max-w-3xl space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-extrabold">My Medicines</h1>
+          <h1 className="text-2xl font-extrabold">{t("myMedicines")}</h1>
           <Button size="sm" variant="hero" onClick={() => navigate("/upload")}>
-            <Plus className="w-4 h-4" /> Add
+            <Plus className="w-4 h-4" /> {t("add")}
           </Button>
         </div>
 
@@ -308,9 +309,9 @@ const Medicines = () => {
             <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
               <Pill className="w-10 h-10 text-primary" />
             </div>
-            <p className="text-xl font-bold mb-2">No medicines yet</p>
-            <p className="text-muted-foreground mb-6">Upload a prescription to get started</p>
-            <Button variant="hero" size="lg" onClick={() => navigate("/upload")}>Upload Prescription</Button>
+            <p className="text-xl font-bold mb-2">{t("meds.empty")}</p>
+            <p className="text-muted-foreground mb-6">{t("meds.emptyDesc")}</p>
+            <Button variant="hero" size="lg" onClick={() => navigate("/upload")}>{t("uploadPrescription")}</Button>
           </div>
         ) : (
           <div className="space-y-4">
@@ -350,13 +351,13 @@ const Medicines = () => {
                   {/* Details */}
                   <div className="flex-1 min-w-0">
                     <h3 className="text-lg font-bold truncate">{med.name}</h3>
-                    <p className="text-muted-foreground text-sm">{med.dosage} · {med.frequency}</p>
+                    <p className="text-muted-foreground text-sm">{med.dosage} · {frequencyLabel(med.frequency)}</p>
                     {med.instructions && <p className="text-muted-foreground text-xs mt-0.5">{med.instructions}</p>}
                     {med.reminder_times && med.reminder_times.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1.5">
-                        {med.reminder_times.map((t) => (
-                          <span key={t} className="bg-primary/10 text-primary font-semibold px-3 py-1 rounded-full text-xs">
-                            🕐 {t}
+                        {med.reminder_times.map((time) => (
+                          <span key={time} className="bg-primary/10 text-primary font-semibold px-3 py-1 rounded-full text-xs">
+                            🕐 {time}
                           </span>
                         ))}
                       </div>
@@ -369,7 +370,7 @@ const Medicines = () => {
                       <Pencil className="w-4 h-4" />
                     </Button>
                     {med.medicine_photo_url && (
-                      <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:bg-muted" onClick={() => removePhoto(med)} title="Remove photo">
+                      <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:bg-muted" onClick={() => removePhoto(med)} title={t("meds.removePhoto")}>
                         <ImageOff className="w-4 h-4" />
                       </Button>
                     )}
@@ -388,39 +389,39 @@ const Medicines = () => {
       <Dialog open={!!editingMed} onOpenChange={(open) => !open && setEditingMed(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold">Edit Medicine</DialogTitle>
+            <DialogTitle className="text-xl font-bold">{t("meds.editTitle")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2">
             <div>
-              <Label className="text-base font-semibold">Name *</Label>
+              <Label className="text-base font-semibold">{t("meds.nameRequiredLabel")}</Label>
               <Input value={editForm.name} onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} className="mt-1.5 min-h-btn text-base rounded-xl" />
             </div>
             <div>
-              <Label className="text-base font-semibold">Dosage *</Label>
+              <Label className="text-base font-semibold">{t("meds.dosageRequiredLabel")}</Label>
               <Input value={editForm.dosage} onChange={(e) => setEditForm((f) => ({ ...f, dosage: e.target.value }))} className="mt-1.5 min-h-btn text-base rounded-xl" />
             </div>
             <div>
-              <Label className="text-base font-semibold">Frequency</Label>
+              <Label className="text-base font-semibold">{t("meds.frequency")}</Label>
               <select
                 value={editForm.frequency}
                 onChange={(e) => handleFrequencyChange(e.target.value)}
                 className="mt-1.5 w-full min-h-btn text-base rounded-xl border bg-background px-3 py-2"
               >
                 {FREQUENCY_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
+                  <option key={o.value} value={o.value}>{t(o.labelKey)}</option>
                 ))}
               </select>
             </div>
             <div>
-              <Label className="text-base font-semibold">Instructions</Label>
-              <Input value={editForm.instructions} onChange={(e) => setEditForm((f) => ({ ...f, instructions: e.target.value }))} className="mt-1.5 min-h-btn text-base rounded-xl" placeholder="e.g. After food" />
+              <Label className="text-base font-semibold">{t("meds.instructions")}</Label>
+              <Input value={editForm.instructions} onChange={(e) => setEditForm((f) => ({ ...f, instructions: e.target.value }))} className="mt-1.5 min-h-btn text-base rounded-xl" placeholder={t("meds.instructionsPlaceholder")} />
             </div>
 
             {timeSlotCount > 0 && (
               <div className="bg-muted/40 rounded-xl p-4 space-y-3">
                 <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4 text-primary" />
-                  <Label className="text-base font-semibold">Reminder Times</Label>
+                  <Label className="text-base font-semibold">{t("meds.reminderTimes")}</Label>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {editForm.reminder_times.map((time, tIdx) => (
@@ -431,7 +432,7 @@ const Medicines = () => {
                         onChange={(e) => updateReminderTime(tIdx, e.target.value)}
                         className="w-full min-h-btn text-base rounded-xl border bg-background px-3 py-2 text-center font-semibold"
                       />
-                      <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">Dose {tIdx + 1}</span>
+                      <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">{t("meds.doseN", { n: tIdx + 1 })}</span>
                     </div>
                   ))}
                 </div>
@@ -439,9 +440,9 @@ const Medicines = () => {
             )}
 
             <div className="flex gap-3 pt-2">
-              <Button variant="outline" className="flex-1" size="lg" onClick={() => setEditingMed(null)}>Cancel</Button>
+              <Button variant="outline" className="flex-1" size="lg" onClick={() => setEditingMed(null)}>{t("cancel")}</Button>
               <Button variant="hero" className="flex-1" size="lg" onClick={handleSaveEdit} disabled={saving}>
-                {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : "Save Changes ✅"}
+                {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : `${t("profile.saveChanges")} ✅`}
               </Button>
             </div>
           </div>
@@ -452,15 +453,15 @@ const Medicines = () => {
       <AlertDialog open={!!deletingMed} onOpenChange={(open) => !open && setDeletingMed(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete {deletingMed?.name}?</AlertDialogTitle>
+            <AlertDialogTitle>{t("meds.deleteTitle", { name: deletingMed?.name ?? "" })}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently remove this medicine and its photo. This action cannot be undone.
+              {t("meds.deleteDesc")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>{t("cancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Delete"}
+              {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : t("delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

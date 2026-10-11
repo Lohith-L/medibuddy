@@ -112,6 +112,7 @@ public class MedicineAlarmPlugin extends Plugin {
         Context ctx = getContext();
         JSArray incoming = call.getArray("reminders", new JSArray());
         AlarmStore.setLanguage(ctx, call.getString("language"));
+        AlarmNotifications.ensureChannels(ctx); // channel names follow the app language
 
         List<AlarmStore.Reminder> next = new ArrayList<>();
         try {

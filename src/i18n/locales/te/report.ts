@@ -1,0 +1,30 @@
+// Printable health report.
+const report = {
+  "report.title": "ఆరోగ్య నివేదిక",
+  "report.subtitle": "మందుల పాటింపు నివేదిక",
+  "report.patient": "రోగి",
+  "report.reportDate": "నివేదిక తేదీ",
+  "report.period": "కాలం",
+  "report.lastFourWeeks": "గత 4 వారాలు",
+  "report.summary": "సారాంశం",
+  "report.totalDoses": "మొత్తం మోతాదులు",
+  "report.taken": "తీసుకున్నవి",
+  "report.missed": "మిస్ అయినవి",
+  "report.pending": "పెండింగ్",
+  "report.adherence": "పాటింపు",
+  "report.streak": "ప్రస్తుత స్ట్రీక్",
+  "report.days": "రోజులు",
+  "report.activeMedicines": "యాక్టివ్ మందులు",
+  "report.weeklyBreakdown": "వారపు వివరాలు",
+  "report.week": "వారం",
+  "report.doses": "మోతాదు",
+  "report.generatedAt": "రూపొందించిన తేదీ",
+  "report.downloadReport": "నివేదిక డౌన్‌లోడ్ చేయండి",
+  "report.trend": "ధోరణి",
+  "report.improving": "మెరుగవుతోంది",
+  "report.declining": "తగ్గుతోంది",
+  "report.stable": "స్థిరం",
+  "report.poweredBy": "MEDDIBUDDY - మీ మందుల సహచరుడు",
+};
+
+export default report;

@@ -22,7 +22,7 @@ interface RuleTip {
   icon: any;
   titleKey: string;
   descKey: string;
-  badge: string;
+  badgeKey: string;
   badgeBg: string;
 }
 
@@ -59,16 +59,16 @@ export const WeatherHealthCard = () => {
     setError(false);
 
     getCurrentLocation({ timeout: 8000 })
-      .then(({ lat, lng }) => fetchOpenMeteo(lat, lng, "Your Location"))
+      .then(({ lat, lng }) => fetchOpenMeteo(lat, lng, "weather.yourLocation"))
       .catch((err: LocationError) => {
         console.warn("Geolocation fallback:", err);
         // On the phone, tell the user how to fix it (web stays silent as before)
-        if (err.userMessage) toast.error(err.userMessage, { id: "location-error" });
+        if (err.userMessage) toast.error(t(err.messageKey), { id: "location-error" });
         // Fallback default coordinates (Hyderabad)
         fetchOpenMeteo(
           17.385,
           78.4867,
-          err.reason === "unsupported" ? "Hyderabad (Default)" : "Hyderabad",
+          err.reason === "unsupported" ? "weather.hyderabadDefault" : "weather.hyderabad",
         );
       });
   };
@@ -143,7 +143,7 @@ export const WeatherHealthCard = () => {
         icon: Sun,
         titleKey: "weatherHotTitle",
         descKey: "weatherHotDesc",
-        badge: "Heat Advisory",
+        badgeKey: "weather.badgeHeat",
         badgeBg: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30",
       });
     }
@@ -154,7 +154,7 @@ export const WeatherHealthCard = () => {
         icon: Snowflake,
         titleKey: "weatherColdTitle",
         descKey: "weatherColdDesc",
-        badge: "Cold & BP Alert",
+        badgeKey: "weather.badgeCold",
         badgeBg: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30",
       });
     }
@@ -165,7 +165,7 @@ export const WeatherHealthCard = () => {
         icon: Droplets,
         titleKey: "weatherHumidTitle",
         descKey: "weatherHumidDesc",
-        badge: "Joints & Medicine Moisture",
+        badgeKey: "weather.badgeHumid",
         badgeBg: "bg-teal-500/15 text-teal-700 dark:text-teal-300 border-teal-500/30",
       });
     }
@@ -176,7 +176,7 @@ export const WeatherHealthCard = () => {
         icon: CloudRain,
         titleKey: "weatherRainTitle",
         descKey: "weatherRainDesc",
-        badge: "Slip & Fall Risk",
+        badgeKey: "weather.badgeRain",
         badgeBg: "bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/30",
       });
     }
@@ -187,7 +187,7 @@ export const WeatherHealthCard = () => {
         icon: ShieldAlert,
         titleKey: "weatherAqiTitle",
         descKey: "weatherAqiDesc",
-        badge: "Air Quality Alert",
+        badgeKey: "weather.badgeAqi",
         badgeBg: "bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30",
       });
     }
@@ -198,7 +198,7 @@ export const WeatherHealthCard = () => {
         icon: Sparkles,
         titleKey: "weatherPleasantTitle",
         descKey: "weatherPleasantDesc",
-        badge: "Daily Wellness",
+        badgeKey: "weather.badgePleasant",
         badgeBg: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
       });
     }
@@ -208,7 +208,7 @@ export const WeatherHealthCard = () => {
       icon: Thermometer,
       titleKey: "weatherMedStorageTitle",
       descKey: "weatherMedStorageDesc",
-      badge: "Medicine Safety",
+      badgeKey: "weather.badgeStorage",
       badgeBg: "bg-primary/15 text-primary border-primary/30",
     });
 
@@ -241,7 +241,7 @@ export const WeatherHealthCard = () => {
               {t("weatherAdvisory")} ⛅
             </h3>
             <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <MapPin className="w-3 h-3 text-primary" /> {weather.cityName} · Real-time conditions & elderly care rules
+              <MapPin className="w-3 h-3 text-primary" /> {t(weather.cityName)} · {t("weather.subtitle")}
             </p>
           </div>
         </div>
@@ -249,9 +249,9 @@ export const WeatherHealthCard = () => {
         <button
           onClick={fetchWeatherForLocation}
           className="self-start sm:self-auto px-3 py-1.5 rounded-xl bg-muted text-xs font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1.5 transition-colors"
-          title="Refresh Weather"
+          title={t("weather.refreshTitle")}
         >
-          <RefreshCw className="w-3.5 h-3.5" /> Refresh
+          <RefreshCw className="w-3.5 h-3.5" /> {t("weather.refresh")}
         </button>
       </div>
 
@@ -261,7 +261,7 @@ export const WeatherHealthCard = () => {
           {getWeatherIcon()}
           <div>
             <p className="text-xl font-extrabold">{weather.temp}°C</p>
-            <p className="text-[11px] text-muted-foreground font-medium">Temperature</p>
+            <p className="text-[11px] text-muted-foreground font-medium">{t("weather.temperature")}</p>
           </div>
         </div>
 
@@ -269,23 +269,23 @@ export const WeatherHealthCard = () => {
           <Droplets className="w-5 h-5 text-teal-500" />
           <div>
             <p className="text-base font-bold">{weather.humidity}%</p>
-            <p className="text-[11px] text-muted-foreground font-medium">Humidity</p>
+            <p className="text-[11px] text-muted-foreground font-medium">{t("weather.humidity")}</p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <Wind className="w-5 h-5 text-blue-500" />
           <div>
-            <p className="text-base font-bold">{weather.windSpeed} km/h</p>
-            <p className="text-[11px] text-muted-foreground font-medium">Wind Speed</p>
+            <p className="text-base font-bold">{weather.windSpeed} {t("weather.kmh")}</p>
+            <p className="text-[11px] text-muted-foreground font-medium">{t("weather.wind")}</p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <ShieldCheck className="w-5 h-5 text-purple-500" />
           <div>
-            <p className="text-base font-bold">{weather.aqi ? `${weather.aqi} AQI` : "Good (45)"}</p>
-            <p className="text-[11px] text-muted-foreground font-medium">Air Quality</p>
+            <p className="text-base font-bold">{weather.aqi ? `${weather.aqi} AQI` : t("weather.aqiGood")}</p>
+            <p className="text-[11px] text-muted-foreground font-medium">{t("weather.airQuality")}</p>
           </div>
         </div>
       </div>
@@ -303,7 +303,7 @@ export const WeatherHealthCard = () => {
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 mb-1">
                 <span className={`text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full border ${tip.badgeBg}`}>
-                  {tip.badge}
+                  {t(tip.badgeKey)}
                 </span>
               </div>
               <h4 className="font-bold text-sm sm:text-base text-foreground leading-snug">{t(tip.titleKey)}</h4>

@@ -8,10 +8,13 @@ import { Browser } from "@capacitor/browser";
 import { OAUTH_REDIRECT_URL } from "@/hooks/useDeepLink";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useLanguage } from "@/contexts/LanguageContext";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { ArrowLeft, Mail, Lock, User, Phone, KeyRound, HeartHandshake, LogIn } from "lucide-react";
 
 const Auth = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [tab, setTab] = useState<"login" | "signup">("login");
   const [authMethod, setAuthMethod] = useState<"email" | "phone">("email");
   const [loading, setLoading] = useState(false);
@@ -43,7 +46,7 @@ const Auth = () => {
         password: form.password,
       });
       if (error) throw error;
-      toast.success("Welcome back! 🎉");
+      toast.success(t("auth.welcomeBackToast"));
       navigate("/dashboard");
     } catch (err: any) {
       toast.error(err.message || "Login failed");
@@ -55,15 +58,15 @@ const Auth = () => {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.email.trim() || !form.email.includes("@")) {
-      toast.error("Please enter a valid email address");
+      toast.error(t("profile.invalidEmail"));
       return;
     }
     if (form.password !== form.confirmPassword) {
-      toast.error("Passwords do not match");
+      toast.error(t("profile.passwordMismatch"));
       return;
     }
     if (form.password.length < 6) {
-      toast.error("Password must be at least 6 characters");
+      toast.error(t("profile.passwordTooShort"));
       return;
     }
     setLoading(true);
@@ -80,7 +83,7 @@ const Auth = () => {
         },
       });
       if (error) throw error;
-      toast.success("Account created! Let's set up your language preference.");
+      toast.success(t("auth.accountCreated"));
       navigate("/onboarding");
     } catch (err: any) {
       toast.error(err.message || "Signup failed");
@@ -108,16 +111,16 @@ const Auth = () => {
     const phoneInput = authMethod === "phone" && tab === "signup" ? form.phone : phone;
     const formattedPhone = formatPhoneNumber(phoneInput);
     if (!formattedPhone || formattedPhone.length < 10) {
-      toast.error("Please enter a valid mobile number with country code (e.g. +919876543210)");
+      toast.error(t("auth.invalidMobile"));
       return;
     }
     if (tab === "signup") {
       if (!form.name.trim()) {
-        toast.error("Please enter patient's full name");
+        toast.error(t("auth.enterPatientName"));
         return;
       }
       if (!form.email.trim() || !form.email.includes("@")) {
-        toast.error("Please enter a valid patient email address");
+        toast.error(t("auth.invalidPatientEmail"));
         return;
       }
     }
@@ -136,13 +139,13 @@ const Auth = () => {
       });
       if (error) throw error;
       setPhone(formattedPhone);
-      toast.success(`OTP sent to ${formattedPhone}!`);
+      toast.success(t("auth.otpSent", { phone: formattedPhone }));
       setOtpSent(true);
     } catch (err: any) {
       if (err.message?.includes("Unsupported phone provider")) {
-        toast.error("Phone Auth is disabled in Supabase. Please enable the Phone provider in Supabase Dashboard → Authentication → Providers → Phone.");
+        toast.error(t("auth.phoneDisabled"));
       } else if (err.message?.includes("Database error")) {
-        toast.error("Database error saving new user. Please execute the SQL migration in Supabase SQL editor.");
+        toast.error(t("auth.dbError"));
       } else {
         toast.error(err.message || "Failed to send SMS OTP");
       }
@@ -155,7 +158,7 @@ const Auth = () => {
     e.preventDefault();
     const formattedPhone = formatPhoneNumber(phone);
     if (!phoneOtp.trim()) {
-      toast.error("Please enter the OTP code");
+      toast.error(t("auth.enterOtp"));
       return;
     }
     setLoading(true);
@@ -194,10 +197,10 @@ const Auth = () => {
       }
 
       if (tab === "signup") {
-        toast.success("Account created! Let's set up your language preference.");
+        toast.success(t("auth.accountCreated"));
         navigate("/onboarding");
       } else {
-        toast.success("Mobile login successful! 🎉");
+        toast.success(t("auth.mobileLoginOk"));
         navigate("/dashboard");
       }
     } catch (err: any) {
@@ -235,10 +238,13 @@ const Auth = () => {
   return (
     <div className="min-h-screen gradient-hero flex items-center justify-center px-4 py-12 native:px-3 native:py-6">
       <div className="w-full max-w-md">
-        {/* Back */}
-        <Button variant="ghost" size="sm" className="mb-4 text-muted-foreground hover:text-foreground" onClick={() => navigate("/")}>
-          <ArrowLeft className="w-4 h-4 mr-2" /> Back to home
-        </Button>
+        {/* Back + language */}
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" onClick={() => navigate("/")}>
+            <ArrowLeft className="w-4 h-4 mr-2" /> {t("auth.backHome")}
+          </Button>
+          <LanguageSwitcher />
+        </div>
 
         {/* Card */}
         <div className="w-full bg-gradient-to-b from-sky-50/50 to-white rounded-3xl shadow-xl border border-blue-100 p-8 native:p-5 text-foreground">
@@ -251,7 +257,7 @@ const Auth = () => {
               <span className="gradient-text">MEDDI</span>BUDDY
             </p>
             <p className="text-muted-foreground text-sm">
-              {tab === "login" ? "Welcome back! We missed you." : "Join the MEDDIBUDDY family 🤗"}
+              {tab === "login" ? t("auth.welcomeBack") : t("auth.joinFamily")}
             </p>
           </div>
 
@@ -264,7 +270,7 @@ const Auth = () => {
                 tab === "login" ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              Login
+              {t("auth.login")}
             </button>
             <button
               type="button"
@@ -273,7 +279,7 @@ const Auth = () => {
                 tab === "signup" ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              Sign Up
+              {t("auth.signUp")}
             </button>
           </div>
 
@@ -286,7 +292,7 @@ const Auth = () => {
                 authMethod === "email" ? "bg-white shadow-sm text-foreground font-semibold" : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <Mail className="w-4 h-4" /> Email & Password
+              <Mail className="w-4 h-4" /> {t("auth.emailPassword")}
             </button>
             <button
               type="button"
@@ -295,7 +301,7 @@ const Auth = () => {
                 authMethod === "phone" ? "bg-white shadow-sm text-foreground font-semibold" : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <Phone className="w-4 h-4" /> Mobile OTP
+              <Phone className="w-4 h-4" /> {t("auth.mobileOtp")}
             </button>
           </div>
 
@@ -314,12 +320,12 @@ const Auth = () => {
                   <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                   <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                 </svg>
-                Continue with Google
+                {t("auth.google")}
               </Button>
 
               <div className="flex items-center gap-4 mb-6">
                 <div className="flex-1 border-t border-dashed border-gray-300" />
-                <span className="text-xs uppercase tracking-wider text-muted-foreground font-medium">or</span>
+                <span className="text-xs uppercase tracking-wider text-muted-foreground font-medium">{t("or")}</span>
                 <div className="flex-1 border-t border-dashed border-gray-300" />
               </div>
             </>
@@ -333,7 +339,7 @@ const Auth = () => {
                   <>
                     <div>
                       <Label className="text-sm font-semibold text-foreground mb-1.5 block">
-                        Patient Full Name *
+                        {t("auth.patientName")}
                       </Label>
                       <div className="relative">
                         <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -341,7 +347,7 @@ const Auth = () => {
                           required
                           value={form.name}
                           onChange={(e) => update("name", e.target.value)}
-                          placeholder="Patient's full name"
+                          placeholder={t("auth.patientNamePlaceholder")}
                           className="pl-10 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
                         />
                       </div>
@@ -349,7 +355,7 @@ const Auth = () => {
 
                     <div>
                       <Label className="text-sm font-semibold text-foreground mb-1.5 block">
-                        Patient Email Address *
+                        {t("auth.patientEmail")}
                       </Label>
                       <div className="relative">
                         <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -368,7 +374,7 @@ const Auth = () => {
 
                 <div>
                   <Label className="text-sm font-semibold text-foreground mb-1.5 block">
-                    Mobile Number *
+                    {t("auth.mobile")}
                   </Label>
                   <div className="relative">
                     <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -384,13 +390,13 @@ const Auth = () => {
                       className="pl-10 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">Include country code (e.g., +91 for India)</p>
+                  <p className="text-xs text-muted-foreground mt-1">{t("auth.countryCodeHelp")}</p>
                 </div>
 
                 {tab === "signup" && (
                   <div>
                     <Label className="text-sm font-semibold text-foreground mb-1.5 block">
-                      Caregiver Email (Optional)
+                      {t("auth.caregiverOptional")}
                     </Label>
                     <div className="relative">
                       <HeartHandshake className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -403,7 +409,7 @@ const Auth = () => {
                       />
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Caregiver will receive medication alerts & status updates
+                      {t("auth.caregiverHelp")}
                     </p>
                   </div>
                 )}
@@ -414,14 +420,14 @@ const Auth = () => {
                   size="lg"
                   disabled={loading}
                 >
-                  {loading ? "Sending SMS OTP..." : "Get OTP Code"}
+                  {loading ? t("auth.sendingOtp") : t("auth.getOtp")}
                 </Button>
               </form>
             ) : (
               <form onSubmit={handleVerifyPhoneOtp} className="space-y-5">
                 <div>
                   <Label className="text-sm font-semibold text-foreground mb-1.5 block">
-                    Enter 6-Digit SMS OTP
+                    {t("auth.enterOtpLabel")}
                   </Label>
                   <div className="relative">
                     <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -435,7 +441,7 @@ const Auth = () => {
                       maxLength={6}
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">Sent to {phone}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{t("auth.sentTo", { phone })}</p>
                 </div>
 
                 <Button
@@ -444,7 +450,7 @@ const Auth = () => {
                   size="lg"
                   disabled={loading}
                 >
-                  {loading ? "Verifying..." : tab === "signup" ? "Verify & Complete Signup" : "Verify & Login"}
+                  {loading ? t("auth.verifying") : tab === "signup" ? t("auth.verifySignup") : t("auth.verifyLogin")}
                 </Button>
 
                 <div className="text-center pt-2">
@@ -453,7 +459,7 @@ const Auth = () => {
                     onClick={() => setOtpSent(false)}
                     className="text-xs text-primary hover:underline font-medium"
                   >
-                    Change Mobile Details / Phone Number
+                    {t("auth.changeMobile")}
                   </button>
                 </div>
               </form>
@@ -465,7 +471,7 @@ const Auth = () => {
                 <>
                   <div>
                     <Label className="text-sm font-semibold text-foreground mb-1.5 block">
-                      Full Name *
+                      {t("family.fullName")}
                     </Label>
                     <div className="relative">
                       <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -473,14 +479,14 @@ const Auth = () => {
                         required
                         value={form.name}
                         onChange={(e) => update("name", e.target.value)}
-                        placeholder="Your full name"
+                        placeholder={t("auth.yourNamePlaceholder")}
                         className="pl-10 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
                       />
                     </div>
                   </div>
                   <div>
                     <Label className="text-sm font-semibold text-foreground mb-1.5 block">
-                      Phone Number *
+                      {t("auth.phoneRequired")}
                     </Label>
                     <div className="relative">
                       <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -499,7 +505,7 @@ const Auth = () => {
 
               <div>
                 <Label className="text-sm font-semibold text-foreground mb-1.5 block">
-                  Email Address *
+                  {t("family.email")}
                 </Label>
                 <div className="relative">
                   <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -516,7 +522,7 @@ const Auth = () => {
 
               <div>
                 <Label className="text-sm font-semibold text-foreground mb-1.5 block">
-                  Password *
+                  {t("auth.password")}
                 </Label>
                 <div className="relative">
                   <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -525,7 +531,7 @@ const Auth = () => {
                     required
                     value={form.password}
                     onChange={(e) => update("password", e.target.value)}
-                    placeholder={tab === "signup" ? "Min 6 characters" : "Enter your password"}
+                    placeholder={tab === "signup" ? t("forgot.minChars") : t("auth.passwordPlaceholder")}
                     className="pl-10 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
                   />
                 </div>
@@ -535,7 +541,7 @@ const Auth = () => {
                 <>
                   <div>
                     <Label className="text-sm font-semibold text-foreground mb-1.5 block">
-                      Confirm Password *
+                      {t("auth.confirmPassword")}
                     </Label>
                     <div className="relative">
                       <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -544,7 +550,7 @@ const Auth = () => {
                         required
                         value={form.confirmPassword}
                         onChange={(e) => update("confirmPassword", e.target.value)}
-                        placeholder="Re-enter password"
+                        placeholder={t("auth.reenterPassword")}
                         className="pl-10 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
                       />
                     </div>
@@ -552,7 +558,7 @@ const Auth = () => {
 
                   <div>
                     <Label className="text-sm font-semibold text-foreground mb-1.5 block">
-                      Caregiver Email (Optional)
+                      {t("auth.caregiverOptional")}
                     </Label>
                     <div className="relative">
                       <HeartHandshake className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -565,7 +571,7 @@ const Auth = () => {
                       />
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Caregiver will receive medication alerts & status updates
+                      {t("auth.caregiverHelp")}
                     </p>
                   </div>
                 </>
@@ -578,7 +584,7 @@ const Auth = () => {
                     onClick={() => navigate("/forgot-password")}
                     className="text-sm text-primary hover:underline font-medium"
                   >
-                    Forgot password?
+                    {t("auth.forgot")}
                   </button>
                 </div>
               )}
@@ -589,7 +595,7 @@ const Auth = () => {
                 size="lg"
                 disabled={loading}
               >
-                {loading ? "Please wait..." : tab === "login" ? "Login" : "Create Account"}
+                {loading ? t("pleaseWait") : tab === "login" ? t("auth.login") : t("auth.createAccount")}
               </Button>
             </form>
           )}

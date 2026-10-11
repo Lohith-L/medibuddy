@@ -17,7 +17,7 @@ interface SOSContextType {
   copied: string | null;
   handleCall: (number: string) => void;
   handleCopy: (number: string) => void;
-  t: (key: string) => string;
+  t: (key: string, vars?: Record<string, string | number>) => string;
 }
 
 const SOSContext = createContext<SOSContextType | undefined>(undefined);
@@ -81,7 +81,7 @@ export const SOSProvider = ({ children }: { children: ReactNode }) => {
   const handleCopy = (number: string) => {
     navigator.clipboard.writeText(number);
     setCopied(number);
-    toast.success(`Copied ${number} to clipboard!`);
+    toast.success(t("sos.copied", { number }));
     setTimeout(() => setCopied(null), 2000);
   };
 
@@ -141,7 +141,7 @@ export const SOSModal = () => {
             </div>
             <div>
               <h2 className="text-xl font-extrabold text-foreground">{t("sosModalTitle")}</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">India National Health Helplines</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{t("sos.helplines")}</p>
             </div>
           </div>
           <button
@@ -164,18 +164,18 @@ export const SOSModal = () => {
               <div className="flex items-center gap-2">
                 <span className="text-2xl font-black text-red-600">108</span>
                 <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-600 text-white">
-                  Ambulance
+                  {t("sos.ambulance")}
                 </span>
               </div>
               <p className="text-xs font-medium text-muted-foreground mt-1">
-                Emergency Medical Services &amp; Disaster Response
+                {t("sos.ambulanceDesc")}
               </p>
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => handleCopy("108")}
                 className="p-2 rounded-xl bg-card border text-muted-foreground hover:text-foreground transition-colors"
-                title="Copy 108"
+                title={t("sos.copy", { number: "108" })}
               >
                 {copied === "108" ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
               </button>
@@ -188,7 +188,7 @@ export const SOSModal = () => {
                 className="px-4 py-2.5 rounded-xl bg-red-600 text-white font-bold text-sm shadow-md hover:bg-red-700 flex items-center gap-2 transition-all"
               >
                 <PhoneCall className="w-4 h-4" />
-                <span>{calling === "108" ? "Calling..." : "Call 108"}</span>
+                <span>{calling === "108" ? t("sos.calling") : t("sos.call", { number: "108" })}</span>
               </a>
             </div>
           </div>
@@ -199,18 +199,18 @@ export const SOSModal = () => {
               <div className="flex items-center gap-2">
                 <span className="text-2xl font-bold text-foreground">104</span>
                 <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                  Advisory
+                  {t("sos.advisory")}
                 </span>
               </div>
               <p className="text-xs font-medium text-muted-foreground mt-1">
-                Health Information, Counseling &amp; Doctor Advice
+                {t("sos.advisoryDesc")}
               </p>
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => handleCopy("104")}
                 className="p-2 rounded-xl bg-card border text-muted-foreground hover:text-foreground transition-colors"
-                title="Copy 104"
+                title={t("sos.copy", { number: "104" })}
               >
                 {copied === "104" ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
               </button>
@@ -223,7 +223,7 @@ export const SOSModal = () => {
                 className="px-4 py-2.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-sm hover:opacity-90 flex items-center gap-2 transition-all"
               >
                 <PhoneCall className="w-4 h-4" />
-                <span>{calling === "104" ? "Calling..." : "Call 104"}</span>
+                <span>{calling === "104" ? t("sos.calling") : t("sos.call", { number: "104" })}</span>
               </a>
             </div>
           </div>
@@ -233,15 +233,15 @@ export const SOSModal = () => {
         <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-3.5 flex items-start gap-3 text-xs text-amber-700 dark:text-amber-300">
           <Siren className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
           <div>
-            <p className="font-semibold">Desktop / Web Browser Notice:</p>
+            <p className="font-semibold">{t("sos.desktopNotice")}</p>
             <p className="text-amber-700/80 dark:text-amber-300/80 mt-0.5">
-              If clicking does not initiate a call on your device, dial <strong className="font-bold text-red-600">108</strong> directly from any mobile phone immediately.
+              {t("sos.desktopNoticeDesc")}
             </p>
           </div>
         </div>
 
         <Button variant="outline" className="w-full rounded-xl" onClick={() => setOpen(false)}>
-          Close Window
+          {t("sos.close")}
         </Button>
       </div>
     </div>,
@@ -259,8 +259,8 @@ export const SOSButton = ({ variant = "floating" }: SOSButtonProps) => {
         <button
           onClick={() => setOpen(true)}
           className="sos-floating fixed bottom-20 right-4 lg:bottom-6 lg:right-8 z-50 group flex items-center gap-2 px-4 py-3 rounded-full bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white font-extrabold shadow-lg hover:shadow-red-500/30 hover:scale-105 active:scale-95 transition-all duration-200 animate-pulse border-2 border-white/20"
-          title="Emergency SOS Call"
-          aria-label="Emergency SOS Call"
+          title={t("sos.buttonLabel")}
+          aria-label={t("sos.buttonLabel")}
         >
           <Siren className="w-5 h-5 animate-bounce" />
           <span className="text-sm uppercase tracking-wide">{t("sosEmergency")}</span>
@@ -273,7 +273,7 @@ export const SOSButton = ({ variant = "floating" }: SOSButtonProps) => {
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-red-600/15 text-red-600 font-bold border border-red-600/30 hover:bg-red-600 hover:text-white transition-all text-xs sm:text-sm animate-pulse"
         >
           <Siren className="w-4 h-4 text-red-600 group-hover:text-white" />
-          <span>SOS 108</span>
+          <span>{t("sos.short")}</span>
         </button>
       )}
 
@@ -283,7 +283,7 @@ export const SOSButton = ({ variant = "floating" }: SOSButtonProps) => {
           className="w-full bg-gradient-to-r from-red-600 to-rose-600 text-white font-extrabold hover:from-red-700 hover:to-rose-700 shadow-md py-6 text-base rounded-2xl flex items-center justify-center gap-3 border border-red-400/30"
         >
           <Siren className="w-6 h-6 animate-pulse" />
-          <span>{t("sosEmergency")} — Call 108</span>
+          <span>{t("sosEmergency")} — {t("sos.call", { number: "108" })}</span>
         </Button>
       )}
     </>

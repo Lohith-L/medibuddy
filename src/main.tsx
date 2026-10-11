@@ -3,6 +3,7 @@ import App from "./App.tsx";
 import "./index.css";
 import { waitForStorageReady } from "@/lib/capacitorStorage";
 import { Capacitor } from "@capacitor/core";
+import { preloadStoredLanguage } from "@/contexts/LanguageContext";
 
 // Native-only styling hook (safe areas, lighter effects). The website never
 // gets this class, so its look is unchanged.
@@ -13,6 +14,7 @@ if (Capacitor.isNativePlatform()) {
 // On native (Android/iOS), pre-populate the Capacitor Preferences cache so
 // Supabase can restore the session synchronously before the first render.
 // On web this resolves immediately (no-op).
-waitForStorageReady().then(() => {
+// The saved language's dictionary is loaded first, so the UI never flashes English.
+Promise.all([waitForStorageReady(), preloadStoredLanguage()]).then(() => {
   createRoot(document.getElementById("root")!).render(<App />);
 });

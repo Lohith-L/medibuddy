@@ -6,21 +6,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Save, User, Lock, ShieldCheck, AlarmClock, ChevronRight } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
-import { languageOptions, normalizeLanguageCode, resolvePreferredLanguage } from "@/lib/language";
+import { languageOptions, normalizeLanguageCode } from "@/lib/language";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const providerLabels: Record<string, string> = {
-  email: "Email & password",
-  phone: "Phone (SMS OTP)",
-  google: "Google",
+/** Translation keys for the sign-in method. */
+const providerLabelKeys: Record<string, string> = {
+  email: "profile.providerEmail",
+  phone: "profile.providerPhone",
+  google: "profile.providerGoogle",
 };
 
 const Profile = () => {
   const navigate = useNavigate();
+  const { t, language: appLanguage, setLanguage, locale } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     name: "", email: "", phone: "", language: "en", caregiverEmail: "",
@@ -56,16 +59,19 @@ const Profile = () => {
         name: (meta?.name as string) || (meta?.full_name as string) || patient?.name || "",
         email: patient?.email || user.email || "",
         phone: (meta?.phone as string) || patient?.phone || user.phone || "",
-        language: resolvePreferredLanguage({
-          settingsLanguage: patient?.language,
-          patientLanguage: meta?.language as string | undefined,
-        }),
+        // The app language is the single source of truth (saved on device + profile).
+        language: appLanguage,
         caregiverEmail: (meta?.caregiver_email as string) || patient?.caregiver_email || "",
       });
     };
 
     loadProfile();
   }, [navigate]);
+
+  // Keep the language picker in step when the language is changed elsewhere (header menu).
+  useEffect(() => {
+    setForm((p) => ({ ...p, language: appLanguage }));
+  }, [appLanguage]);
 
   const update = (field: string, value: string) => setForm((p) => ({ ...p, [field]: value }));
 
@@ -74,9 +80,9 @@ const Profile = () => {
     const email = form.email.trim();
     const caregiverEmail = form.caregiverEmail.trim();
 
-    if (!name) return toast.error("Name is required");
-    if (!EMAIL_RE.test(email)) return toast.error("Enter a valid email address");
-    if (caregiverEmail && !EMAIL_RE.test(caregiverEmail)) return toast.error("Enter a valid caregiver email");
+    if (!name) return toast.error(t("profile.nameRequired"));
+    if (!EMAIL_RE.test(email)) return toast.error(t("profile.invalidEmail"));
+    if (caregiverEmail && !EMAIL_RE.test(caregiverEmail)) return toast.error(t("profile.invalidCaregiverEmail"));
 
     setLoading(true);
     try {
@@ -84,7 +90,7 @@ const Profile = () => {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
-        throw new Error("Not authenticated");
+        throw new Error(t("profile.notSignedIn"));
       }
 
       const emailChanged = email.toLowerCase() !== (authEmail || "").toLowerCase();
@@ -118,30 +124,28 @@ const Profile = () => {
       if (patientError) throw patientError;
 
       setForm((prev) => ({ ...prev, name, email, caregiverEmail, language: normalizedLanguage }));
-      toast.success(
-        emailChanged
-          ? "Profile updated! Check your new inbox to confirm the email change."
-          : "Profile updated! 🎉",
-      );
+      // Switch the whole UI right away if the language changed.
+      if (normalizedLanguage !== appLanguage) await setLanguage(normalizedLanguage);
+      toast.success(emailChanged ? t("profile.updatedCheckEmail") : t("profile.updated"));
     } catch (err: any) {
-      toast.error(err.message || "Failed to update");
+      toast.error(err.message || t("profile.updateFailed"));
     } finally {
       setLoading(false);
     }
   };
 
   const handlePasswordChange = async () => {
-    if (passwords.next.length < 6) return toast.error("Password must be at least 6 characters");
-    if (passwords.next !== passwords.confirm) return toast.error("Passwords do not match");
+    if (passwords.next.length < 6) return toast.error(t("profile.passwordTooShort"));
+    if (passwords.next !== passwords.confirm) return toast.error(t("profile.passwordMismatch"));
 
     setSavingPassword(true);
     try {
       const { error } = await supabase.auth.updateUser({ password: passwords.next });
       if (error) throw error;
       setPasswords({ next: "", confirm: "" });
-      toast.success("Password updated");
+      toast.success(t("profile.passwordUpdated"));
     } catch (err: any) {
-      toast.error(err.message || "Failed to update password");
+      toast.error(err.message || t("profile.passwordUpdateFailed"));
     } finally {
       setSavingPassword(false);
     }
@@ -152,7 +156,7 @@ const Profile = () => {
   return (
     <DashboardLayout>
       <div className="max-w-md space-y-6">
-        <h1 className="text-2xl font-extrabold">Settings</h1>
+        <h1 className="text-2xl font-extrabold">{t("settings")}</h1>
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
           <div className="flex justify-center">
             <div className="w-20 h-20 rounded-2xl gradient-warm flex items-center justify-center shadow-card">
@@ -162,22 +166,22 @@ const Profile = () => {
 
           {/* Profile details */}
           <div className="bg-card rounded-2xl border p-8 shadow-card space-y-5">
-            <h2 className="text-lg font-bold">Profile</h2>
+            <h2 className="text-lg font-bold">{t("profile.title")}</h2>
             <div>
-              <Label className="text-base font-semibold">Full Name</Label>
+              <Label className="text-base font-semibold">{t("profile.fullName")}</Label>
               <Input value={form.name} onChange={(e) => update("name", e.target.value)} className={inputClass} />
             </div>
             <div>
-              <Label className="text-base font-semibold">Email Address</Label>
+              <Label className="text-base font-semibold">{t("profile.email")}</Label>
               <Input type="email" value={form.email} onChange={(e) => update("email", e.target.value)} className={inputClass} placeholder="you@example.com" />
-              <p className="text-xs text-muted-foreground mt-1.5">Medicine reminders are sent to this address.</p>
+              <p className="text-xs text-muted-foreground mt-1.5">{t("profile.emailHelp")}</p>
             </div>
             <div>
-              <Label className="text-base font-semibold">Phone Number</Label>
+              <Label className="text-base font-semibold">{t("profile.phone")}</Label>
               <Input type="tel" value={form.phone} onChange={(e) => update("phone", e.target.value)} className={inputClass} placeholder="+91 98765 43210" />
             </div>
             <div>
-              <Label className="text-base font-semibold">Preferred Language</Label>
+              <Label className="text-base font-semibold">{t("profile.language")}</Label>
               <select
                 value={form.language}
                 onChange={(e) => update("language", e.target.value)}
@@ -189,12 +193,12 @@ const Profile = () => {
               </select>
             </div>
             <div>
-              <Label className="text-base font-semibold">Caregiver Email</Label>
+              <Label className="text-base font-semibold">{t("profile.caregiverEmail")}</Label>
               <Input type="email" value={form.caregiverEmail} onChange={(e) => update("caregiverEmail", e.target.value)} className={inputClass} placeholder="family@example.com" />
-              <p className="text-xs text-muted-foreground mt-1.5">Gets alerted when a dose is missed.</p>
+              <p className="text-xs text-muted-foreground mt-1.5">{t("profile.caregiverHelp")}</p>
             </div>
             <Button variant="hero" className="w-full" size="lg" onClick={handleSave} disabled={loading}>
-              <Save className="w-5 h-5" /> {loading ? "Saving..." : "Save Changes"}
+              <Save className="w-5 h-5" /> {loading ? t("saving") : t("profile.saveChanges")}
             </Button>
           </div>
 
@@ -208,8 +212,8 @@ const Profile = () => {
                 <AlarmClock className="w-6 h-6" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-bold">Medicine alarm</p>
-                <p className="text-sm text-muted-foreground">Alarm sound, test alarm and phone permissions</p>
+                <p className="font-bold">{t("alarm.title")}</p>
+                <p className="text-sm text-muted-foreground">{t("profile.alarmEntryDesc")}</p>
               </div>
               <ChevronRight className="w-5 h-5 text-muted-foreground" />
             </button>
@@ -218,17 +222,17 @@ const Profile = () => {
           {/* Password — only for accounts that sign in with a password */}
           {account.provider === "email" && (
             <div className="bg-card rounded-2xl border p-8 shadow-card space-y-5">
-              <h2 className="text-lg font-bold">Change Password</h2>
+              <h2 className="text-lg font-bold">{t("profile.changePassword")}</h2>
               <div>
-                <Label className="text-base font-semibold">New Password</Label>
+                <Label className="text-base font-semibold">{t("profile.newPassword")}</Label>
                 <Input type="password" value={passwords.next} onChange={(e) => setPasswords((p) => ({ ...p, next: e.target.value }))} className={inputClass} autoComplete="new-password" />
               </div>
               <div>
-                <Label className="text-base font-semibold">Confirm New Password</Label>
+                <Label className="text-base font-semibold">{t("profile.confirmPassword")}</Label>
                 <Input type="password" value={passwords.confirm} onChange={(e) => setPasswords((p) => ({ ...p, confirm: e.target.value }))} className={inputClass} autoComplete="new-password" />
               </div>
               <Button variant="outline" className="w-full" size="lg" onClick={handlePasswordChange} disabled={savingPassword || !passwords.next}>
-                <Lock className="w-5 h-5" /> {savingPassword ? "Updating..." : "Update Password"}
+                <Lock className="w-5 h-5" /> {savingPassword ? t("profile.updating") : t("profile.updatePassword")}
               </Button>
             </div>
           )}
@@ -236,23 +240,23 @@ const Profile = () => {
           {/* Account info */}
           <div className="bg-card rounded-2xl border p-8 shadow-card space-y-3">
             <h2 className="text-lg font-bold flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-primary" /> Account
+              <ShieldCheck className="w-5 h-5 text-primary" /> {t("profile.account")}
             </h2>
             <div className="flex justify-between gap-4 text-sm">
-              <span className="text-muted-foreground">Sign-in method</span>
-              <span className="font-medium">{providerLabels[account.provider] || account.provider}</span>
+              <span className="text-muted-foreground">{t("profile.signInMethod")}</span>
+              <span className="font-medium">{providerLabelKeys[account.provider] ? t(providerLabelKeys[account.provider]) : account.provider}</span>
             </div>
             {authEmail && (
               <div className="flex justify-between gap-4 text-sm">
-                <span className="text-muted-foreground">Login email</span>
+                <span className="text-muted-foreground">{t("profile.loginEmail")}</span>
                 <span className="font-medium truncate">{authEmail}</span>
               </div>
             )}
             {account.createdAt && (
               <div className="flex justify-between gap-4 text-sm">
-                <span className="text-muted-foreground">Member since</span>
+                <span className="text-muted-foreground">{t("profile.memberSince")}</span>
                 <span className="font-medium">
-                  {new Date(account.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })}
+                  {new Date(account.createdAt).toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" })}
                 </span>
               </div>
             )}

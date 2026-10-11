@@ -21,7 +21,7 @@ const BottomNav = () => {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    toast.success("Logged out successfully");
+    toast.success(t("layout.loggedOut"));
     navigate("/");
   };
 

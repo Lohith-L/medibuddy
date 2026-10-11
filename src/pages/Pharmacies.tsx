@@ -71,25 +71,25 @@ const Pharmacies = () => {
       .then((coords) => {
         setUserCoords(coords);
         setLocationStatus("granted");
-        setSearchLocationName("Your Current Location");
+        setSearchLocationName("pharm.currentLocation");
         fetchPharmacies(coords.lat, coords.lng, radiusKm);
       })
       .catch((err: LocationError) => {
         console.warn("Geolocation error:", err);
         if (err.reason === "unsupported") {
-          toast.error("Geolocation is not supported by your browser");
+          toast.error(t("pharm.geoUnsupported"));
         }
         // On the phone, explain how to turn location back on
         if (err.userMessage) {
-          setLocationMessage(err.userMessage);
-          toast.error(err.userMessage, { id: "location-error" });
+          setLocationMessage(err.messageKey);
+          toast.error(t(err.messageKey), { id: "location-error" });
         }
         setLocationStatus("denied");
         setLoading(false);
         // Fallback default coordinates (Hyderabad city center)
         const defaultCoords = { lat: 17.3850, lng: 78.4867 };
         setUserCoords(defaultCoords);
-        setSearchLocationName("Hyderabad (Default)");
+        setSearchLocationName("weather.hyderabadDefault");
         fetchPharmacies(defaultCoords.lat, defaultCoords.lng, radiusKm);
       });
   };
@@ -98,7 +98,7 @@ const Pharmacies = () => {
   const handleManualSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!manualQuery.trim()) {
-      toast.error("Please enter a city or pincode");
+      toast.error(t("pharm.enterCity"));
       return;
     }
 
@@ -117,13 +117,13 @@ const Pharmacies = () => {
         setUserCoords(newCoords);
         setSearchLocationName(first.display_name.split(",")[0] || manualQuery);
         setLocationStatus("granted");
-        toast.success(`Found location: ${first.display_name.split(",")[0]}`);
+        toast.success(t("pharm.foundLocation", { place: first.display_name.split(",")[0] }));
         await fetchPharmacies(newCoords.lat, newCoords.lng, radiusKm);
       } else {
-        toast.error("Location not found. Try entering a city name or pincode (e.g. Bangalore, 560001)");
+        toast.error(t("pharm.locationNotFound"));
       }
     } catch (err) {
-      toast.error("Failed to geocode location. Please try again.");
+      toast.error(t("pharm.geocodeFailed"));
     } finally {
       setLoading(false);
     }
@@ -195,7 +195,7 @@ way["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
               el.tags?.["name:en"] ||
               el.tags?.["name:te"] ||
               el.tags?.["name:hi"] ||
-              "Local Pharmacy Store";
+              "pharm.localStore"; // translation key, rendered with t()
 
             const addr =
               el.tags?.["addr:full"] ||
@@ -207,7 +207,7 @@ way["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
               ]
                 .filter(Boolean)
                 .join(", ") ||
-              `${dist} km from selected location`;
+              ""; // empty: the list shows "x km from the selected location"
 
             const phone =
               el.tags?.phone ||
@@ -319,7 +319,7 @@ way["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
       // Surface a soft error banner if the API completely failed
       if (!apiSucceeded) {
         setFetchError(
-          "Couldn't reach the pharmacy directory — showing cached nearby stores. Tap Retry to try again."
+          "pharm.directoryError"
         );
       }
     }
@@ -364,7 +364,7 @@ way["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
 
     L.marker([userCoords.lat, userCoords.lng], { icon: userIcon })
       .addTo(markersGroup)
-      .bindPopup(`<b>📍 Your Location</b><br/>${searchLocationName}`);
+      .bindPopup(`<b>📍 ${t("weather.yourLocation")}</b><br/>${t(searchLocationName)}`);
 
     // Render Pharmacy Markers
     pharmacies.forEach((p) => {
@@ -373,7 +373,7 @@ way["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
         html: `<div style="background-color: ${
           p.isOpen ? "#10b981" : "#ef4444"
         }; color: white; padding: 4px 8px; border-radius: 12px; font-weight: bold; font-size: 11px; border: 2px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); display: flex; items-center; gap: 4px;">💊 ${
-          p.name.split(" ")[0]
+          t(p.name).split(" ")[0]
         }</div>`,
         iconAnchor: [20, 10],
       });
@@ -382,12 +382,12 @@ way["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
 
       const popupContent = `
         <div style="font-family: system-ui; max-width: 200px;">
-          <h4 style="margin: 0 0 4px 0; font-weight: bold; font-size: 14px;">${p.name}</h4>
-          <p style="margin: 0 0 6px 0; font-size: 12px; color: #666;">${p.address}</p>
-          <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 600; color: #059669;">📍 ${p.distanceKm} km away</p>
+          <h4 style="margin: 0 0 4px 0; font-weight: bold; font-size: 14px;">${t(p.name)}</h4>
+          <p style="margin: 0 0 6px 0; font-size: 12px; color: #666;">${p.address || t("pharm.kmFromSelected", { km: p.distanceKm })}</p>
+          <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 600; color: #059669;">📍 ${t("pharm.kmAway", { km: p.distanceKm })}</p>
           <div style="display: flex; gap: 6px;">
-            <a href="tel:${p.phone}" style="background: #2563eb; color: white; padding: 4px 8px; border-radius: 6px; text-decoration: none; font-size: 11px; font-weight: bold;">Call</a>
-            <a href="${directionsUrl}" target="_blank" style="background: #059669; color: white; padding: 4px 8px; border-radius: 6px; text-decoration: none; font-size: 11px; font-weight: bold;">Directions ➔</a>
+            <a href="tel:${p.phone}" style="background: #2563eb; color: white; padding: 4px 8px; border-radius: 6px; text-decoration: none; font-size: 11px; font-weight: bold;">${t("pharm.callShort")}</a>
+            <a href="${directionsUrl}" target="_blank" style="background: #059669; color: white; padding: 4px 8px; border-radius: 6px; text-decoration: none; font-size: 11px; font-weight: bold;">${t("pharm.directions")} ➔</a>
           </div>
         </div>
       `;
@@ -403,7 +403,7 @@ way["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
         mapInstanceRef.current = null;
       }
     };
-  }, [userCoords, pharmacies, searchLocationName]);
+  }, [userCoords, pharmacies, searchLocationName, t]);
 
   const selectAndPanToPharmacy = (p: Pharmacy) => {
     setSelectedPharmacyId(p.id);
@@ -429,7 +429,7 @@ way["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
               <Store className="w-7 h-7 text-primary" /> {t("nearbyPharmacies")}
             </h1>
             <p className="text-muted-foreground text-sm mt-1">
-              Find 24/7 chemists, medical stores, and prescription refills near you
+              {t("pharm.subtitle")}
             </p>
           </div>
           <Button
@@ -439,7 +439,7 @@ way["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
             disabled={loading}
             className="self-start sm:self-auto rounded-xl flex items-center gap-2"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} /> Refresh Location
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} /> {t("pharm.refreshLocation")}
           </Button>
         </div>
 
@@ -450,15 +450,15 @@ way["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
               <ShieldAlert className="w-6 h-6 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
               <div>
                 <p className="font-bold text-amber-800 dark:text-amber-200 text-sm sm:text-base">
-                  Location Permission Denied
+                  {t("pharm.permissionDenied")}
                 </p>
                 {locationMessage && (
                   <p className="text-xs sm:text-sm font-medium text-amber-800 dark:text-amber-200 mt-0.5">
-                    {locationMessage}
+                    {t(locationMessage)}
                   </p>
                 )}
                 <p className="text-xs sm:text-sm text-amber-700/90 dark:text-amber-300/90 mt-0.5">
-                  Enter your city, landmark or 6-digit pincode to locate pharmacies in your area:
+                  {t("pharm.enterCityHelp")}
                 </p>
               </div>
             </div>
@@ -473,18 +473,18 @@ way["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
               <Input
                 value={manualQuery}
                 onChange={(e) => setManualQuery(e.target.value)}
-                placeholder="Enter City, Area or Pincode (e.g. Hyderabad, 560001)"
+                placeholder={t("pharm.searchPlaceholder")}
                 className="pl-11 rounded-xl min-h-btn text-base"
               />
             </div>
             <Button type="submit" variant="hero" className="rounded-xl px-6 shrink-0" disabled={loading}>
-              <Search className="w-4 h-4 mr-2" /> Search Area
+              <Search className="w-4 h-4 mr-2" /> {t("pharm.searchArea")}
             </Button>
           </form>
 
           {/* Radius Selector */}
           <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Search Radius:</span>
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("pharm.searchRadius")}</span>
             <div className="flex items-center gap-1.5 bg-muted p-1 rounded-xl">
               {[2, 5, 10, 15].map((r) => (
                 <button
@@ -496,7 +496,7 @@ way["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  {r} km
+                  {t("pharm.km", { km: r })}
                 </button>
               ))}
             </div>
@@ -509,9 +509,9 @@ way["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
           <div className="lg:col-span-6 bg-card border rounded-2xl shadow-card overflow-hidden sticky top-24">
             <div className="p-3.5 bg-muted/50 border-b flex items-center justify-between">
               <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                <Navigation className="w-4 h-4 text-primary" /> Interactive Map ({searchLocationName})
+                <Navigation className="w-4 h-4 text-primary" /> {t("pharm.map", { place: t(searchLocationName) })}
               </span>
-              <span className="text-xs text-muted-foreground font-medium">Click markers for details</span>
+              <span className="text-xs text-muted-foreground font-medium">{t("pharm.tapMarkers")}</span>
             </div>
             <div ref={mapContainerRef} className="w-full h-[380px] sm:h-[480px] z-10" />
           </div>
@@ -520,9 +520,9 @@ way["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
           <div className="lg:col-span-6 space-y-4">
             <div className="flex items-center justify-between px-1">
               <p className="font-bold text-base">
-                Found {pharmacies.length} Pharmacies within {radiusKm} km
+                {t("pharm.foundCount", { count: pharmacies.length, km: radiusKm })}
               </p>
-              <span className="text-xs text-muted-foreground font-medium">Sorted by distance</span>
+              <span className="text-xs text-muted-foreground font-medium">{t("pharm.sortedByDistance")}</span>
             </div>
 
             {/* API error banner — shown when all Overpass mirrors fail */}
@@ -530,13 +530,13 @@ way["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
               <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold">{fetchError}</p>
+                  <p className="text-xs font-semibold">{t(fetchError)}</p>
                 </div>
                 <button
                   onClick={() => userCoords && fetchPharmacies(userCoords.lat, userCoords.lng, radiusKm)}
                   className="shrink-0 text-xs font-bold text-amber-700 dark:text-amber-300 hover:underline"
                 >
-                  Retry
+                  {t("pharm.retry")}
                 </button>
               </div>
             )}
@@ -544,8 +544,8 @@ way["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
             {loading ? (
               <div className="text-center py-12 bg-card border rounded-2xl p-6">
                 <RefreshCw className="w-8 h-8 text-primary animate-spin mx-auto mb-3" />
-                <p className="font-semibold text-foreground">Searching nearby medical stores...</p>
-                <p className="text-xs text-muted-foreground mt-1">Checking OpenStreetMap pharmacy directory</p>
+                <p className="font-semibold text-foreground">{t("pharm.searching")}</p>
+                <p className="text-xs text-muted-foreground mt-1">{t("pharm.checkingDirectory")}</p>
               </div>
             ) : pharmacies.length === 0 ? (
               <div className="text-center py-12 bg-card border rounded-2xl p-6 space-y-4">
@@ -556,10 +556,10 @@ way["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
                 </div>
                 <div className="flex justify-center gap-2 pt-2">
                   <Button variant="outline" size="sm" onClick={() => changeRadius(10)}>
-                    Search 10 km
+                    {t("pharm.searchKm", { km: 10 })}
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => changeRadius(15)}>
-                    Search 15 km
+                    {t("pharm.searchKm", { km: 15 })}
                   </Button>
                 </div>
               </div>
@@ -584,22 +584,22 @@ way["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
                       <div className="flex items-start justify-between gap-3 mb-2">
                         <div>
                           <h3 className="font-bold text-base sm:text-lg flex items-center gap-2">
-                            {p.name}
+                            {t(p.name)}
                           </h3>
-                          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">{p.address}</p>
+                          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">{p.address || t("pharm.kmFromSelected", { km: p.distanceKm })}</p>
                         </div>
                         <span
                           className={`shrink-0 text-[11px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider ${
                             p.isOpen ? "bg-emerald-500/15 text-emerald-600" : "bg-red-500/15 text-red-600"
                           }`}
                         >
-                          {p.isOpen ? "Open Now" : "Closed"}
+                          {p.isOpen ? t("openNow") : t("closed")}
                         </span>
                       </div>
 
                       <div className="flex items-center gap-4 text-xs font-semibold text-muted-foreground my-3">
                         <span className="flex items-center gap-1 text-primary">
-                          <MapPin className="w-3.5 h-3.5" /> {p.distanceKm} km away
+                          <MapPin className="w-3.5 h-3.5" /> {t("pharm.kmAway", { km: p.distanceKm })}
                         </span>
                         <span className="flex items-center gap-1">
                           <Phone className="w-3.5 h-3.5" /> {p.phone}
@@ -612,7 +612,7 @@ way["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
                           onClick={(e) => e.stopPropagation()}
                           className="flex-1 py-2 px-3 rounded-xl bg-primary text-primary-foreground text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity"
                         >
-                          <Phone className="w-4 h-4" /> Call Pharmacy
+                          <Phone className="w-4 h-4" /> {t("callPharmacy")}
                         </a>
                         <a
                           href={directionsUrl}
@@ -621,7 +621,7 @@ way["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
                           onClick={(e) => e.stopPropagation()}
                           className="flex-1 py-2 px-3 rounded-xl bg-muted text-foreground hover:bg-muted/80 text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-colors border"
                         >
-                          <Navigation className="w-4 h-4 text-primary" /> Directions <ExternalLink className="w-3 h-3" />
+                          <Navigation className="w-4 h-4 text-primary" /> {t("pharm.directions")} <ExternalLink className="w-3 h-3" />
                         </a>
                       </div>
                     </motion.div>

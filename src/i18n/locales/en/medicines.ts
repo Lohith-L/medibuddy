@@ -1,0 +1,40 @@
+// My medicines, medicine log, frequency labels.
+const medicines = {
+  "meds.photoUpdated": "Medicine photo updated! 📸",
+  "meds.photoUploadFailed": "Couldn't upload the photo",
+  "meds.photoRemoved": "Photo removed",
+  "meds.photoRemoveFailed": "Couldn't remove the photo",
+  "meds.nameDosageRequired": "Name and dosage are required",
+  "meds.updated": "Medicine updated ✅",
+  "meds.deleted": "Medicine deleted",
+  "meds.empty": "No medicines yet",
+  "meds.emptyDesc": "Upload a prescription to get started",
+  "meds.removePhoto": "Remove photo",
+  "meds.editTitle": "Edit medicine",
+  "meds.nameRequiredLabel": "Name *",
+  "meds.dosageRequiredLabel": "Dosage *",
+  "meds.frequency": "Frequency",
+  "meds.instructions": "Instructions",
+  "meds.instructionsPlaceholder": "e.g. After food",
+  "meds.reminderTimes": "Reminder times",
+  "meds.doseN": "Dose {n}",
+  "meds.deleteTitle": "Delete {name}?",
+  "meds.deleteDesc": "This permanently removes this medicine and its photo. This can't be undone.",
+
+  "freq.onceDaily": "Once daily",
+  "freq.twiceDaily": "Twice daily",
+  "freq.threeTimesDaily": "Three times daily",
+  "freq.asNeeded": "As needed",
+  "freq.weekly": "Weekly",
+
+  "log.title": "Today's medicine log",
+  "log.markedAs": "Marked as {status}",
+  "log.countTaken": "{count} taken",
+  "log.countPending": "{count} pending",
+  "log.countMissed": "{count} missed",
+  "log.empty": "No logs for today",
+  "log.emptyDesc": "Upload a prescription and your schedule will appear here",
+  "log.markMissed": "Mark missed",
+};
+
+export default medicines;

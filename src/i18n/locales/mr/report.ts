@@ -1,0 +1,30 @@
+// Printable health report.
+const report = {
+  "report.title": "आरोग्य अहवाल",
+  "report.subtitle": "औषध पालन अहवाल",
+  "report.patient": "रुग्ण",
+  "report.reportDate": "अहवाल तारीख",
+  "report.period": "कालावधी",
+  "report.lastFourWeeks": "मागील 4 आठवडे",
+  "report.summary": "सारांश",
+  "report.totalDoses": "एकूण डोस",
+  "report.taken": "घेतले",
+  "report.missed": "चुकलेले",
+  "report.pending": "प्रलंबित",
+  "report.adherence": "पालन",
+  "report.streak": "सध्याची स्ट्रीक",
+  "report.days": "दिवस",
+  "report.activeMedicines": "सक्रिय औषधे",
+  "report.weeklyBreakdown": "साप्ताहिक तपशील",
+  "report.week": "आठवडा",
+  "report.doses": "डोस",
+  "report.generatedAt": "तयार केल्याची तारीख",
+  "report.downloadReport": "अहवाल डाउनलोड करा",
+  "report.trend": "ट्रेंड",
+  "report.improving": "सुधारणा होत आहे",
+  "report.declining": "घसरण",
+  "report.stable": "स्थिर",
+  "report.poweredBy": "MEDDIBUDDY - तुमचा औषध साथीदार",
+};
+
+export default report;

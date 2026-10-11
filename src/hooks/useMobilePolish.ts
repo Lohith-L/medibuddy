@@ -19,6 +19,8 @@ import { App, BackButtonListenerEvent } from '@capacitor/app';
 import { SplashScreen } from '@capacitor/splash-screen';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { translate } from '@/i18n';
+import { getStoredLanguage } from '@/contexts/LanguageContext';
 
 /** Routes considered "home" — pressing back here exits the app */
 const HOME_ROUTES = new Set(['/', '/dashboard']);
@@ -72,7 +74,7 @@ export function useMobilePolish() {
       // Show a "press again to exit" toast via the existing sonner toaster
       // Import toast lazily to avoid circular deps
       import('sonner').then(({ toast }) => {
-        toast('Press back again to exit', { duration: 2000 });
+        toast(translate(getStoredLanguage(), 'misc.pressBackToExit'), { duration: 2000 });
       });
 
       // Reset after 2 seconds

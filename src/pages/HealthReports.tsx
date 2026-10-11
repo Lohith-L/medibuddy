@@ -9,8 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { startOfWeek, endOfWeek, subWeeks, format, startOfDay } from "date-fns";
-import { tr } from "@/lib/reportTranslations";
-import { resolvePreferredLanguage } from "@/lib/language";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface WeekData {
   weekLabel: string;
@@ -28,10 +27,13 @@ const COLORS = {
 };
 
 const HealthReports = () => {
+  const { t, language, locale } = useLanguage();
+  /** "2026-10-05" → "5 Oct" / "5 अक्टू॰" in the current language. */
+  const fmtWeek = (iso: string) =>
+    new Date(`${iso}T00:00:00`).toLocaleDateString(locale, { month: "short", day: "numeric" });
   const [loading, setLoading] = useState(true);
   const [patientId, setPatientId] = useState<string | null>(null);
   const [patientName, setPatientName] = useState("");
-  const [patientLang, setPatientLang] = useState("en");
   const [totalDoses, setTotalDoses] = useState(0);
   const [taken, setTaken] = useState(0);
   const [missed, setMissed] = useState(0);
@@ -56,10 +58,6 @@ const HealthReports = () => {
       if (!patient) { setLoading(false); return; }
       setPatientId(patient.id);
       setPatientName(patient.name || "");
-      setPatientLang(resolvePreferredLanguage({
-        settingsLanguage: patient.language,
-        patientLanguage: user.user_metadata?.language as string | undefined,
-      }));
 
       const { count: medCount } = await supabase
         .from("medicines")
@@ -125,7 +123,7 @@ const HealthReports = () => {
         const wp = weekLogs.filter(l => l.status === "pending" || l.status === "snoozed").length;
         const wCompleted = wt + wm;
         weeks.push({
-          weekLabel: format(ws, "MMM d"),
+          weekLabel: format(ws, "yyyy-MM-dd"), // formatted in the UI language at render
           taken: wt,
           missed: wm,
           pending: wp,
@@ -150,31 +148,17 @@ const HealthReports = () => {
   const handleDownload = async () => {
     const { data: { user } } = await supabase.auth.getUser();
 
-    let lang = resolvePreferredLanguage({ fallback: patientLang });
+    // The report uses the app's current language (same as the screen).
+    const lang = language;
 
-    if (user) {
-      const { data: latestPatient } = await supabase
-        .from("patients")
-        .select("language")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      lang = resolvePreferredLanguage({
-        settingsLanguage: latestPatient?.language,
-        patientLanguage: user.user_metadata?.language as string | undefined,
-        fallback: patientLang,
-      });
-      setPatientLang(lang);
-    }
-
-    const trendText = trend === "up" ? tr("improving", lang) : trend === "down" ? tr("declining", lang) : tr("stable", lang);
+    const trendText = trend === "up" ? t("report.improving") : trend === "down" ? t("report.declining") : t("report.stable");
     const adherenceStatusColor = adherence >= 80 ? "#52B788" : adherence >= 50 ? "#EF9F27" : "#E24B4A";
     const now = format(new Date(), "yyyy-MM-dd HH:mm");
 
     const weekRows = weeklyData.map(w => {
       const color = w.adherence >= 80 ? "#52B788" : w.adherence >= 50 ? "#EF9F27" : "#E24B4A";
       return `<tr>
-        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">${tr("week", lang)} ${w.weekLabel}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">${t("report.week")} ${fmtWeek(w.weekLabel)}</td>
         <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;">${w.total}</td>
         <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;color:#52B788;font-weight:600;">${w.taken}</td>
         <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;color:#E24B4A;font-weight:600;">${w.missed}</td>
@@ -186,7 +170,7 @@ const HealthReports = () => {
 <html lang="${lang}">
 <head>
 <meta charset="utf-8"/>
-<title>${tr("title", lang)} - ${patientName}</title>
+<title>${t("report.title")} - ${patientName}</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&family=Noto+Sans+Devanagari:wght@400;600;700&family=Noto+Sans+Kannada:wght@400;600;700&family=Noto+Sans+Telugu:wght@400;600;700&family=Noto+Sans+Tamil:wght@400;600;700&display=swap');
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -210,66 +194,66 @@ const HealthReports = () => {
 </head>
 <body>
   <div class="header">
-    <h1>💊 ${tr("title", lang)}</h1>
-    <p>${tr("subtitle", lang)}</p>
+    <h1>💊 ${t("report.title")}</h1>
+    <p>${t("report.subtitle")}</p>
   </div>
 
   <div class="meta">
-    <div><strong>${tr("patient", lang)}:</strong> ${patientName || "—"}</div>
-    <div><strong>${tr("reportDate", lang)}:</strong> ${format(new Date(), "dd MMM yyyy")}</div>
-    <div><strong>${tr("period", lang)}:</strong> ${tr("lastFourWeeks", lang)}</div>
+    <div><strong>${t("report.patient")}:</strong> ${patientName || "—"}</div>
+    <div><strong>${t("report.reportDate")}:</strong> ${new Date().toLocaleDateString(locale, { day: "2-digit", month: "short", year: "numeric" })}</div>
+    <div><strong>${t("report.period")}:</strong> ${t("report.lastFourWeeks")}</div>
   </div>
 
-  <div class="section-title">${tr("summary", lang)}</div>
+  <div class="section-title">${t("report.summary")}</div>
   <div class="stats">
     <div class="stat-card" style="background:#f0fdf4;">
       <div class="value" style="color:${adherenceStatusColor};">${adherence}%</div>
-      <div class="label">${tr("adherence", lang)}</div>
+      <div class="label">${t("report.adherence")}</div>
     </div>
     <div class="stat-card" style="background:#f0fdf4;">
       <div class="value" style="color:#52B788;">${taken}</div>
-      <div class="label">${tr("taken", lang)}</div>
+      <div class="label">${t("report.taken")}</div>
     </div>
     <div class="stat-card" style="background:#fef2f2;">
       <div class="value" style="color:#E24B4A;">${missed}</div>
-      <div class="label">${tr("missed", lang)}</div>
+      <div class="label">${t("report.missed")}</div>
     </div>
     <div class="stat-card" style="background:#eff6ff;">
       <div class="value" style="color:#2E86AB;">${streak}</div>
-      <div class="label">${tr("streak", lang)} (${tr("days", lang)})</div>
+      <div class="label">${t("report.streak")} (${t("report.days")})</div>
     </div>
   </div>
 
   <div style="margin-bottom:24px;">
     <div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:4px;">
-      <span>${taken} / ${taken + missed} ${tr("doses", lang)} ${tr("taken", lang).toLowerCase()}</span>
+      <span>${taken} / ${taken + missed} ${t("report.doses")} ${t("report.taken").toLowerCase()}</span>
       <span style="font-weight:700;color:${adherenceStatusColor};">${adherence}%</span>
     </div>
     <div class="progress-bar">
       <div class="progress-fill" style="width:${adherence}%;background:${adherenceStatusColor};"></div>
     </div>
     <div style="font-size:13px;color:#888;">
-      ${tr("activeMedicines", lang)}: ${activeMedicines} · ${tr("totalDoses", lang)}: ${totalDoses} · ${tr("pending", lang)}: ${pending} · ${tr("trend", lang)}: ${trendText}
+      ${t("report.activeMedicines")}: ${activeMedicines} · ${t("report.totalDoses")}: ${totalDoses} · ${t("report.pending")}: ${pending} · ${t("report.trend")}: ${trendText}
     </div>
   </div>
 
-  <div class="section-title">${tr("weeklyBreakdown", lang)}</div>
+  <div class="section-title">${t("report.weeklyBreakdown")}</div>
   <table>
     <thead>
       <tr>
-        <th>${tr("week", lang)}</th>
-        <th style="text-align:center;">${tr("doses", lang)}</th>
-        <th style="text-align:center;">${tr("taken", lang)}</th>
-        <th style="text-align:center;">${tr("missed", lang)}</th>
-        <th style="text-align:center;">${tr("adherence", lang)}</th>
+        <th>${t("report.week")}</th>
+        <th style="text-align:center;">${t("report.doses")}</th>
+        <th style="text-align:center;">${t("report.taken")}</th>
+        <th style="text-align:center;">${t("report.missed")}</th>
+        <th style="text-align:center;">${t("report.adherence")}</th>
       </tr>
     </thead>
     <tbody>${weekRows}</tbody>
   </table>
 
   <div class="footer">
-    <p>${tr("generatedAt", lang)}: ${now}</p>
-    <p style="margin-top:4px;">${tr("poweredBy", lang)}</p>
+    <p>${t("report.generatedAt")}: ${now}</p>
+    <p style="margin-top:4px;">${t("report.poweredBy")}</p>
   </div>
 </body>
 </html>`;
@@ -287,7 +271,7 @@ const HealthReports = () => {
   const adherenceBarColor = adherence >= 80 ? COLORS.taken : adherence >= 50 ? COLORS.pending : COLORS.missed;
 
   const TrendIcon = trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : Minus;
-  const trendLabel = trend === "up" ? "Improving" : trend === "down" ? "Declining" : "Stable";
+  const trendLabel = trend === "up" ? t("report.improving") : trend === "down" ? t("report.declining") : t("report.stable");
 
   if (loading) {
     return (
@@ -309,11 +293,11 @@ const HealthReports = () => {
     <DashboardLayout>
       <div className="max-w-4xl space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <h1 className="text-2xl font-extrabold">Health Reports</h1>
+          <h1 className="text-2xl font-extrabold">{t("healthReports")}</h1>
           {!noData && (
             <Button onClick={handleDownload} className="gap-2 min-h-[48px] rounded-xl">
               <Download className="w-5 h-5" />
-              {tr("downloadReport", patientLang)}
+              {t("report.downloadReport")}
             </Button>
           )}
         </div>
@@ -323,8 +307,8 @@ const HealthReports = () => {
             <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
               <BarChart3 className="w-8 h-8 text-primary" />
             </div>
-            <p className="text-lg font-semibold mb-1">No data yet</p>
-            <p className="text-muted-foreground">Start tracking your medicines to see adherence reports and health insights here.</p>
+            <p className="text-lg font-semibold mb-1">{t("reports.noData")}</p>
+            <p className="text-muted-foreground">{t("reports.noDataDesc")}</p>
           </Card>
         ) : (
           <>
@@ -333,7 +317,7 @@ const HealthReports = () => {
               <Card className={`rounded-2xl shadow-card ${adherenceBg} border-0`}>
                 <CardContent className="p-3 sm:p-5 text-center">
                   <p className={`text-3xl sm:text-4xl font-extrabold ${adherenceColor}`}>{adherence}%</p>
-                  <p className="text-sm text-muted-foreground mt-1">Adherence</p>
+                  <p className="text-sm text-muted-foreground mt-1">{t("report.adherence")}</p>
                   <div className="flex items-center justify-center gap-1 mt-2">
                     <TrendIcon className={`w-4 h-4 ${adherenceColor}`} />
                     <span className={`text-xs font-medium ${adherenceColor}`}>{trendLabel}</span>
@@ -345,7 +329,7 @@ const HealthReports = () => {
                 <CardContent className="p-3 sm:p-5 text-center">
                   <CheckCircle2 className="w-6 h-6 text-success mx-auto mb-1" />
                   <p className="text-2xl sm:text-3xl font-extrabold text-success">{taken}</p>
-                  <p className="text-sm text-muted-foreground">Taken</p>
+                  <p className="text-sm text-muted-foreground">{t("chart.taken")}</p>
                 </CardContent>
               </Card>
 
@@ -353,7 +337,7 @@ const HealthReports = () => {
                 <CardContent className="p-3 sm:p-5 text-center">
                   <XCircle className="w-6 h-6 text-destructive mx-auto mb-1" />
                   <p className="text-2xl sm:text-3xl font-extrabold text-destructive">{missed}</p>
-                  <p className="text-sm text-muted-foreground">Missed</p>
+                  <p className="text-sm text-muted-foreground">{t("chart.missed")}</p>
                 </CardContent>
               </Card>
 
@@ -361,7 +345,7 @@ const HealthReports = () => {
                 <CardContent className="p-3 sm:p-5 text-center">
                   <Award className="w-6 h-6 text-primary mx-auto mb-1" />
                   <p className="text-2xl sm:text-3xl font-extrabold text-primary">{streak}</p>
-                  <p className="text-sm text-muted-foreground">Day streak</p>
+                  <p className="text-sm text-muted-foreground">{t("reports.dayStreak")}</p>
                 </CardContent>
               </Card>
             </div>
@@ -371,19 +355,19 @@ const HealthReports = () => {
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Pill className="w-5 h-5 text-primary" />
-                  Overall Progress
+                  {t("reports.overall")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">{taken} of {taken + missed} completed doses taken</span>
+                  <span className="text-muted-foreground">{t("reports.completedTaken", { taken, total: taken + missed })}</span>
                   <span className="font-semibold" style={{ color: adherenceBarColor }}>{adherence}%</span>
                 </div>
                 <Progress value={adherence} className="h-3" />
                 <div className="flex flex-wrap gap-2 sm:gap-4 text-xs text-muted-foreground">
-                  <span>{activeMedicines} active medicine{activeMedicines !== 1 ? "s" : ""}</span>
-                  <span>{totalDoses} total doses tracked</span>
-                  <span>{pending} pending</span>
+                  <span>{t(activeMedicines === 1 ? "reports.activeMedicine" : "reports.activeMedicines", { count: activeMedicines })}</span>
+                  <span>{t("reports.totalTracked", { count: totalDoses })}</span>
+                  <span>{t("log.countPending", { count: pending })}</span>
                 </div>
               </CardContent>
             </Card>
@@ -393,39 +377,39 @@ const HealthReports = () => {
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Calendar className="w-5 h-5 text-primary" />
-                  Weekly Breakdown
+                  {t("report.weeklyBreakdown")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <Tabs defaultValue="chart">
                   <TabsList className="mb-4">
-                    <TabsTrigger value="chart">Chart</TabsTrigger>
-                    <TabsTrigger value="table">Summary</TabsTrigger>
+                    <TabsTrigger value="chart">{t("reports.chart")}</TabsTrigger>
+                    <TabsTrigger value="table">{t("report.summary")}</TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="chart">
                     <div className="h-64">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={weeklyData} barGap={4}>
-                          <XAxis dataKey="weekLabel" tick={{ fontSize: 12 }} />
+                          <XAxis dataKey="weekLabel" tick={{ fontSize: 12 }} tickFormatter={fmtWeek} />
                           <YAxis tick={{ fontSize: 12 }} />
                           <Tooltip
                             content={({ active, payload, label }) => {
                               if (!active || !payload?.length) return null;
                               return (
                                 <div className="bg-card border rounded-xl px-4 py-2.5 shadow-card text-sm">
-                                  <p className="font-semibold mb-1">Week of {label}</p>
+                                  <p className="font-semibold mb-1">{t("reports.weekOf", { date: fmtWeek(String(label)) })}</p>
                                   {payload.map((p: any) => (
                                     <p key={p.dataKey} style={{ color: p.fill }}>
-                                      {p.dataKey}: {p.value}
+                                      {p.dataKey === "taken" ? t("chart.taken") : p.dataKey === "missed" ? t("chart.missed") : p.dataKey}: {p.value}
                                     </p>
                                   ))}
                                 </div>
                               );
                             }}
                           />
-                          <Bar dataKey="taken" fill={COLORS.taken} radius={[4, 4, 0, 0]} name="Taken" />
-                          <Bar dataKey="missed" fill={COLORS.missed} radius={[4, 4, 0, 0]} name="Missed" />
+                          <Bar dataKey="taken" fill={COLORS.taken} radius={[4, 4, 0, 0]} name={t("chart.taken")} />
+                          <Bar dataKey="missed" fill={COLORS.missed} radius={[4, 4, 0, 0]} name={t("chart.missed")} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -436,8 +420,8 @@ const HealthReports = () => {
                       {weeklyData.map((w) => (
                         <div key={w.weekLabel} className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
                           <div>
-                            <p className="font-semibold text-sm">Week of {w.weekLabel}</p>
-                            <p className="text-xs text-muted-foreground">{w.total} doses · {w.taken} taken · {w.missed} missed</p>
+                            <p className="font-semibold text-sm">{t("reports.weekOf", { date: fmtWeek(w.weekLabel) })}</p>
+                            <p className="text-xs text-muted-foreground">{t("reports.weekLine", { total: w.total, taken: w.taken, missed: w.missed })}</p>
                           </div>
                           <div className={`text-lg font-bold ${w.adherence >= 80 ? "text-success" : w.adherence >= 50 ? "text-warning" : "text-destructive"}`}>
                             {w.adherence}%

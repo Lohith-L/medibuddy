@@ -126,12 +126,16 @@ public class AlarmActivity extends AppCompatActivity implements AlarmService.Lis
             return;
         }
         shown = p;
+        String lang = AlarmTexts.langFor(this, p);
+        ((TextView) findViewById(R.id.alarm_label)).setText(AlarmTexts.get(lang, "label"));
+        ((TextView) findViewById(R.id.alarm_taken)).setText(AlarmTexts.get(lang, "taken"));
+        ((TextView) findViewById(R.id.alarm_snooze)).setText(AlarmTexts.get(lang, "snooze"));
         timeView.setText(p.displayTime());
         medicineView.setText(p.medicineName);
-        doseView.setText(p.dose == null || p.dose.isEmpty() ? "Time for your medicine" : p.dose);
+        doseView.setText(p.dose == null || p.dose.isEmpty() ? AlarmTexts.get(lang, "timeForMedicine") : p.dose);
         if (waiting > 0) {
             moreView.setVisibility(View.VISIBLE);
-            moreView.setText("+" + waiting + " more medicine" + (waiting > 1 ? "s" : "") + " due now");
+            moreView.setText(AlarmTexts.get(lang, "moreDue", "n", String.valueOf(waiting)));
         } else {
             moreView.setVisibility(View.GONE);
         }
@@ -151,7 +155,7 @@ public class AlarmActivity extends AppCompatActivity implements AlarmService.Lis
 
         // More medicines still ringing: stay on the alarm screen for the next one.
         if (AlarmService.waitingCount() > 0 && timeView != null) {
-            Toast.makeText(this, p.medicineName + " marked as taken", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, AlarmTexts.get(AlarmTexts.langFor(this, p), "markedTaken", "name", p.medicineName), Toast.LENGTH_SHORT).show();
             return;
         }
         openAppToLogDose(p);
@@ -159,7 +163,7 @@ public class AlarmActivity extends AppCompatActivity implements AlarmService.Lis
 
     private void snooze(AlarmPayload p) {
         AlarmService.send(this, AlarmService.ACTION_SNOOZE, p);
-        Toast.makeText(this, "Snoozed for 10 minutes", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, AlarmTexts.get(AlarmTexts.langFor(this, p), "snoozed"), Toast.LENGTH_SHORT).show();
         if (AlarmService.waitingCount() == 0) finish();
     }
 

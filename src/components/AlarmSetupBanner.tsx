@@ -5,6 +5,7 @@ import { App } from "@capacitor/app";
 import { AlarmClock, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MedicineAlarm } from "@/plugins/medicineAlarm";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const DISMISS_KEY = "medibuddy.alarmBannerDismissedAt";
 const DISMISS_FOR_MS = 3 * 24 * 60 * 60 * 1000;
@@ -25,6 +26,7 @@ function dismissedRecently(): boolean {
  */
 const AlarmSetupBanner = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [state, setState] = useState<"hidden" | "required" | "battery">("hidden");
 
   useEffect(() => {
@@ -62,19 +64,19 @@ const AlarmSetupBanner = () => {
       <AlarmClock className="w-6 h-6 text-amber-600 shrink-0 mt-0.5" />
       <div className="flex-1 min-w-0">
         <p className="font-bold text-sm text-amber-900 dark:text-amber-100">
-          {state === "required" ? "Finish alarm setup" : "Keep medicine alarms reliable"}
+          {state === "required" ? t("alarmBanner.requiredTitle") : t("alarmBanner.batteryTitle")}
         </p>
         <p className="text-xs text-amber-800/90 dark:text-amber-200/90 mt-0.5">
           {state === "required"
-            ? "Allow a few settings so your medicine alarm can ring on time, even when the phone is locked."
-            : "Let MediBuddy run in the background so your phone doesn't block alarms to save battery."}
+            ? t("alarmBanner.requiredDesc")
+            : t("alarmBanner.batteryDesc")}
         </p>
         <Button size="sm" className="mt-2" onClick={() => navigate("/alarm-settings")}>
-          Set up alarms
+          {t("alarmBanner.setUp")}
         </Button>
       </div>
       {state === "battery" && (
-        <button onClick={dismiss} aria-label="Dismiss" className="text-amber-700/70 hover:text-amber-900 p-1">
+        <button onClick={dismiss} aria-label={t("misc.dismiss")} className="text-amber-700/70 hover:text-amber-900 p-1">
           <X className="w-4 h-4" />
         </button>
       )}

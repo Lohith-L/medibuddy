@@ -38,10 +38,12 @@ public final class AlarmNotifications {
     static void ensureChannels(Context ctx) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
         NotificationManager nm = ctx.getSystemService(NotificationManager.class);
+        // Channel names follow the app language (re-creating a channel only updates its name).
+        String lang = AlarmStore.getLanguage(ctx);
 
         NotificationChannel alarm = new NotificationChannel(
             CHANNEL_ALARM,
-            "Medicine alarms",
+            AlarmTexts.get(lang, "channelAlarm"),
             NotificationManager.IMPORTANCE_HIGH
         );
         alarm.setDescription("Rings like an alarm clock at medicine time");
@@ -52,7 +54,7 @@ public final class AlarmNotifications {
 
         NotificationChannel reminder = new NotificationChannel(
             CHANNEL_REMINDER,
-            "Medicine reminders",
+            AlarmTexts.get(lang, "channelReminder"),
             NotificationManager.IMPORTANCE_HIGH
         );
         reminder.setDescription("Normal notification at medicine time when alarm sound is off");
@@ -67,7 +69,7 @@ public final class AlarmNotifications {
 
         NotificationChannel missed = new NotificationChannel(
             CHANNEL_MISSED,
-            "Missed doses",
+            AlarmTexts.get(lang, "channelMissed"),
             NotificationManager.IMPORTANCE_DEFAULT
         );
         missed.setDescription("Tells you when a medicine alarm was not answered");
@@ -113,9 +115,10 @@ public final class AlarmNotifications {
     /** Ongoing notification for the ringing alarm, with full-screen intent. */
     static Notification buildAlarm(Context ctx, AlarmPayload p, int waiting) {
         ensureChannels(ctx);
-        String title = "💊 Time for " + p.medicineName;
+        String lang = AlarmTexts.langFor(ctx, p);
+        String title = "💊 " + AlarmTexts.get(lang, "timeFor", "name", p.medicineName);
         String text = (p.dose == null || p.dose.isEmpty() ? "" : p.dose + " · ") + p.displayTime();
-        if (waiting > 0) text += " · +" + waiting + " more";
+        if (waiting > 0) text += " · " + AlarmTexts.get(lang, "more", "n", String.valueOf(waiting));
 
         return new NotificationCompat.Builder(ctx, CHANNEL_ALARM)
             .setSmallIcon(R.drawable.ic_stat_alarm)
@@ -130,8 +133,8 @@ public final class AlarmNotifications {
             .setOnlyAlertOnce(true)
             .setContentIntent(alarmScreenIntent(ctx, p, null, 10))
             .setFullScreenIntent(alarmScreenIntent(ctx, p, null, 11), true)
-            .addAction(0, "✅ Taken", alarmScreenIntent(ctx, p, AlarmActivity.ACTION_TAKEN, 12))
-            .addAction(0, "⏰ Snooze 10 min", serviceIntent(ctx, AlarmService.ACTION_SNOOZE, p, 13))
+            .addAction(0, AlarmTexts.get(lang, "taken"), alarmScreenIntent(ctx, p, AlarmActivity.ACTION_TAKEN, 12))
+            .addAction(0, AlarmTexts.get(lang, "snooze"), serviceIntent(ctx, AlarmService.ACTION_SNOOZE, p, 13))
             .build();
     }
 
@@ -139,18 +142,19 @@ public final class AlarmNotifications {
     static void showReminder(Context ctx, AlarmPayload p) {
         ensureChannels(ctx);
         int id = REMINDER_BASE + Math.abs(p.id % 100000);
+        String lang = AlarmTexts.langFor(ctx, p);
         Notification n = new NotificationCompat.Builder(ctx, CHANNEL_REMINDER)
             .setSmallIcon(R.drawable.ic_stat_alarm)
             .setColor(COLOR)
-            .setContentTitle("💊 Time for " + p.medicineName)
+            .setContentTitle("💊 " + AlarmTexts.get(lang, "timeFor", "name", p.medicineName))
             .setContentText((p.dose == null || p.dose.isEmpty() ? "" : p.dose + " · ") + p.displayTime())
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setAutoCancel(true)
             .setContentIntent(openAppIntent(ctx))
-            .addAction(0, "✅ Taken", alarmScreenIntent(ctx, p, AlarmActivity.ACTION_TAKEN, 20 + id))
-            .addAction(0, "⏰ Snooze 10 min", snoozeBroadcast(ctx, p, id))
+            .addAction(0, AlarmTexts.get(lang, "taken"), alarmScreenIntent(ctx, p, AlarmActivity.ACTION_TAKEN, 20 + id))
+            .addAction(0, AlarmTexts.get(lang, "snooze"), snoozeBroadcast(ctx, p, id))
             .build();
         notify(ctx, id, n);
     }
@@ -176,12 +180,12 @@ public final class AlarmNotifications {
     static void showMissed(Context ctx, AlarmPayload p) {
         ensureChannels(ctx);
         int id = MISSED_BASE + Math.abs(p.id % 100000);
+        String lang = AlarmTexts.langFor(ctx, p);
         Notification n = new NotificationCompat.Builder(ctx, CHANNEL_MISSED)
             .setSmallIcon(R.drawable.ic_stat_alarm)
             .setColor(COLOR)
-            .setContentTitle("Missed dose: " + p.medicineName)
-            .setContentText(
-                "The " + p.displayTime() + " alarm wasn't answered. Tap to open MediBuddy.")
+            .setContentTitle(AlarmTexts.get(lang, "missedTitle", "name", p.medicineName))
+            .setContentText(AlarmTexts.get(lang, "missedText", "time", p.displayTime()))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setAutoCancel(true)

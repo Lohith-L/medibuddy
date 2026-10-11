@@ -1,0 +1,30 @@
+// Printable health report.
+const report = {
+  "report.title": "ಆರೋಗ್ಯ ವರದಿ",
+  "report.subtitle": "ಔಷಧ ಅನುಸರಣೆ ವರದಿ",
+  "report.patient": "ರೋಗಿ",
+  "report.reportDate": "ವರದಿ ದಿನಾಂಕ",
+  "report.period": "ಅವಧಿ",
+  "report.lastFourWeeks": "ಕಳೆದ 4 ವಾರಗಳು",
+  "report.summary": "ಸಾರಾಂಶ",
+  "report.totalDoses": "ಒಟ್ಟು ಡೋಸ್‌ಗಳು",
+  "report.taken": "ತೆಗೆದುಕೊಂಡಿದೆ",
+  "report.missed": "ತಪ್ಪಿದವು",
+  "report.pending": "ಬಾಕಿ",
+  "report.adherence": "ಅನುಸರಣೆ",
+  "report.streak": "ಪ್ರಸ್ತುತ ಸ್ಟ್ರೀಕ್",
+  "report.days": "ದಿನಗಳು",
+  "report.activeMedicines": "ಸಕ್ರಿಯ ಔಷಧಗಳು",
+  "report.weeklyBreakdown": "ಸಾಪ್ತಾಹಿಕ ವಿವರ",
+  "report.week": "ವಾರ",
+  "report.doses": "ಡೋಸ್",
+  "report.generatedAt": "ರಚಿಸಿದ ದಿನಾಂಕ",
+  "report.downloadReport": "ವರದಿ ಡೌನ್‌ಲೋಡ್ ಮಾಡಿ",
+  "report.trend": "ಟ್ರೆಂಡ್",
+  "report.improving": "ಸುಧಾರಿಸುತ್ತಿದೆ",
+  "report.declining": "ಕುಸಿಯುತ್ತಿದೆ",
+  "report.stable": "ಸ್ಥಿರ",
+  "report.poweredBy": "MEDDIBUDDY - ನಿಮ್ಮ ಔಷಧ ಸಂಗಾತಿ",
+};
+
+export default report;

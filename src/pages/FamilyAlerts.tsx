@@ -10,6 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Users, Plus, Pencil, Trash2, Mail, Phone, Globe, Bell, CheckCircle2, XCircle, Clock, AlertTriangle, Filter } from "lucide-react";
 import { toast } from "sonner";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { languageOptions } from "@/lib/language";
 import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { format } from "date-fns";
@@ -30,14 +32,10 @@ interface AlertHistoryItem {
   created_at: string;
 }
 
+// Stored in English in the database; shown with t(`rel.${value}`).
 const relationships = ["Son", "Daughter", "Spouse", "Parent", "Sibling", "Friend", "Doctor", "Other"];
-const languages = [
-  { value: "en", label: "English" },
-  { value: "te", label: "తెలుగు (Telugu)" },
-  { value: "hi", label: "हिंदी (Hindi)" },
-  { value: "ta", label: "தமிழ் (Tamil)" },
-  { value: "kn", label: "ಕನ್ನಡ (Kannada)" },
-];
+// All app languages (alerts to caregivers can use any of them).
+const languages = languageOptions;
 
 const relColorMap: Record<string, string> = {
   Spouse: "bg-accent text-accent-foreground",
@@ -68,6 +66,7 @@ const emptyForm = {
 
 const FamilyAlerts = () => {
   const navigate = useNavigate();
+  const { t, tOr } = useLanguage();
   const [members, setMembers] = useState<FamilyMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [patientId, setPatientId] = useState<string | null>(null);
@@ -125,16 +124,7 @@ const FamilyAlerts = () => {
     return () => { supabase.removeChannel(channel); };
   }, [patientId, tab]);
 
-  const alertTypeLabel = (type: string) => {
-    const map: Record<string, string> = {
-      reminder: "Reminder",
-      confirmation: "Confirmation",
-      family_alert: "Family Alert",
-      escalation: "Escalation",
-      weekly_report: "Weekly Report",
-    };
-    return map[type] || type;
-  };
+  const alertTypeLabel = (type: string) => tOr(`alertType.${type}`, type);
 
   const alertTypeIcon = (type: string) => {
     if (type === "family_alert" || type === "escalation") return <AlertTriangle className="w-4 h-4" />;
@@ -151,9 +141,9 @@ const FamilyAlerts = () => {
   };
 
   const statusBadge = (status: string) => {
-    if (status === "sent") return <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-success/15 text-success"><CheckCircle2 className="w-3 h-3" />Sent</span>;
-    if (status === "failed") return <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-destructive/15 text-destructive"><XCircle className="w-3 h-3" />Failed</span>;
-    return <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-warning/15 text-warning"><Clock className="w-3 h-3" />Pending</span>;
+    if (status === "sent") return <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-success/15 text-success"><CheckCircle2 className="w-3 h-3" />{t("status.sent")}</span>;
+    if (status === "failed") return <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-destructive/15 text-destructive"><XCircle className="w-3 h-3" />{t("status.failed")}</span>;
+    return <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-warning/15 text-warning"><Clock className="w-3 h-3" />{t("status.pending")}</span>;
   };
 
   const filteredAlerts = alertFilter === "all" ? alerts : alerts.filter(a => a.alert_type === alertFilter);
@@ -166,9 +156,9 @@ const FamilyAlerts = () => {
   };
 
   const handleSave = async () => {
-    if (!form.full_name.trim()) { toast.error("Name is required"); return; }
-    if (!form.email.trim() || !form.email.includes("@")) { toast.error("Valid email is required"); return; }
-    if (!patientId) { toast.error("Patient profile not found"); return; }
+    if (!form.full_name.trim()) { toast.error(t("profile.nameRequired")); return; }
+    if (!form.email.trim() || !form.email.includes("@")) { toast.error(t("profile.invalidEmail")); return; }
+    if (!patientId) { toast.error(t("upload.noPatient")); return; }
     setSaving(true);
     try {
       if (editingId) {
@@ -178,7 +168,7 @@ const FamilyAlerts = () => {
           alert_on_weekly_report: form.alert_on_weekly_report, alert_on_refill: form.alert_on_refill,
         }).eq("id", editingId);
         if (error) throw error;
-        toast.success("Caregiver updated! ✅");
+        toast.success(t("family.updated"));
       } else {
         const { error } = await supabase.from("family_members").insert({
           patient_id: patientId, full_name: form.full_name, relationship: form.relationship,
@@ -187,12 +177,12 @@ const FamilyAlerts = () => {
           alert_on_refill: form.alert_on_refill,
         });
         if (error) throw error;
-        toast.success("Caregiver added! 🎉");
+        toast.success(t("family.added"));
       }
       setModalOpen(false);
       fetchMembers();
     } catch (err: any) {
-      toast.error(err.message || "Failed to save");
+      toast.error(err.message || t("family.saveFailed"));
     } finally { setSaving(false); }
   };
 
@@ -200,7 +190,7 @@ const FamilyAlerts = () => {
     if (!deleteId) return;
     const { error } = await supabase.from("family_members").delete().eq("id", deleteId);
     if (error) toast.error(error.message);
-    else { toast.success("Caregiver removed"); fetchMembers(); }
+    else { toast.success(t("family.removed")); fetchMembers(); }
     setDeleteId(null);
   };
 
@@ -218,16 +208,16 @@ const FamilyAlerts = () => {
         {/* Header */}
         <div className="flex flex-col gap-3">
           <div>
-            <h1 className="text-xl sm:text-2xl font-extrabold">Family & Caregivers</h1>
-            <p className="text-sm text-muted-foreground">People who care about your health</p>
+            <h1 className="text-xl sm:text-2xl font-extrabold">{t("dash.familyTitle")}</h1>
+            <p className="text-sm text-muted-foreground">{t("family.subtitle")}</p>
           </div>
-          <Button variant="hero" className="w-full sm:w-auto" onClick={openAdd}><Plus className="w-4 h-4" /> Add Family Member</Button>
+          <Button variant="hero" className="w-full sm:w-auto" onClick={openAdd}><Plus className="w-4 h-4" /> {t("family.addMember")}</Button>
         </div>
 
         {/* Tabs */}
         <div className="flex bg-muted rounded-xl p-1 w-full sm:w-fit">
-          {(["caregivers", "history"] as const).map((t) => (
-            <button key={t} onClick={() => setTab(t)} className={`flex-1 sm:flex-none px-4 sm:px-5 py-2.5 rounded-lg font-semibold text-sm capitalize transition-all ${tab === t ? "bg-card shadow-card text-foreground" : "text-muted-foreground"}`}>{t === "caregivers" ? "Caregivers" : "Alert History"}</button>
+          {(["caregivers", "history"] as const).map((tabId) => (
+            <button key={tabId} onClick={() => setTab(tabId)} className={`flex-1 sm:flex-none px-4 sm:px-5 py-2.5 rounded-lg font-semibold text-sm transition-all ${tab === tabId ? "bg-card shadow-card text-foreground" : "text-muted-foreground"}`}>{tabId === "caregivers" ? t("family.tabCaregivers") : t("family.tabHistory")}</button>
           ))}
         </div>
 
@@ -242,9 +232,9 @@ const FamilyAlerts = () => {
                 <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
                   <Users className="w-8 h-8 text-primary" />
                 </div>
-                <p className="text-lg font-semibold mb-1">No caregivers added yet</p>
-                <p className="text-muted-foreground mb-6">Add family members to keep them informed about your health</p>
-                <Button variant="hero" onClick={openAdd}><Plus className="w-4 h-4" /> Add First Caregiver</Button>
+                <p className="text-lg font-semibold mb-1">{t("family.empty")}</p>
+                <p className="text-muted-foreground mb-6">{t("family.emptyDesc")}</p>
+                <Button variant="hero" onClick={openAdd}><Plus className="w-4 h-4" /> {t("family.addFirst")}</Button>
               </div>
             ) : (
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -257,7 +247,7 @@ const FamilyAlerts = () => {
                         </div>
                         <div>
                           <p className="font-bold text-lg">{m.full_name}</p>
-                          <span className={`inline-block text-xs font-semibold px-2.5 py-0.5 rounded-full ${getRelColor(m.relationship)}`}>{m.relationship}</span>
+                          <span className={`inline-block text-xs font-semibold px-2.5 py-0.5 rounded-full ${getRelColor(m.relationship)}`}>{tOr(`rel.${m.relationship}`, m.relationship)}</span>
                         </div>
                       </div>
                       <div className="flex gap-1">
@@ -274,15 +264,15 @@ const FamilyAlerts = () => {
 
                     <div className="border-t pt-3 space-y-2.5">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm">Missed dose alerts</span>
+                        <span className="text-sm">{t("family.missedAlerts")}</span>
                         <Switch checked={m.alert_on_missed} onCheckedChange={(v) => handleToggle(m.id, "alert_on_missed", v)} />
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-sm">Weekly report</span>
+                        <span className="text-sm">{t("family.weeklyReport")}</span>
                         <Switch checked={m.alert_on_weekly_report} onCheckedChange={(v) => handleToggle(m.id, "alert_on_weekly_report", v)} />
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-sm">Refill reminders</span>
+                        <span className="text-sm">{t("family.refillReminders")}</span>
                         <Switch checked={m.alert_on_refill} onCheckedChange={(v) => handleToggle(m.id, "alert_on_refill", v)} />
                       </div>
                     </div>
@@ -304,7 +294,7 @@ const FamilyAlerts = () => {
                   onClick={() => setAlertFilter(f)}
                   className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${alertFilter === f ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
                 >
-                  {f === "all" ? "All" : alertTypeLabel(f)}
+                  {f === "all" ? t("family.all") : alertTypeLabel(f)}
                 </button>
               ))}
             </div>
@@ -318,8 +308,8 @@ const FamilyAlerts = () => {
                 <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-3">
                   <Bell className="w-7 h-7 text-primary" />
                 </div>
-                <p className="text-lg font-semibold mb-1">No alerts yet</p>
-                <p className="text-muted-foreground text-sm">Alert notifications will appear here once reminders and family alerts start sending.</p>
+                <p className="text-lg font-semibold mb-1">{t("family.noAlerts")}</p>
+                <p className="text-muted-foreground text-sm">{t("family.noAlertsDesc")}</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -342,14 +332,14 @@ const FamilyAlerts = () => {
                           {statusBadge(a.status)}
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5 break-words">
-                          To: {a.recipient_name || a.recipient_email}
+                          {t("layout.to", { name: a.recipient_name || a.recipient_email })}
                           {a.scheduled_time && ` · ${a.scheduled_time}`}
                         </p>
                         {a.message_preview && (
                           <p className="text-xs text-muted-foreground mt-1 break-words line-clamp-2">{a.message_preview}</p>
                         )}
                         {a.error_message && (
-                          <p className="text-xs text-destructive mt-1 break-words line-clamp-2">Error: {a.error_message}</p>
+                          <p className="text-xs text-destructive mt-1 break-words line-clamp-2">{t("family.error", { message: a.error_message })}</p>
                         )}
                         <p className="text-[10px] text-muted-foreground/70 mt-1">
                           {format(new Date(a.created_at), "dd MMM yyyy, hh:mm a")}
@@ -368,42 +358,42 @@ const FamilyAlerts = () => {
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-xl">{editingId ? "Edit" : "Add"} Family Member</DialogTitle>
+            <DialogTitle className="text-xl">{editingId ? t("family.editTitle") : t("family.addTitle")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2">
             <div>
-              <Label className="font-semibold">Full Name *</Label>
-              <Input value={form.full_name} onChange={(e) => setForm(p => ({ ...p, full_name: e.target.value }))} className="mt-1.5 min-h-[48px] rounded-xl" placeholder="e.g. Ramesh Kumar" />
+              <Label className="font-semibold">{t("family.fullName")}</Label>
+              <Input value={form.full_name} onChange={(e) => setForm(p => ({ ...p, full_name: e.target.value }))} className="mt-1.5 min-h-[48px] rounded-xl" placeholder={t("family.namePlaceholder")} />
             </div>
             <div>
-              <Label className="font-semibold">Relationship</Label>
+              <Label className="font-semibold">{t("family.relationship")}</Label>
               <select value={form.relationship} onChange={(e) => setForm(p => ({ ...p, relationship: e.target.value }))} className="mt-1.5 w-full min-h-[48px] rounded-xl border bg-background px-4 text-base focus:outline-none focus:ring-2 focus:ring-ring">
-                {relationships.map(r => <option key={r} value={r}>{r}</option>)}
+                {relationships.map(r => <option key={r} value={r}>{t(`rel.${r}`)}</option>)}
               </select>
             </div>
             <div>
-              <Label className="font-semibold">Email Address *</Label>
+              <Label className="font-semibold">{t("family.email")}</Label>
               <Input type="email" value={form.email} onChange={(e) => setForm(p => ({ ...p, email: e.target.value }))} className="mt-1.5 min-h-[48px] rounded-xl" placeholder="email@example.com" />
             </div>
             <div>
-              <Label className="font-semibold">Phone Number</Label>
+              <Label className="font-semibold">{t("profile.phone")}</Label>
               <Input type="tel" value={form.phone} onChange={(e) => setForm(p => ({ ...p, phone: e.target.value }))} className="mt-1.5 min-h-[48px] rounded-xl" placeholder="+91 98765 43210" />
             </div>
             <div>
-              <Label className="font-semibold">Alert Language</Label>
+              <Label className="font-semibold">{t("family.alertLanguage")}</Label>
               <select value={form.language} onChange={(e) => setForm(p => ({ ...p, language: e.target.value }))} className="mt-1.5 w-full min-h-[48px] rounded-xl border bg-background px-4 text-base focus:outline-none focus:ring-2 focus:ring-ring">
                 {languages.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
               </select>
             </div>
             <div className="border-t pt-3 space-y-3">
-              <p className="font-semibold text-sm">Alert Preferences</p>
-              <div className="flex items-center justify-between"><span className="text-sm">Send missed dose alerts</span><Switch checked={form.alert_on_missed} onCheckedChange={(v) => setForm(p => ({ ...p, alert_on_missed: v }))} /></div>
-              <div className="flex items-center justify-between"><span className="text-sm">Send weekly health report</span><Switch checked={form.alert_on_weekly_report} onCheckedChange={(v) => setForm(p => ({ ...p, alert_on_weekly_report: v }))} /></div>
-              <div className="flex items-center justify-between"><span className="text-sm">Send refill reminders</span><Switch checked={form.alert_on_refill} onCheckedChange={(v) => setForm(p => ({ ...p, alert_on_refill: v }))} /></div>
+              <p className="font-semibold text-sm">{t("family.alertPrefs")}</p>
+              <div className="flex items-center justify-between"><span className="text-sm">{t("family.sendMissed")}</span><Switch checked={form.alert_on_missed} onCheckedChange={(v) => setForm(p => ({ ...p, alert_on_missed: v }))} /></div>
+              <div className="flex items-center justify-between"><span className="text-sm">{t("family.sendWeekly")}</span><Switch checked={form.alert_on_weekly_report} onCheckedChange={(v) => setForm(p => ({ ...p, alert_on_weekly_report: v }))} /></div>
+              <div className="flex items-center justify-between"><span className="text-sm">{t("family.sendRefill")}</span><Switch checked={form.alert_on_refill} onCheckedChange={(v) => setForm(p => ({ ...p, alert_on_refill: v }))} /></div>
             </div>
             <div className="flex gap-3 pt-2">
-              <Button variant="hero" className="flex-1" onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
-              <Button variant="outline" className="flex-1" onClick={() => setModalOpen(false)}>Cancel</Button>
+              <Button variant="hero" className="flex-1" onClick={handleSave} disabled={saving}>{saving ? t("saving") : t("save")}</Button>
+              <Button variant="outline" className="flex-1" onClick={() => setModalOpen(false)}>{t("cancel")}</Button>
             </div>
           </div>
         </DialogContent>
@@ -413,12 +403,12 @@ const FamilyAlerts = () => {
       <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove caregiver?</AlertDialogTitle>
-            <AlertDialogDescription>They will no longer receive alerts about your medicines.</AlertDialogDescription>
+            <AlertDialogTitle>{t("family.removeTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("family.removeDesc")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleDelete}>Remove</AlertDialogAction>
+            <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleDelete}>{t("remove")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -8,10 +8,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
-import { languageLabelByCode, languageOptions, normalizeLanguageCode, resolvePreferredLanguage } from "@/lib/language";
+import { languageLabelByCode, languageOptions } from "@/lib/language";
 import BottomNav from "@/components/BottomNav";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { format } from "date-fns";
 import SOSButton, { SOSProvider } from "@/components/SOSButton";
 
 interface AlertItem {
@@ -42,11 +41,10 @@ interface Props {
 const DashboardLayout = ({ children }: Props) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { t, language, setLanguage: setGlobalLanguage } = useLanguage();
+  const { t, language, setLanguage, locale } = useLanguage();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [patientLanguage, setPatientLanguage] = useState<string>("en");
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
   const [patientId, setPatientId] = useState<string | null>(null);
   const langRef = useRef<HTMLDivElement>(null);
@@ -67,19 +65,15 @@ const DashboardLayout = ({ children }: Props) => {
     return () => listener.subscription.unsubscribe();
   }, [navigate]);
 
-  // Fetch patient language
+  // Patient id for the notification panel
   useEffect(() => {
     if (!user) return;
     supabase
       .from("patients")
-      .select("id, language")
+      .select("id")
       .eq("user_id", user.id)
       .maybeSingle()
       .then(({ data }) => {
-        setPatientLanguage(resolvePreferredLanguage({
-          settingsLanguage: data?.language,
-          patientLanguage: user.user_metadata?.language as string | undefined,
-        }));
         if (data?.id) setPatientId(data.id);
       });
   }, [user]);
@@ -127,41 +121,24 @@ const DashboardLayout = ({ children }: Props) => {
     return <Bell className="w-3.5 h-3.5 text-muted-foreground" />;
   };
 
-  const changeLanguage = async (lang: string) => {
-    if (!user || !patientId) return;
-    const normalizedLang = normalizeLanguageCode(lang);
+  // Switches the whole UI at once and saves the choice (device + profile).
+  const changeLanguage = (lang: string) => {
     setLangDropdownOpen(false);
-
-    const [{ error: patientError }, { error: authError }] = await Promise.all([
-      supabase
-        .from("patients")
-        .update({ language: normalizedLang })
-        .eq("id", patientId),
-      supabase.auth.updateUser({
-        data: { language: normalizedLang },
-      }),
-    ]);
-
-    if (patientError || authError) {
-      toast.error("Failed to update language");
-    } else {
-      setPatientLanguage(normalizedLang);
-      toast.success(`Language changed to ${languageLabelByCode[normalizedLang] || normalizedLang}`);
-    }
+    void setLanguage(lang);
   };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    toast.success("Logged out successfully");
+    toast.success(t("layout.loggedOut"));
     navigate("/");
   };
 
-  const userName = user?.user_metadata?.name || "Friend";
+  const userName = user?.user_metadata?.name || t("layout.friend");
 
   const now = new Date();
   const hour = now.getHours();
-  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-  const dateStr = now.toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  const greeting = hour < 12 ? t("goodMorning") : hour < 17 ? t("goodAfternoon") : t("goodEvening");
+  const dateStr = now.toLocaleDateString(locale, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 
   const SidebarContent = () => (
     <>
@@ -205,7 +182,7 @@ const DashboardLayout = ({ children }: Props) => {
           className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium text-destructive hover:bg-destructive/10 transition-all"
         >
           <LogOut className="w-5 h-5" />
-          <span>Logout</span>
+          <span>{t("logout")}</span>
         </button>
       </div>
     </>
@@ -250,10 +227,10 @@ const DashboardLayout = ({ children }: Props) => {
                 <button
                   onClick={() => setLangDropdownOpen(!langDropdownOpen)}
                   className="px-2.5 sm:px-3 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-semibold border border-primary/20 hover:bg-primary/20 transition-colors flex items-center gap-1.5"
-                  aria-label="Change language"
+                  aria-label={t("layout.changeLanguage")}
                 >
                   <Globe className="w-3.5 h-3.5 shrink-0" />
-                  <span className="max-[380px]:hidden">{languageLabelByCode[patientLanguage] || patientLanguage}</span>
+                  <span className="max-[380px]:hidden">{languageLabelByCode[language] || language}</span>
                 </button>
                 {langDropdownOpen && (
                   <div className="absolute right-0 top-full mt-2 w-48 bg-card border rounded-xl shadow-float z-50 py-1 animate-fade-in">
@@ -262,18 +239,18 @@ const DashboardLayout = ({ children }: Props) => {
                         key={value}
                         onClick={() => changeLanguage(value)}
                         className={`w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-muted transition-colors ${
-                          patientLanguage === value ? "text-primary font-semibold" : "text-foreground"
+                          language === value ? "text-primary font-semibold" : "text-foreground"
                         }`}
                       >
                         <span>{label}</span>
-                        {patientLanguage === value && <Check className="w-4 h-4 text-primary" />}
+                        {language === value && <Check className="w-4 h-4 text-primary" />}
                       </button>
                     ))}
                   </div>
                 )}
               </div>
               <div className="relative" ref={notifRef}>
-                <Button variant="ghost" size="icon" className="relative shrink-0" aria-label="Notifications" onClick={() => setNotifOpen(!notifOpen)}>
+                <Button variant="ghost" size="icon" className="relative shrink-0" aria-label={t("notifications")} onClick={() => setNotifOpen(!notifOpen)}>
                   <Bell className="w-5 h-5" />
                   {unreadCount > 0 && (
                     <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center border-2 border-card">
@@ -284,14 +261,14 @@ const DashboardLayout = ({ children }: Props) => {
                 {notifOpen && (
                   <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 max-w-[calc(100vw-1.5rem)] bg-card border rounded-xl shadow-float z-50 animate-fade-in max-h-[400px] overflow-hidden flex flex-col">
                     <div className="flex items-center justify-between px-4 py-3 border-b">
-                      <p className="font-bold text-sm">Notifications</p>
+                      <p className="font-bold text-sm">{t("notifications")}</p>
                       <button onClick={() => { navigate("/family-alerts"); setNotifOpen(false); }} className="text-xs text-primary font-semibold hover:underline">
-                        View All
+                        {t("viewAll")}
                       </button>
                     </div>
                     <div className="overflow-y-auto flex-1">
                       {recentAlerts.length === 0 ? (
-                        <div className="p-6 text-center text-muted-foreground text-sm">No notifications yet</div>
+                        <div className="p-6 text-center text-muted-foreground text-sm">{t("noNotifications")}</div>
                       ) : (
                         recentAlerts.map(a => (
                           <div key={a.id} className="flex items-start gap-2.5 px-4 py-3 hover:bg-muted/50 transition-colors border-b last:border-0">
@@ -301,11 +278,11 @@ const DashboardLayout = ({ children }: Props) => {
                                 {a.medicine_name || a.message_preview || a.alert_type}
                               </p>
                               <p className="text-xs text-muted-foreground truncate">
-                                {a.recipient_name && `To: ${a.recipient_name} · `}
-                                {a.status === "sent" ? "✅ Sent" : a.status === "failed" ? "❌ Failed" : "⏳ Pending"}
+                                {a.recipient_name && `${t("layout.to", { name: a.recipient_name })} · `}
+                                {a.status === "sent" ? `✅ ${t("status.sent")}` : a.status === "failed" ? `❌ ${t("status.failed")}` : `⏳ ${t("status.pending")}`}
                               </p>
                               <p className="text-[10px] text-muted-foreground/60 mt-0.5">
-                                {format(new Date(a.created_at), "dd MMM, hh:mm a")}
+                                {new Date(a.created_at).toLocaleString(locale, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                               </p>
                             </div>
                           </div>
