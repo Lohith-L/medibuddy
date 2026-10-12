@@ -8,9 +8,7 @@ import android.content.pm.ServiceInfo;
 import android.media.AudioAttributes;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
-import android.media.MediaPlayer;
-import android.media.RingtoneManager;
-import android.net.Uri;
+import android.media.ToneGenerator;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
@@ -31,17 +29,21 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Foreground service that rings the alarm: loops the alarm sound on the ALARM
- * stream (plays in silent / Do Not Disturb when alarms are allowed), vibrates,
- * and keeps a full-screen notification up until the user answers.
+ * Foreground service for a ringing medicine alarm: voice only, no ringtone.
+ *
+ *  - Speaks "It's time to take your medicine: <name>, <dose>." (every medicine
+ *    due right now) with TextToSpeech on the ALARM stream (USAGE_ALARM +
+ *    CONTENT_TYPE_SPEECH), in the app language (English if that voice is missing).
+ *  - Speak, pause ~10 s, speak again ... until Taken / Snooze, at most 2 minutes,
+ *    then a "Missed dose" notification.
+ *  - While ringing: alarm volume at maximum, Do Not Disturb relaxed to
+ *    "alarms only" if it would block alarms (see AlarmAudioGuard), audio focus
+ *    held exclusively so music / videos pause, repeating vibration.
+ *    Everything is restored when the alarm stops.
+ *  - If TextToSpeech can't start or has no voice, a short beep plays on the
+ *    alarm stream instead, so the reminder is never silent.
  *
  * Several medicines due at once are queued and shown one after another.
- * Each one rings for at most 2 minutes, then becomes a "Missed dose" notification.
- *
- * Voice announcement (if enabled): tone for ~5 s, then the tone pauses while
- * TextToSpeech says "It's time to take your medicine: ..." (all medicines due)
- * in the app's language on the ALARM stream, then the tone resumes. The cycle
- * repeats every ~15 s until Taken / Snooze or the 2-minute limit.
  */
 public class AlarmService extends Service {
 
@@ -53,14 +55,13 @@ public class AlarmService extends Service {
     public static final String ACTION_DISMISS_ALL = "com.medibuddy.app.alarm.DISMISS_ALL";
 
     private static final long RING_TIMEOUT_MS = 2 * 60 * 1000L;
-    /** Tone before the first announcement. */
-    private static final long FIRST_SPEAK_DELAY_MS = 5_000L;
-    /** One tone + voice cycle. */
-    private static final long SPEAK_CYCLE_MS = 15_000L;
-    /** Minimum tone between two announcements. */
-    private static final long MIN_TONE_BETWEEN_MS = 4_000L;
-    /** Resume the tone even if TTS never reports that it finished. */
-    private static final long SPEECH_SAFETY_MS = 25_000L;
+    /** Silence between two announcements. */
+    private static final long PAUSE_BETWEEN_MS = 10_000L;
+    /** How long to wait for TextToSpeech to start before beeping instead. */
+    private static final long TTS_START_WAIT_MS = 8_000L;
+    /** Treat the announcement as finished even if TTS never reports it. */
+    private static final long SPEECH_SAFETY_MS = 30_000L;
+    private static final int BEEP_MS = 1_200;
 
     /** Lets the alarm screen follow what is ringing. Same process, main thread only. */
     public interface Listener {
@@ -74,13 +75,20 @@ public class AlarmService extends Service {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable timeout = this::onTimeout;
 
-    private MediaPlayer player;
     private Vibrator vibrator;
+    private ToneGenerator beeper;
+    private boolean ringing;
+    private long ringStart;
     private PowerManager.WakeLock wakeLock;
     private boolean inForeground;
 
     private TextToSpeech tts;
     private boolean ttsReady;
+    /** TextToSpeech failed to start: use the beep. */
+    private boolean ttsFailed;
+    /** Beeped because the engine was still starting: speak as soon as it is ready. */
+    private boolean waitingForTts;
+    private long ttsInitStart;
     private boolean speaking;
     private long lastSpeakStart;
     private int utteranceCounter;
@@ -125,7 +133,9 @@ public class AlarmService extends Service {
         super.onCreate();
         instance = this;
         audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
-        if (AlarmStore.isVoiceEnabled(this)) initTts();
+        // A previous alarm may have been killed before it could restore the volume / DND.
+        AlarmAudioGuard.restoreIfLeftOver(this);
+        initTts();
     }
 
     @Override
@@ -169,7 +179,7 @@ public class AlarmService extends Service {
 
     @Override
     public void onDestroy() {
-        stopRinging();
+        stopRinging(); // also restores the alarm volume and Do Not Disturb
         if (tts != null) {
             tts.shutdown();
             tts = null;
@@ -282,43 +292,22 @@ public class AlarmService extends Service {
         if (l != null) l.onAlarmChanged(current(), waitingCount());
     }
 
-    // ── Sound, vibration, wake lock ───────────────────────────────────────
+    // ── Ringing: voice, vibration, wake lock ───────────────────────────────
 
     private void startRinging() {
+        if (ringing) return;
+        ringing = true;
+        ringStart = System.currentTimeMillis();
         acquireWakeLock();
-        requestAudioFocus();
-        startSound();
-        startVibration();
-        if (AlarmStore.isVoiceEnabled(this)) {
-            handler.removeCallbacks(speakRunnable);
-            handler.postDelayed(speakRunnable, FIRST_SPEAK_DELAY_MS);
-        }
-    }
-
-    private void startSound() {
-        if (player != null) return;
-        Uri uri = RingtoneManager.getActualDefaultRingtoneUri(this, RingtoneManager.TYPE_ALARM);
-        if (uri == null) uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
-        if (uri == null) uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
         try {
-            player = new MediaPlayer();
-            player.setAudioAttributes(
-                new AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build()
-            );
-            player.setDataSource(this, uri);
-            player.setLooping(true);
-            player.prepare();
-            player.start();
+            AlarmAudioGuard.apply(this); // max alarm volume, DND relaxed if needed
         } catch (Exception e) {
-            Log.e(TAG, "Could not play alarm sound", e);
-            if (player != null) {
-                player.release();
-                player = null;
-            }
+            Log.e(TAG, "Could not prepare alarm audio", e); // still speak
         }
+        requestAudioFocus();
+        startVibration();
+        handler.removeCallbacks(speakRunnable);
+        handler.post(speakRunnable);
     }
 
     private void startVibration() {
@@ -333,30 +322,30 @@ public class AlarmService extends Service {
         AudioAttributes attrs = new AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_ALARM)
             .build();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            vibrator.vibrate(VibrationEffect.createWaveform(pattern, 0), attrs);
-        } else {
-            vibrator.vibrate(pattern, 0, attrs);
-        }
+        vibrator.vibrate(VibrationEffect.createWaveform(pattern, 0), attrs);
     }
 
     private void stopRinging() {
         handler.removeCallbacks(speakRunnable);
         handler.removeCallbacks(speechSafety);
         speaking = false;
-        if (tts != null) tts.stop();
-        abandonAudioFocus();
-        if (player != null) {
-            try {
-                player.stop();
-            } catch (Exception ignored) {
+        try {
+            if (tts != null) tts.stop();
+            if (beeper != null) {
+                beeper.stopTone();
+                beeper.release();
+                beeper = null;
             }
-            player.release();
-            player = null;
-        }
-        if (vibrator != null) {
-            vibrator.cancel();
-            vibrator = null;
+            if (vibrator != null) {
+                vibrator.cancel();
+                vibrator = null;
+            }
+            abandonAudioFocus();
+        } catch (Exception e) {
+            Log.w(TAG, "Error while stopping the alarm", e);
+        } finally {
+            if (ringing) AlarmAudioGuard.restore(this);
+            ringing = false;
         }
     }
 
@@ -364,9 +353,11 @@ public class AlarmService extends Service {
 
     private void initTts() {
         // Post to the main thread: the init callback may run before the constructor returns.
+        ttsInitStart = System.currentTimeMillis();
         tts = new TextToSpeech(getApplicationContext(), status -> handler.post(() -> {
             if (status != TextToSpeech.SUCCESS || tts == null) {
-                Log.w(TAG, "TextToSpeech unavailable (status " + status + ")");
+                Log.e(TAG, "TextToSpeech failed to start (status " + status + "): beeping instead");
+                ttsFailed = true;
                 return;
             }
             tts.setAudioAttributes(
@@ -376,6 +367,7 @@ public class AlarmService extends Service {
                     .build()
             );
             tts.setSpeechRate(0.9f); // a little slower: easier for elderly users
+            tts.setPitch(1.0f);
             tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
                 @Override
                 public void onStart(String utteranceId) {}
@@ -388,25 +380,54 @@ public class AlarmService extends Service {
                 @Override
                 @Deprecated
                 public void onError(String utteranceId) {
-                    handler.post(AlarmService.this::onSpeechFinished);
+                    handler.post(() -> onSpeechError("onError"));
                 }
 
                 @Override
                 public void onError(String utteranceId, int errorCode) {
-                    handler.post(AlarmService.this::onSpeechFinished);
+                    handler.post(() -> onSpeechError("onError " + errorCode));
                 }
             });
             ttsReady = true;
+            Log.i(TAG, "TextToSpeech ready in " + (System.currentTimeMillis() - ttsInitStart) + " ms");
+            if (ringing && waitingForTts && !speaking) {
+                waitingForTts = false;
+                handler.removeCallbacks(speakRunnable);
+                handler.post(speakRunnable);
+            }
         }));
     }
 
-    /** Pauses the tone and speaks every medicine that is due right now. */
+    /**
+     * USAGE_ALARM normally (heard in silent / vibrate). If Do Not Disturb has muted
+     * the alarm stream (e.g. "Total silence" on Android 15+, where apps can't relax
+     * DND), use the accessibility stream, which DND never mutes.
+     */
+    private AudioAttributes speechAttributes() {
+        boolean muted = AlarmAudioGuard.alarmStreamMuted(this);
+        if (muted) Log.w(TAG, "Alarm stream is muted (Do Not Disturb): speaking on the accessibility stream");
+        return new AudioAttributes.Builder()
+            .setUsage(muted ? AudioAttributes.USAGE_ASSISTANCE_ACCESSIBILITY : AudioAttributes.USAGE_ALARM)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+            .build();
+    }
+
+    /** Speaks every medicine that is due right now (or beeps if the voice can't). */
     private void speakAnnouncement() {
-        if (queue.isEmpty() || !AlarmStore.isVoiceEnabled(this)) return;
-        if (tts == null) initTts();
-        if (!ttsReady) {
-            // Engine still starting: keep ringing and try again shortly.
-            handler.postDelayed(speakRunnable, 1_000L);
+        if (queue.isEmpty() || !ringing) return;
+        if (!ttsReady && !ttsFailed) {
+            // Engine still starting: wait a little, then beep rather than stay silent.
+            if (System.currentTimeMillis() - ringStart < TTS_START_WAIT_MS) {
+                handler.postDelayed(speakRunnable, 300L);
+            } else {
+                Log.e(TAG, "TextToSpeech not ready after " + TTS_START_WAIT_MS + " ms: beeping");
+                waitingForTts = true;
+                beepAndScheduleNext();
+            }
+            return;
+        }
+        if (ttsFailed || tts == null) {
+            beepAndScheduleNext();
             return;
         }
 
@@ -415,39 +436,57 @@ public class AlarmService extends Service {
         AlarmVoice.Choice choice = AlarmVoice.choose(tts, lang, new ArrayList<>(queue));
         if (choice.fellBack) AlarmStore.setVoiceFallback(this, AlarmVoice.normalize(lang));
 
-        int result = tts.setLanguage(choice.locale);
-        if (result < TextToSpeech.LANG_AVAILABLE) {
-            Log.w(TAG, "TTS language " + choice.locale + " not usable (" + result + ")");
+        int langResult = tts.setLanguage(choice.locale);
+        if (langResult < TextToSpeech.LANG_AVAILABLE) {
+            Log.e(TAG, "No TTS voice for " + choice.locale + " (" + langResult + "): beeping");
+            beepAndScheduleNext();
+            return;
         }
 
-        if (player != null && player.isPlaying()) player.pause();
+        tts.setAudioAttributes(speechAttributes());
         speaking = true;
         lastSpeakStart = System.currentTimeMillis();
+        Log.i(TAG, "Speaking (" + choice.locale + "): " + choice.text);
         int speakResult = tts.speak(choice.text, TextToSpeech.QUEUE_FLUSH, null, "medicine-alarm-" + (++utteranceCounter));
         if (speakResult != TextToSpeech.SUCCESS) {
-            onSpeechFinished();
+            onSpeechError("speak() returned " + speakResult);
             return;
         }
         handler.removeCallbacks(speechSafety);
         handler.postDelayed(speechSafety, SPEECH_SAFETY_MS);
     }
 
-    /** Resumes the tone and schedules the next announcement. */
+    private void onSpeechError(String why) {
+        Log.e(TAG, "TextToSpeech error (" + why + "): beeping");
+        speaking = false;
+        handler.removeCallbacks(speechSafety);
+        beepAndScheduleNext();
+    }
+
+    /** Pause ~10 s, then speak again. */
     private void onSpeechFinished() {
         if (!speaking) return;
         speaking = false;
         handler.removeCallbacks(speechSafety);
-        if (queue.isEmpty()) return;
-        if (player != null && !player.isPlaying()) {
-            try {
-                player.start();
-            } catch (IllegalStateException ignored) {
-            }
-        }
-        long sinceStart = System.currentTimeMillis() - lastSpeakStart;
-        long delay = Math.max(MIN_TONE_BETWEEN_MS, SPEAK_CYCLE_MS - sinceStart);
+        scheduleNext();
+    }
+
+    private void scheduleNext() {
+        if (queue.isEmpty() || !ringing) return;
         handler.removeCallbacks(speakRunnable);
-        handler.postDelayed(speakRunnable, delay);
+        handler.postDelayed(speakRunnable, PAUSE_BETWEEN_MS);
+    }
+
+    /** Safety fallback: short beep on the alarm stream (already at max volume). */
+    private void beepAndScheduleNext() {
+        try {
+            int stream = AlarmAudioGuard.alarmStreamMuted(this) ? AudioManager.STREAM_ACCESSIBILITY : AudioManager.STREAM_ALARM;
+            if (beeper == null) beeper = new ToneGenerator(stream, ToneGenerator.MAX_VOLUME);
+            beeper.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, BEEP_MS);
+        } catch (RuntimeException e) {
+            Log.e(TAG, "Fallback beep failed too", e);
+        }
+        scheduleNext();
     }
 
     // ── Audio focus: pause music / other audio while the alarm rings ──────
@@ -456,16 +495,17 @@ public class AlarmService extends Service {
         if (audioManager == null) return;
         AudioAttributes attrs = new AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_ALARM)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
             .build();
+        // Exclusive: music and videos pause (not just duck) for the whole alarm.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            focusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+            focusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
                 .setAudioAttributes(attrs)
                 .setOnAudioFocusChangeListener(change -> { /* the alarm keeps ringing */ })
                 .build();
             audioManager.requestAudioFocus(focusRequest);
         } else {
-            audioManager.requestAudioFocus(null, AudioManager.STREAM_ALARM, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT);
+            audioManager.requestAudioFocus(null, AudioManager.STREAM_ALARM, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE);
         }
     }
 

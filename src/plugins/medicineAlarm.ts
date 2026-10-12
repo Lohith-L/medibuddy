@@ -33,6 +33,8 @@ export interface AlarmPermissionStatus {
   exactAlarm: boolean;
   fullScreenIntent: boolean;
   batteryOptimizationIgnored: boolean;
+  /** "Do Not Disturb access": the voice alarm can play in DND / Total silence. */
+  dndAccess: boolean;
   /** Lower-case Build.MANUFACTURER, e.g. "xiaomi", "samsung". */
   manufacturer: string;
   sdkInt: number;
@@ -66,12 +68,14 @@ export interface MedicineAlarmPlugin {
   openExactAlarmSettings(): Promise<void>;
   openFullScreenIntentSettings(): Promise<void>;
   openNotificationSettings(): Promise<void>;
+  /** Settings > Do Not Disturb access (to allow MediBuddy). */
+  openDndAccessSettings(): Promise<void>;
   openBatteryOptimizationSettings(): Promise<void>;
   openAutostartSettings(): Promise<void>;
   openAppSettings(): Promise<void>;
 
-  getSettings(): Promise<{ soundEnabled: boolean; voiceEnabled: boolean }>;
-  setSoundEnabled(options: { enabled: boolean }): Promise<void>;
+  /** The alarm is voice-only; voiceEnabled is always true for now. */
+  getSettings(): Promise<{ voiceEnabled: boolean }>;
   setVoiceEnabled(options: { enabled: boolean }): Promise<void>;
 
   /** Whether the phone has an installed (offline) text-to-speech voice for this language. */

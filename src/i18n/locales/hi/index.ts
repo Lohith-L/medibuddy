@@ -5,7 +5,8 @@ import report from "./report";
 import app from "./app";
 import health from "./health";
 import account from "./account";
+import alarmVoice from "./alarmVoice";
 
-const dictionary: Dictionary = { ...common, ...report, ...app, ...health, ...account };
+const dictionary: Dictionary = { ...common, ...report, ...app, ...health, ...account, ...alarmVoice };
 
 export default dictionary;

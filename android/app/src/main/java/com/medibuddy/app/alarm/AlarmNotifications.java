@@ -20,8 +20,16 @@ import com.medibuddy.app.R;
 /** Notification channels and builders for medicine alarms. */
 public final class AlarmNotifications {
 
-    /** Ringing alarm (the service plays the sound itself, so the channel is silent). */
-    static final String CHANNEL_ALARM = "medicine_alarm";
+    /**
+     * Ringing alarm (the service speaks itself, so the channel is silent).
+     * Android only lets an app create a DND-bypassing channel while it has
+     * "Do Not Disturb access", and channel settings can't change after
+     * creation, so there are two ids: the DND one is created once access is
+     * granted. The old "medicine_alarm" channel is deleted.
+     */
+    static final String CHANNEL_ALARM = "medicine_alarm_v2";
+    static final String CHANNEL_ALARM_DND = "medicine_alarm_dnd";
+    private static final String OLD_CHANNEL_ALARM = "medicine_alarm";
     /** Plain reminder used when "Alarm sound" is off. */
     static final String CHANNEL_REMINDER = "medicine_reminder";
     /** "Missed dose" after the alarm rang for 2 minutes without an answer. */
@@ -41,16 +49,11 @@ public final class AlarmNotifications {
         // Channel names follow the app language (re-creating a channel only updates its name).
         String lang = AlarmStore.getLanguage(ctx);
 
-        NotificationChannel alarm = new NotificationChannel(
-            CHANNEL_ALARM,
-            AlarmTexts.get(lang, "channelAlarm"),
-            NotificationManager.IMPORTANCE_HIGH
-        );
-        alarm.setDescription("Rings like an alarm clock at medicine time");
-        alarm.setSound(null, null);
-        alarm.enableVibration(false);
-        alarm.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
-        nm.createNotificationChannel(alarm);
+        nm.deleteNotificationChannel(OLD_CHANNEL_ALARM);
+        nm.createNotificationChannel(alarmChannel(CHANNEL_ALARM, AlarmTexts.get(lang, "channelAlarm")));
+        if (nm.isNotificationPolicyAccessGranted()) {
+            nm.createNotificationChannel(alarmChannel(CHANNEL_ALARM_DND, AlarmTexts.get(lang, "channelAlarm")));
+        }
 
         NotificationChannel reminder = new NotificationChannel(
             CHANNEL_REMINDER,
@@ -74,6 +77,23 @@ public final class AlarmNotifications {
         );
         missed.setDescription("Tells you when a medicine alarm was not answered");
         nm.createNotificationChannel(missed);
+    }
+
+    private static NotificationChannel alarmChannel(String id, String name) {
+        NotificationChannel alarm = new NotificationChannel(id, name, NotificationManager.IMPORTANCE_HIGH);
+        alarm.setDescription("Speaks the medicine name at medicine time, even in Do Not Disturb");
+        alarm.setSound(null, null);
+        alarm.enableVibration(false);
+        alarm.setBypassDnd(true); // honoured when MediBuddy has Do Not Disturb access
+        alarm.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+        return alarm;
+    }
+
+    /** The DND-bypassing channel when it exists, else the normal alarm channel. */
+    private static String alarmChannelId(Context ctx) {
+        NotificationManager nm = ctx.getSystemService(NotificationManager.class);
+        NotificationChannel dnd = nm == null ? null : nm.getNotificationChannel(CHANNEL_ALARM_DND);
+        return dnd != null && dnd.canBypassDnd() ? CHANNEL_ALARM_DND : CHANNEL_ALARM;
     }
 
     // ── Intents ───────────────────────────────────────────────────────────
@@ -120,7 +140,7 @@ public final class AlarmNotifications {
         String text = (p.dose == null || p.dose.isEmpty() ? "" : p.dose + " · ") + p.displayTime();
         if (waiting > 0) text += " · " + AlarmTexts.get(lang, "more", "n", String.valueOf(waiting));
 
-        return new NotificationCompat.Builder(ctx, CHANNEL_ALARM)
+        return new NotificationCompat.Builder(ctx, alarmChannelId(ctx))
             .setSmallIcon(R.drawable.ic_stat_alarm)
             .setColor(COLOR)
             .setContentTitle(title)

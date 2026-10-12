@@ -26,7 +26,6 @@ public final class AlarmStore {
     private static final String PREFS = "medibuddy_alarms";
     private static final String KEY_REMINDERS = "reminders";
     private static final String KEY_PENDING_ACTIONS = "pending_dose_actions";
-    private static final String KEY_SOUND_ENABLED = "sound_enabled";
     private static final String KEY_VOICE_ENABLED = "voice_enabled";
     private static final String KEY_LANGUAGE = "language";
     private static final String KEY_VOICE_FALLBACK = "voice_fallback_language";
@@ -132,17 +131,12 @@ public final class AlarmStore {
 
     // ── Settings ──────────────────────────────────────────────────────────
 
-    public static boolean isSoundEnabled(Context ctx) {
-        return prefs(ctx).getBoolean(KEY_SOUND_ENABLED, true);
-    }
-
-    public static void setSoundEnabled(Context ctx, boolean enabled) {
-        prefs(ctx).edit().putBoolean(KEY_SOUND_ENABLED, enabled).apply();
-    }
-
-    /** Spoken "time to take your medicine" announcement while the alarm rings. */
+    /**
+     * Spoken "time to take your medicine" announcement. The alarm is voice-only,
+     * so this is always on for now (the stored switch is kept for later).
+     */
     public static boolean isVoiceEnabled(Context ctx) {
-        return prefs(ctx).getBoolean(KEY_VOICE_ENABLED, true);
+        return true;
     }
 
     public static void setVoiceEnabled(Context ctx, boolean enabled) {

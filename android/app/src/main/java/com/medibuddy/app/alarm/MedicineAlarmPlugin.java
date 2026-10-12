@@ -47,6 +47,8 @@ public class MedicineAlarmPlugin extends Plugin {
     public void load() {
         active = this;
         AlarmNotifications.ensureChannels(getContext());
+        // Put back the alarm volume / Do Not Disturb if an alarm was killed mid-ring.
+        AlarmAudioGuard.restoreIfLeftOver(getContext());
     }
 
     @Override
@@ -196,7 +198,6 @@ public class MedicineAlarmPlugin extends Plugin {
     @PluginMethod
     public void getSettings(PluginCall call) {
         JSObject ret = new JSObject();
-        ret.put("soundEnabled", AlarmStore.isSoundEnabled(getContext()));
         ret.put("voiceEnabled", AlarmStore.isVoiceEnabled(getContext()));
         call.resolve(ret);
     }
@@ -259,12 +260,6 @@ public class MedicineAlarmPlugin extends Plugin {
         open(call, new Intent("com.android.settings.TTS_SETTINGS"));
     }
 
-    @PluginMethod
-    public void setSoundEnabled(PluginCall call) {
-        AlarmStore.setSoundEnabled(getContext(), Boolean.TRUE.equals(call.getBoolean("enabled", true)));
-        call.resolve();
-    }
-
     // ── Permissions ───────────────────────────────────────────────────────
 
     @PluginMethod
@@ -305,6 +300,8 @@ public class MedicineAlarmPlugin extends Plugin {
         }
         ret.put("notifications", notifications);
         ret.put("exactAlarm", AlarmScheduler.canScheduleExact(ctx));
+        // "Do Not Disturb access": lets the voice alarm play in DND / Total silence.
+        ret.put("dndAccess", AlarmAudioGuard.hasDndAccess(ctx));
 
         boolean fullScreen = true;
         if (Build.VERSION.SDK_INT >= 34) {
@@ -338,6 +335,12 @@ public class MedicineAlarmPlugin extends Plugin {
         } else {
             openNotificationSettings(call);
         }
+    }
+
+    /** Settings > Do Not Disturb access, so medicine alarms can ring even in Do Not Disturb. */
+    @PluginMethod
+    public void openDndAccessSettings(PluginCall call) {
+        open(call, new Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS));
     }
 
     @PluginMethod

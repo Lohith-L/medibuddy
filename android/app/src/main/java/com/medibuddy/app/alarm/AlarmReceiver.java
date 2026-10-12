@@ -49,10 +49,7 @@ public class AlarmReceiver extends BroadcastReceiver {
     }
 
     static void ring(Context context, AlarmPayload payload) {
-        if (!AlarmStore.isSoundEnabled(context)) {
-            AlarmNotifications.showReminder(context, payload);
-            return;
-        }
+        // Voice-only alarm: always rings (the old "alarm sound off" mode was removed).
         Intent service = new Intent(context, AlarmService.class).setAction(AlarmService.ACTION_START);
         payload.writeTo(service);
         try {

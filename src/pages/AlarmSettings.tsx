@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
 import {
-  AlarmClock, Bell, BatteryCharging, CheckCircle2, AlertTriangle, Maximize, Volume2, Smartphone, Loader2, Speech,
+  AlarmClock, Bell, BatteryCharging, CheckCircle2, AlertTriangle, Maximize, Smartphone, Loader2, Speech, MoonStar,
 } from "lucide-react";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -63,8 +63,6 @@ const StatusRow = ({
 
 const AlarmSettings = () => {
   const [perms, setPerms] = useState<AlarmPermissionStatus | null>(null);
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
   /** null = still checking */
   const [voiceAvailable, setVoiceAvailable] = useState<boolean | null>(null);
   const [testing, setTesting] = useState(false);
@@ -74,14 +72,11 @@ const AlarmSettings = () => {
   const refresh = useCallback(async () => {
     if (!isNative) return;
     try {
-      const [p, s, v] = await Promise.all([
+      const [p, v] = await Promise.all([
         MedicineAlarm.checkPermissions(),
-        MedicineAlarm.getSettings(),
         MedicineAlarm.checkVoice({ language }),
       ]);
       setPerms(p);
-      setSoundEnabled(s.soundEnabled);
-      setVoiceEnabled(s.voiceEnabled);
       setVoiceAvailable(v.available);
     } catch (e) {
       console.error("[Alarm] status failed", e);
@@ -104,18 +99,6 @@ const AlarmSettings = () => {
     } else {
       await MedicineAlarm.openNotificationSettings();
     }
-  };
-
-  const toggleSound = async (enabled: boolean) => {
-    setSoundEnabled(enabled);
-    await MedicineAlarm.setSoundEnabled({ enabled });
-    toast.success(enabled ? t("alarm.soundOnToast") : t("alarm.soundOffToast"));
-  };
-
-  const toggleVoice = async (enabled: boolean) => {
-    setVoiceEnabled(enabled);
-    await MedicineAlarm.setVoiceEnabled({ enabled });
-    toast.success(enabled ? t("alarm.voiceOnToast") : t("alarm.voiceOffToast"));
   };
 
   const testAlarm = async () => {
@@ -155,7 +138,7 @@ const AlarmSettings = () => {
   }
 
   const myBrand = perms ? brandKey(perms.manufacturer) : "other";
-  const allGood = !!perms && perms.notifications === "granted" && perms.exactAlarm && perms.fullScreenIntent && perms.batteryOptimizationIgnored;
+  const allGood = !!perms && perms.notifications === "granted" && perms.exactAlarm && perms.fullScreenIntent && perms.batteryOptimizationIgnored && perms.dndAccess;
 
   return (
     <DashboardLayout>
@@ -199,6 +182,14 @@ const AlarmSettings = () => {
                 onAction={() => void MedicineAlarm.openFullScreenIntentSettings()}
               />
               <StatusRow
+                icon={MoonStar}
+                title={t("alarm.permDnd")}
+                description={perms.dndAccess ? t("alarm.permDndOk") : `${t("alarm.permDndNeeded")} ${t("alarm.permDndDesc")}`}
+                ok={perms.dndAccess}
+                actionLabel={t("alarm.allow")}
+                onAction={() => void MedicineAlarm.openDndAccessSettings()}
+              />
+              <StatusRow
                 icon={BatteryCharging}
                 title={t("alarm.permBattery")}
                 description={t("alarm.permBatteryDesc")}
@@ -210,34 +201,19 @@ const AlarmSettings = () => {
           )}
         </div>
 
-        {/* Sound, voice, test */}
+        {/* Voice (the alarm is voice-only, at full volume) and test */}
         <div className="bg-card border rounded-2xl p-4 shadow-card space-y-4">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-              <Volume2 className="w-5 h-5" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-sm">{t("alarm.sound")}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{t("alarm.soundDesc")}</p>
-            </div>
-            <Switch checked={soundEnabled} onCheckedChange={(v) => void toggleSound(v)} aria-label={t("alarm.sound")} />
-          </div>
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
               <Speech className="w-5 h-5" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-sm">{t("alarm.voice")}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{t("alarm.voiceDesc", { language: languageName })}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{t("alarm.voiceAlwaysDesc", { language: languageName })}</p>
             </div>
-            <Switch
-              checked={voiceEnabled}
-              disabled={!soundEnabled}
-              onCheckedChange={(v) => void toggleVoice(v)}
-              aria-label={t("alarm.voice")}
-            />
+            <Switch checked disabled aria-label={t("alarm.voice")} title={t("alarm.voiceAlwaysOn")} />
           </div>
-          {voiceEnabled && soundEnabled && voiceAvailable === false && language !== "en" && (
+          {voiceAvailable === false && language !== "en" && (
             <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-100 space-y-2">
               <p className="font-semibold">{t("alarm.voiceMissing", { language: languageName })}</p>
               <p>{t("alarm.voiceMissingHow", { language: languageName })}</p>
@@ -249,7 +225,7 @@ const AlarmSettings = () => {
           )}
           <Button className="w-full" variant="outline" onClick={() => void testAlarm()} disabled={testing}>
             {testing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <AlarmClock className="w-4 h-4 mr-2" />}
-            {voiceEnabled && soundEnabled ? t("alarm.testWithVoice") : t("alarm.test")}
+            {t("alarm.testVoice")}
           </Button>
         </div>
 
