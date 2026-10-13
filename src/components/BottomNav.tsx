@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
-  Home, Camera, Store, Activity, Menu, Pill, Users, BarChart3, Settings, LogOut, ChevronRight,
+  Home, Camera, Store, Activity, Menu, Pill, Users, BarChart3, Settings, LogOut, ChevronRight, HeartHandshake, ClipboardList,
 } from "lucide-react";
+import { useCare } from "@/contexts/CareContext";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,20 +21,39 @@ const BottomNav = () => {
   const location = useLocation();
   const { t } = useLanguage();
   const [moreOpen, setMoreOpen] = useState(false);
+  const { mode, isCaregiver, isPatient, setMode } = useCare();
+  const caregiverMode = mode === "caregiver";
+  const both = isCaregiver && isPatient;
 
-  const tabs = [
-    { label: t("home"), icon: Home, path: "/dashboard" },
-    { label: t("upload"), icon: Camera, path: "/upload" },
-    { label: t("pharmacy"), icon: Store, path: "/pharmacies" },
-    { label: t("nav.health"), icon: Activity, path: "/health" },
-  ];
+  // Caregiver who is not also a patient: their own tabs (no alarm / upload / contacts of their own).
+  const tabs = caregiverMode
+    ? [
+        { label: t("care.navPatients"), icon: HeartHandshake, path: "/care" },
+        { label: t("medicines"), icon: Pill, path: "/medicines" },
+        { label: t("nav.health"), icon: Activity, path: "/health" },
+        { label: t("reports"), icon: BarChart3, path: "/health-reports" },
+      ]
+    : [
+        { label: t("home"), icon: Home, path: "/dashboard" },
+        { label: t("upload"), icon: Camera, path: "/upload" },
+        { label: t("pharmacy"), icon: Store, path: "/pharmacies" },
+        { label: t("nav.health"), icon: Activity, path: "/health" },
+      ];
 
-  const moreItems = [
-    { label: t("myMedicines"), icon: Pill, path: "/medicines" },
-    { label: t("familyAlerts"), icon: Users, path: "/family-alerts" },
-    { label: t("healthReports"), icon: BarChart3, path: "/health-reports" },
-    { label: t("settings"), icon: Settings, path: "/profile" },
-  ];
+  const moreItems = caregiverMode
+    ? [
+        ...(both ? [{ label: t("nav.switchToPatient"), icon: Home, path: "/dashboard", switchTo: "patient" as const }] : []),
+        { label: t("care.navHistory"), icon: ClipboardList, path: "/log" },
+        { label: t("nearbyPharmacies"), icon: Store, path: "/pharmacies" },
+        { label: t("settings"), icon: Settings, path: "/profile" },
+      ]
+    : [
+        ...(both ? [{ label: t("nav.switchToCaregiver"), icon: HeartHandshake, path: "/care", switchTo: "caregiver" as const }] : []),
+        { label: t("myMedicines"), icon: Pill, path: "/medicines" },
+        { label: t("familyAlerts"), icon: Users, path: "/family-alerts" },
+        { label: t("healthReports"), icon: BarChart3, path: "/health-reports" },
+        { label: t("settings"), icon: Settings, path: "/profile" },
+      ];
 
   const moreActive = moreItems.some((m) => m.path === location.pathname);
 
@@ -75,7 +95,7 @@ const BottomNav = () => {
       <nav className="app-bottom-nav lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-lg border-t safe-bottom">
         <div className="grid grid-cols-5 h-16">
           {tabs.map((item) => {
-            const active = location.pathname === item.path;
+            const active = location.pathname === item.path || (item.path === "/care" && location.pathname.startsWith("/care/"));
             return (
               <button
                 key={item.path}
@@ -118,7 +138,7 @@ const BottomNav = () => {
               return (
                 <li key={item.path}>
                   <button
-                    onClick={() => go(item.path)}
+                    onClick={() => { if ("switchTo" in item && item.switchTo) setMode(item.switchTo); go(item.path); }}
                     aria-current={active ? "page" : undefined}
                     className={`w-full min-h-[56px] flex items-center gap-3 rounded-xl px-3 py-3 text-left text-base transition-colors active:scale-[0.99] ${
                       active ? "bg-primary/10 text-primary font-semibold" : "hover:bg-muted"

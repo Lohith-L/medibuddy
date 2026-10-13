@@ -13,6 +13,8 @@ public class AlarmReceiver extends BroadcastReceiver {
     private static final String TAG = "MedicineAlarm";
 
     static final String ACTION_SNOOZE_FROM_REMINDER = "com.medibuddy.app.alarm.SNOOZE_FROM_REMINDER";
+    /** "Test caregiver alarm" (missed dose / SOS) fired by AlarmManager. */
+    static final String ACTION_TEST_CAREGIVER = "com.medibuddy.app.alarm.TEST_CAREGIVER";
     static final String EXTRA_NOTIFICATION_ID = "notification_id";
 
     @Override
@@ -27,6 +29,10 @@ public class AlarmReceiver extends BroadcastReceiver {
             return;
         }
 
+        if (ACTION_TEST_CAREGIVER.equals(action)) {
+            ring(context, payload);
+            return;
+        }
         if (AlarmScheduler.ACTION_FIRE.equals(action)) {
             AlarmStore.Reminder reminder = AlarmStore.findReminder(context, payload.id);
             if (reminder == null) {

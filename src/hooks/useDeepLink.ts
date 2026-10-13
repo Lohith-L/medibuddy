@@ -26,6 +26,7 @@ import { translate } from '@/i18n';
 import { getStoredLanguage } from '@/contexts/LanguageContext';
 
 export const OAUTH_REDIRECT_URL = 'com.medibuddy.app://login-callback';
+export const INVITE_URL_PREFIX = 'com.medibuddy.app://invite';
 
 // Auth codes are single-use. Remember which URLs we already handled so the
 // launch URL and the appUrlOpen event can't both try to exchange the same one.
@@ -84,8 +85,14 @@ export function useDeepLink() {
     if (!Capacitor.isNativePlatform()) return;
 
     const handle = async (url: string | undefined) => {
+      // Caregiver invite: com.medibuddy.app://invite?code=MB-XXXXXX -> "Add patient"
+      if (url && url.startsWith(INVITE_URL_PREFIX)) {
+        const code = new URL(url.replace(/^com\.medibuddy\.app:\/\//, 'https://app/')).searchParams.get('code');
+        if (code) navigateRef.current(`/join?code=${encodeURIComponent(code)}`);
+        return;
+      }
       if (url && (await completeOAuth(url))) {
-        navigateRef.current('/dashboard', { replace: true });
+        navigateRef.current('/home', { replace: true });
       }
     };
 

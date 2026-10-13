@@ -136,11 +136,16 @@ public final class AlarmNotifications {
     static Notification buildAlarm(Context ctx, AlarmPayload p, int waiting) {
         ensureChannels(ctx);
         String lang = AlarmTexts.langFor(ctx, p);
-        String title = "💊 " + AlarmTexts.get(lang, "timeFor", "name", p.medicineName);
+        String patient = p.patientName == null ? "" : p.patientName;
+        String title = p.isSos()
+            ? "🚨 " + AlarmTexts.get(lang, "cgSosTitle", "patient", patient)
+            : p.isCaregiver()
+                ? "⚠️ " + AlarmTexts.get(lang, "cgMissedTitle", "patient", patient).replace("{name}", p.medicineName == null ? "" : p.medicineName)
+                : "💊 " + AlarmTexts.get(lang, "timeFor", "name", p.medicineName);
         String text = (p.dose == null || p.dose.isEmpty() ? "" : p.dose + " · ") + p.displayTime();
         if (waiting > 0) text += " · " + AlarmTexts.get(lang, "more", "n", String.valueOf(waiting));
 
-        return new NotificationCompat.Builder(ctx, alarmChannelId(ctx))
+        NotificationCompat.Builder b = new NotificationCompat.Builder(ctx, alarmChannelId(ctx))
             .setSmallIcon(R.drawable.ic_stat_alarm)
             .setColor(COLOR)
             .setContentTitle(title)
@@ -152,10 +157,16 @@ public final class AlarmNotifications {
             .setAutoCancel(false)
             .setOnlyAlertOnce(true)
             .setContentIntent(alarmScreenIntent(ctx, p, null, 10))
-            .setFullScreenIntent(alarmScreenIntent(ctx, p, null, 11), true)
-            .addAction(0, AlarmTexts.get(lang, "taken"), alarmScreenIntent(ctx, p, AlarmActivity.ACTION_TAKEN, 12))
-            .addAction(0, AlarmTexts.get(lang, "snooze"), serviceIntent(ctx, AlarmService.ACTION_SNOOZE, p, 13))
-            .build();
+            .setFullScreenIntent(alarmScreenIntent(ctx, p, null, 11), true);
+        if (p.isCaregiver()) {
+            // Caregiver: just stop the alarm. Never log a dose or snooze from here.
+            b.addAction(0, AlarmTexts.get(lang, p.isSos() ? "cgResponding" : "cgOk"),
+                serviceIntent(ctx, AlarmService.ACTION_ACK, p, 14));
+        } else {
+            b.addAction(0, AlarmTexts.get(lang, "taken"), alarmScreenIntent(ctx, p, AlarmActivity.ACTION_TAKEN, 12))
+                .addAction(0, AlarmTexts.get(lang, "snooze"), serviceIntent(ctx, AlarmService.ACTION_SNOOZE, p, 13));
+        }
+        return b.build();
     }
 
     /** Plain reminder (alarm sound turned off in settings). */

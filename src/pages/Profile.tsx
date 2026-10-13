@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Save, User, Lock, ShieldCheck, AlarmClock, ChevronRight, LogOut } from "lucide-react";
+import { Save, User, Lock, ShieldCheck, AlarmClock, ChevronRight, LogOut, HeartHandshake, Users } from "lucide-react";
+import { useCare } from "@/contexts/CareContext";
 import { Capacitor } from "@capacitor/core";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { toast } from "sonner";
@@ -25,6 +26,7 @@ const providerLabelKeys: Record<string, string> = {
 const Profile = () => {
   const navigate = useNavigate();
   const { t, language: appLanguage, setLanguage, locale } = useLanguage();
+  const care = useCare();
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     name: "", email: "", language: "en", caregiverEmail: "",
@@ -207,7 +209,37 @@ const Profile = () => {
           {/* Sign-in methods: mobile, email, Google — all one account */}
           <LinkedLogins onChanged={() => void loadProfile()} />
 
-          {/* Medicine alarm settings — Android app only */}
+          {/* Caregivers (patient side) and the patients I look after (caregiver side) */}
+          {!care.caregiverOnly && (
+            <button
+              onClick={() => navigate("/caregivers")}
+              className="w-full bg-card rounded-2xl border p-5 shadow-card flex items-center gap-4 text-left hover:bg-muted/50 transition-colors"
+            >
+              <div className="w-11 h-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <HeartHandshake className="w-6 h-6" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-bold">{t("care.caregiversTitle")}</p>
+                <p className="text-sm text-muted-foreground">{t("care.caregiversEntryDesc")}</p>
+              </div>
+              <ChevronRight className="w-5 h-5 text-muted-foreground" />
+            </button>
+          )}
+          <button
+            onClick={() => navigate(care.isCaregiver ? "/care" : "/care/add")}
+            className="w-full bg-card rounded-2xl border p-5 shadow-card flex items-center gap-4 text-left hover:bg-muted/50 transition-colors"
+          >
+            <div className="w-11 h-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Users className="w-6 h-6" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold">{care.isCaregiver ? t("care.navMyPatients") : t("care.addPatient")}</p>
+              <p className="text-sm text-muted-foreground">{care.isCaregiver ? t("care.myPatientsEntryDesc") : t("care.addPatientEntryDesc")}</p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-muted-foreground" />
+          </button>
+
+          {/* Alarm settings (patient alarm + caregiver alarms) — Android app only */}
           {Capacitor.isNativePlatform() && (
             <button
               onClick={() => navigate("/alarm-settings")}

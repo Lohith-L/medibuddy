@@ -138,6 +138,7 @@ serve(async (req) => {
       .from("reminder_events")
       .select("*, medicines(name, dosage, instructions), patients(name, email, language, caregiver_email)")
       .eq("status", "pending")
+      .is("escalation_sent_at", null)
       .not("sent_at", "is", null)
       .lt("sent_at", twoMinAgo);
 
@@ -165,6 +166,30 @@ serve(async (req) => {
           continue;
         }
 
+        // ── Claim this dose BEFORE sending anything ─────────────────────
+        // Only the run whose UPDATE returns the row may email. If the update
+        // fails, or another run / the new missed-dose job already claimed it,
+        // nothing is sent. A failed email is NOT retried (no repeat emails).
+        const { data: claimed, error: claimError } = await supabase
+          .from("reminder_events")
+          .update({ status: "escalated", escalation_sent_at: new Date().toISOString() })
+          .eq("id", event.id)
+          .eq("status", "pending")
+          .is("escalation_sent_at", null)
+          .select("id");
+        if (claimError) {
+          console.error(`[escalation-check] Could not claim event ${event.id}, NOT sending:`, claimError.message);
+          errorCount++;
+          results.push({ eventId: event.id, status: "failed", error: `claim failed: ${claimError.message}` });
+          continue;
+        }
+        if (!claimed || claimed.length === 0) {
+          console.log(`[escalation-check] Event ${event.id} already handled elsewhere, skipping`);
+          skippedCount++;
+          results.push({ eventId: event.id, status: "skipped", reason: "already claimed" });
+          continue;
+        }
+
         // Collect caretaker emails
         const caretakerEmails: string[] = [];
 
@@ -184,17 +209,18 @@ serve(async (req) => {
         console.log(`[escalation-check] Family members with alert_on_missed for patient ${patient.name}: ${familyMembers?.length || 0}`);
 
         for (const member of familyMembers || []) {
-          if (!caretakerEmails.includes(member.email)) {
+          if (member.email && !caretakerEmails.some((e) => e.toLowerCase() === member.email.toLowerCase())) {
             caretakerEmails.push(member.email);
           }
         }
 
         if (caretakerEmails.length === 0) {
           console.log(`[escalation-check] SKIP: No caretakers for patient ${patient.name}, marking as missed`);
-          await supabase
+          const { error: missErr } = await supabase
             .from("reminder_events")
             .update({ status: "missed" })
             .eq("id", event.id);
+          if (missErr) console.error(`[escalation-check] Could not mark event ${event.id} missed:`, missErr.message);
           skippedCount++;
           results.push({ eventId: event.id, patient: patient.name, medicine: medicine.name, status: "skipped", reason: "no caretaker emails" });
           continue;
@@ -221,27 +247,26 @@ serve(async (req) => {
           const html = getEscalationHtml(memberLang, escalationData);
           const text = getEscalationText(memberLang, escalationData);
 
-          await sendEmail(email, subject, html, text);
-          console.log(`[escalation-check] ✅ Escalation sent to ${email} for ${medicine.name}`);
+          try {
+            await sendEmail(email, subject, html, text);
+            console.log(`[escalation-check] ✅ Escalation sent to ${email} for ${medicine.name}`);
+          } catch (sendErr: any) {
+            // Already claimed: this recipient is not retried, so there are never repeat emails.
+            console.error(`[escalation-check] ❌ Email to ${email} failed (not retried):`, sendErr?.message);
+            errorCount++;
+          }
         }
 
-        // Update status to escalated
-        await supabase
-          .from("reminder_events")
-          .update({
-            status: "escalated",
-            escalation_sent_at: new Date().toISOString(),
-          })
-          .eq("id", event.id);
-
         // Also update medicine_log if exists
-        await supabase
+        const { error: logErr } = await supabase
           .from("medicine_logs")
           .update({ status: "missed" })
           .eq("medicine_id", event.medicine_id)
           .eq("patient_id", event.patient_id)
+          .eq("status", "pending") // never overwrite a dose that was taken
           .gte("scheduled_time", `${event.scheduled_date}T00:00:00`)
           .lt("scheduled_time", `${event.scheduled_date}T23:59:59`);
+        if (logErr) console.error(`[escalation-check] Could not mark medicine log missed for event ${event.id}:`, logErr.message);
 
         escalatedCount++;
         results.push({ eventId: event.id, patient: patient.name, medicine: medicine.name, status: "escalated", recipients: caretakerEmails });

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,12 +11,25 @@ import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { normalizePhone } from "@/lib/phone";
+import { rememberSignupRole, savePendingInvite, setLoginIntent, takeLoginIntent, type HomeMode, type Role } from "@/lib/care";
 import { ArrowLeft, Mail, Lock, User, Phone, KeyRound, HeartHandshake, LogIn } from "lucide-react";
 
-const Auth = () => {
+/**
+ * Login (/auth) and the second sign-up step (/signup/patient, /signup/caregiver).
+ * The role is chosen first on /signup; it goes into the sign-up metadata so the
+ * profile is created with it (Google: applied once after the redirect).
+ */
+const Auth = ({ signupRole, loginMode }: { signupRole?: Role; loginMode?: HomeMode }) => {
   const navigate = useNavigate();
-  const { t } = useLanguage();
-  const [tab, setTab] = useState<"login" | "signup">("login");
+  const { t, language } = useLanguage();
+  const [params] = useSearchParams();
+  const tab: "login" | "signup" = signupRole ? "signup" : "login";
+  /** The role this page is for: "Patient login" / "Caregiver login" and their sign-up pages. */
+  const pageRole: Role = loginMode ?? signupRole ?? "patient";
+  const codeQs = params.get("code") ? `?code=${encodeURIComponent(params.get("code")!)}` : "";
+  const [loginError, setLoginError] = useState<null | "noAccountOrPassword" | "noAccount">(null);
+  const isCaregiverSignup = signupRole === "caregiver";
+  const [inviteCode, setInviteCode] = useState((params.get("code") ?? "").toUpperCase());
   const [authMethod, setAuthMethod] = useState<"email" | "phone">("email");
   const [loading, setLoading] = useState(false);
 
@@ -42,13 +55,26 @@ const Auth = () => {
     e.preventDefault();
     setLoading(true);
     try {
+      setLoginError(null);
+      // Recorded BEFORE signing in: the session change can redirect to /home immediately.
+      setLoginIntent(pageRole);
       const { error } = await supabase.auth.signInWithPassword({
         email: form.email,
         password: form.password,
       });
-      if (error) throw error;
-      toast.success(t("auth.welcomeBackToast"));
-      navigate("/dashboard");
+      if (error) {
+        takeLoginIntent(); // not signed in: forget it
+        // Supabase gives the same answer for an unknown email and a wrong password.
+        if (/invalid login credentials/i.test(error.message)) {
+          setLoginError("noAccountOrPassword");
+          return;
+        }
+        throw error;
+      }
+      // An invite link opened before logging in is accepted after login.
+      if (params.get("code")) savePendingInvite(params.get("code")!);
+      // /home applies the login rules for this page (patient / caregiver).
+      navigate("/home");
     } catch (err: any) {
       toast.error(err.message || "Login failed");
     } finally {
@@ -70,22 +96,35 @@ const Auth = () => {
       toast.error(t("profile.passwordTooShort"));
       return;
     }
+    if (!signupRole) return;
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signUp({
+      rememberSignupRole(signupRole);
+      setLoginIntent(signupRole); // before the session changes
+      const code = inviteCode.trim();
+      if (isCaregiverSignup && code) savePendingInvite(code); // accepted right after sign-up
+      const { data, error } = await supabase.auth.signUp({
         email: form.email,
         password: form.password,
         options: {
           data: {
             name: form.name,
             phone: normalizePhone(form.phone) ?? "",
-            caregiver_email: form.caregiverEmail,
+            caregiver_email: isCaregiverSignup ? "" : form.caregiverEmail,
+            role: signupRole, // profile trigger stores it (display only; RLS uses care links)
+            language,
           },
         },
       });
       if (error) throw error;
+      if (!data.session) {
+        // Email confirmation is on: the role and invite code are applied at first login.
+        toast.success(t("signup.checkEmail"), { duration: 10000 });
+        navigate("/auth");
+        return;
+      }
       toast.success(t("auth.accountCreated"));
-      navigate("/onboarding");
+      navigate(isCaregiverSignup ? "/home" : "/onboarding");
     } catch (err: any) {
       toast.error(err.message || "Signup failed");
     } finally {
@@ -116,7 +155,7 @@ const Auth = () => {
     } catch (err: any) {
       const text = `${err?.code ?? ""} ${err?.message ?? ""}`;
       if (/otp_disabled|signups? not allowed|user not found/i.test(text)) {
-        toast.error(t("auth.noAccountForPhone"), { duration: 8000 });
+        setLoginError("noAccount");
       } else if (text.includes("Unsupported phone provider")) {
         toast.error(t("auth.phoneDisabled"));
       } else {
@@ -135,14 +174,17 @@ const Auth = () => {
     }
     setLoading(true);
     try {
+      setLoginIntent(pageRole); // before the session changes (see email login)
       const { error } = await supabase.auth.verifyOtp({
         phone,
         token: phoneOtp.trim(),
         type: "sms",
       });
-      if (error) throw error;
-      toast.success(t("auth.mobileLoginOk"));
-      navigate("/dashboard");
+      if (error) {
+        takeLoginIntent();
+        throw error;
+      }
+      navigate("/home");
     } catch (err: any) {
       toast.error(err.message || "Invalid OTP code");
     } finally {
@@ -151,6 +193,17 @@ const Auth = () => {
   };
 
   const handleGoogleLogin = async () => {
+    // Sign-up with Google: remember the role (and invite code) across the redirect.
+    // CareContext applies the role once after the callback (only if none is set).
+    if (signupRole) {
+      rememberSignupRole(signupRole);
+      if (isCaregiverSignup && inviteCode.trim()) savePendingInvite(inviteCode.trim());
+    } else if (params.get("code")) {
+      savePendingInvite(params.get("code")!);
+    }
+    // After the redirect, /home applies the login rules for this page. A Google
+    // account seen for the first time on a LOGIN page gets "No account found... Create one?".
+    setLoginIntent(pageRole);
     if (Capacitor.isNativePlatform()) {
       // On Android/iOS, open Google in the system browser, not the WebView.
       // Google blocks sign-in inside embedded WebViews, and only the system
@@ -197,15 +250,27 @@ const Auth = () => {
               <span className="gradient-text">MEDDI</span>BUDDY
             </p>
             <p className="text-muted-foreground text-sm">
-              {tab === "login" ? t("auth.welcomeBack") : t("auth.joinFamily")}
+              {loginMode === "caregiver" ? `👨‍👩‍👧 ${t("login.caregiverLogin")}` : loginMode === "patient" ? `🧑 ${t("login.patientLogin")}` : t("auth.joinFamily")}
             </p>
           </div>
+
+          {/* Sign-up step 2: which kind of account */}
+          {signupRole && (
+            <div className="mb-5 flex items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3">
+              <span className="text-sm font-semibold">
+                {signupRole === "caregiver" ? `👨‍👩‍👧 ${t("signup.creatingCaregiver")}` : `🧑 ${t("signup.creatingPatient")}`}
+              </span>
+              <button type="button" className="text-sm text-primary font-semibold hover:underline shrink-0" onClick={() => navigate(`/signup${params.get("code") ? `?code=${encodeURIComponent(params.get("code")!)}` : ""}`)}>
+                {t("signup.change")}
+              </button>
+            </div>
+          )}
 
           {/* Tabs */}
           <div className="flex bg-gray-100/80 rounded-xl p-1 mb-6 border border-gray-200/60">
             <button
               type="button"
-              onClick={() => setTab("login")}
+              onClick={() => navigate(`/login/${pageRole}${codeQs}`)}
               className={`flex-1 py-2.5 rounded-lg font-semibold text-sm transition-all ${
                 tab === "login" ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
               }`}
@@ -214,7 +279,7 @@ const Auth = () => {
             </button>
             <button
               type="button"
-              onClick={() => { setTab("signup"); setAuthMethod("email"); setOtpSent(false); }}
+              onClick={() => navigate(`/signup/${pageRole}${codeQs}`)}
               className={`flex-1 py-2.5 rounded-lg font-semibold text-sm transition-all ${
                 tab === "signup" ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
               }`}
@@ -222,6 +287,25 @@ const Auth = () => {
               {t("auth.signUp")}
             </button>
           </div>
+
+          {/* "No account found" / wrong password, with the way forward */}
+          {tab === "login" && loginError && (
+            <div role="alert" className="mb-5 rounded-xl border border-destructive/40 bg-destructive/5 p-4 space-y-3">
+              <p className="text-sm font-semibold text-destructive">
+                {loginError === "noAccountOrPassword" ? t("login.noAccountOrPassword") : t("login.noAccount")}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {loginError === "noAccountOrPassword" && (
+                  <Button type="button" size="sm" variant="outline" onClick={() => navigate("/forgot-password")}>
+                    {t("login.forgotPassword")}
+                  </Button>
+                )}
+                <Button type="button" size="sm" variant="hero" onClick={() => navigate(`/signup/${pageRole}${codeQs}`)}>
+                  {pageRole === "caregiver" ? t("login.signUpAsCaregiver") : t("login.signUpAsPatient")}
+                </Button>
+              </div>
+            </div>
+          )}
 
           {/* Method Selector: Email vs Phone (phone OTP signs in to existing accounts only) */}
           {tab === "login" && (
@@ -368,13 +452,13 @@ const Auth = () => {
                   </div>
                   <div>
                     <Label className="text-sm font-semibold text-foreground mb-1.5 block">
-                      {t("auth.phoneRequired")}
+                      {isCaregiverSignup ? t("signup.phoneOptional") : t("auth.phoneRequired")}
                     </Label>
                     <div className="relative">
                       <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <Input
                         type="tel"
-                        required
+                        required={!isCaregiverSignup}
                         value={form.phone}
                         onChange={(e) => update("phone", e.target.value)}
                         placeholder="+91 98765 43210"
@@ -438,6 +522,26 @@ const Auth = () => {
                     </div>
                   </div>
 
+                  {isCaregiverSignup ? (
+                  <div>
+                    <Label htmlFor="signup-invite" className="text-sm font-semibold text-foreground mb-1.5 block">
+                      {t("signup.inviteCodeOptional")}
+                    </Label>
+                    <div className="relative">
+                      <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Input
+                        id="signup-invite"
+                        value={inviteCode}
+                        onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                        placeholder="MB-K7Q4XP"
+                        autoCapitalize="characters"
+                        autoComplete="off"
+                        className="pl-10 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn font-mono tracking-wider uppercase"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">{t("signup.inviteCodeLater")}</p>
+                  </div>
+                  ) : (
                   <div>
                     <Label className="text-sm font-semibold text-foreground mb-1.5 block">
                       {t("auth.caregiverOptional")}
@@ -456,6 +560,7 @@ const Auth = () => {
                       {t("auth.caregiverHelp")}
                     </p>
                   </div>
+                  )}
                 </>
               )}
 

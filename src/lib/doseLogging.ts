@@ -15,6 +15,8 @@ export type DoseLogResult = 'logged' | 'retry' | 'drop';
 
 /** Postgres foreign-key violation: the medicine was deleted meanwhile. */
 const FK_VIOLATION = '23503';
+/** Unique violation: the row for this dose already exists. */
+const UNIQUE_VIOLATION = '23505';
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 export async function getPatientId(): Promise<string | null> {
@@ -90,6 +92,15 @@ export async function logDoseTaken(action: PendingDoseAction, patientId: string)
       status: 'taken',
       taken_at: takenAt,
     });
+    if (error?.code === UNIQUE_VIOLATION) {
+      // The cron created this dose's row a moment ago: mark that one instead (one row per dose).
+      const { error: updErr } = await supabase
+        .from('medicine_logs')
+        .update({ status: 'taken', taken_at: takenAt })
+        .eq('medicine_id', action.medicineId)
+        .eq('scheduled_time', scheduled.toISOString());
+      return updErr ? 'retry' : 'logged';
+    }
     if (error) return error.code === FK_VIOLATION ? 'drop' : 'retry';
   }
 

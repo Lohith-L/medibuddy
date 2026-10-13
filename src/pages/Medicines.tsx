@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { useActivePatient } from "@/contexts/CareContext";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useRealtimeTable } from "@/hooks/useRealtimeTable";
@@ -85,25 +86,29 @@ const Medicines = () => {
   const [deletingMed, setDeletingMed] = useState<Medicine | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const fetchMedicines = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setLoading(false); return; }
-    const { data: patients } = await supabase.from("patients").select("id").eq("user_id", user.id).limit(1);
-    if (patients && patients.length > 0) {
-      setPatientId(patients[0].id); // store for Realtime subscription
-      const { data } = await supabase
-        .from("medicines")
-        .select("*")
-        .eq("patient_id", patients[0].id)
-        .eq("is_active", true)
-        .order("created_at", { ascending: false });
+  // Me, or the patient I'm viewing as a caregiver (see CareContext).
+  const { active, loading: careLoading } = useActivePatient();
+  const canManage = !!active?.canManage;
+  const activeId = active?.patientId;
 
-      setMedicines((data ?? []) as Medicine[]);
-    }
+  const fetchMedicines = async () => {
+    if (!activeId) { if (!careLoading) setLoading(false); return; }
+    setPatientId(activeId); // store for Realtime subscription
+    const { data } = await supabase
+      .from("medicines")
+      .select("*")
+      .eq("patient_id", activeId)
+      .eq("is_active", true)
+      .order("created_at", { ascending: false });
+    setMedicines((data ?? []) as Medicine[]);
     setLoading(false);
   };
 
-  useEffect(() => { fetchMedicines(); }, []);
+  useEffect(() => {
+    setLoading(true);
+    void fetchMedicines();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId, careLoading]);
 
   // ── Realtime: re-fetch whenever the website changes medicines ──────
   useRealtimeTable('medicines', 'patient_id', patientId, fetchMedicines);
@@ -292,10 +297,14 @@ const Medicines = () => {
     <DashboardLayout>
       <div className="max-w-3xl space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-extrabold">{t("myMedicines")}</h1>
-          <Button size="sm" variant="hero" onClick={() => navigate("/upload")}>
-            <Plus className="w-4 h-4" /> {t("add")}
-          </Button>
+          <h1 className="text-2xl font-extrabold min-w-0 truncate">
+            {active && !active.isSelf ? t("care.medicinesOf", { name: active.name }) : t("myMedicines")}
+          </h1>
+          {canManage && (
+            <Button size="sm" variant="hero" onClick={() => navigate("/upload")}>
+              <Plus className="w-4 h-4" /> {active && !active.isSelf ? t("care.addFor", { name: active.name }) : t("add")}
+            </Button>
+          )}
         </div>
 
         <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" className="hidden" onChange={onFileSelected} />
@@ -311,7 +320,7 @@ const Medicines = () => {
             </div>
             <p className="text-xl font-bold mb-2">{t("meds.empty")}</p>
             <p className="text-muted-foreground mb-6">{t("meds.emptyDesc")}</p>
-            <Button variant="hero" size="lg" onClick={() => navigate("/upload")}>{t("uploadPrescription")}</Button>
+            {canManage && <Button variant="hero" size="lg" onClick={() => navigate("/upload")}>{t("uploadPrescription")}</Button>}
           </div>
         ) : (
           <div className="space-y-4">
@@ -326,8 +335,8 @@ const Medicines = () => {
                 <div className="flex items-start gap-4">
                   {/* Medicine Photo */}
                   <button
-                    onClick={() => triggerPhotoUpload(med.id)}
-                    disabled={uploadingId === med.id}
+                    onClick={() => canManage && triggerPhotoUpload(med.id)}
+                    disabled={uploadingId === med.id || !canManage}
                     className="relative w-14 h-14 rounded-xl overflow-hidden flex items-center justify-center shadow-card group shrink-0"
                   >
                     {med.medicine_photo_url ? (
@@ -364,8 +373,8 @@ const Medicines = () => {
                     )}
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex flex-col gap-1 shrink-0">
+                  {/* Actions (only for me, or a caregiver with 'manage') */}
+                  {canManage && <div className="flex flex-col gap-1 shrink-0">
                     <Button variant="ghost" size="icon" className="h-9 w-9 text-primary hover:bg-primary/10" onClick={() => openEdit(med)}>
                       <Pencil className="w-4 h-4" />
                     </Button>
@@ -377,7 +386,7 @@ const Medicines = () => {
                     <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:bg-destructive/10" onClick={() => setDeletingMed(med)}>
                       <Trash2 className="w-4 h-4" />
                     </Button>
-                  </div>
+                  </div>}
                 </div>
               </motion.div>
             ))}

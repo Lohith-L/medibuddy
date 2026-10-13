@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useActivePatient } from "@/contexts/CareContext";
 import { BarChart3, TrendingUp, TrendingDown, Minus, Award, Calendar, Pill, CheckCircle2, XCircle, Download } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -44,17 +45,13 @@ const HealthReports = () => {
   const [activeMedicines, setActiveMedicines] = useState(0);
   const [trend, setTrend] = useState<"up" | "down" | "stable">("stable");
 
+  // Me, or the patient I'm viewing as a caregiver.
+  const { active, loading: careLoading } = useActivePatient();
+
   useEffect(() => {
+    if (careLoading) return;
     const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setLoading(false); return; }
-
-      const { data: patient } = await supabase
-        .from("patients")
-        .select("id, name, language")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
+      const patient = active ? { id: active.patientId, name: active.name } : null;
       if (!patient) { setLoading(false); return; }
       setPatientId(patient.id);
       setPatientName(patient.name || "");
@@ -142,8 +139,10 @@ const HealthReports = () => {
       setLoading(false);
     };
 
+    setLoading(true);
     load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active?.patientId, careLoading]);
 
   const handleDownload = async () => {
     const { data: { user } } = await supabase.auth.getUser();

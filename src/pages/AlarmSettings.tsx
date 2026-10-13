@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
 import {
-  AlarmClock, Bell, BatteryCharging, CheckCircle2, AlertTriangle, Maximize, Smartphone, Loader2, Speech, MoonStar,
+  AlarmClock, Bell, BellRing, Siren, BatteryCharging, CheckCircle2, AlertTriangle, Maximize, Smartphone, Loader2, Speech, MoonStar,
 } from "lucide-react";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -12,6 +12,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { MedicineAlarm, TEST_ALARM_ID, type AlarmPermissionStatus } from "@/plugins/medicineAlarm";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { languageLabelByCode } from "@/lib/language";
+import { useCare } from "@/contexts/CareContext";
 
 const isNative = Capacitor.isNativePlatform();
 
@@ -65,6 +66,12 @@ const AlarmSettings = () => {
   const [perms, setPerms] = useState<AlarmPermissionStatus | null>(null);
   /** null = still checking */
   const [voiceAvailable, setVoiceAvailable] = useState<boolean | null>(null);
+  const [beepOn, setBeepOn] = useState(true);
+  const [voiceOn, setVoiceOn] = useState(true);
+  const [cgTesting, setCgTesting] = useState<null | "missed" | "sos">(null);
+  const care = useCare();
+  const showPatientTest = care.mode === "patient";
+  const showCaregiverTests = care.isCaregiver;
   const [testing, setTesting] = useState(false);
   const { t, language, locale } = useLanguage();
   const languageName = languageLabelByCode[language] ?? "English";
@@ -78,6 +85,13 @@ const AlarmSettings = () => {
       ]);
       setPerms(p);
       setVoiceAvailable(v.available);
+      try {
+        const s = await MedicineAlarm.getSettings();
+        setBeepOn(s.beepEnabled);
+        setVoiceOn(s.voiceEnabled);
+      } catch {
+        /* older app build */
+      }
     } catch (e) {
       console.error("[Alarm] status failed", e);
     }
@@ -98,6 +112,46 @@ const AlarmSettings = () => {
       setPerms(await MedicineAlarm.requestPermissions());
     } else {
       await MedicineAlarm.openNotificationSettings();
+    }
+  };
+
+  /** Beep / voice switches: at least one stays on. */
+  const toggle = async (which: "beep" | "voice", enabled: boolean) => {
+    if (!enabled && (which === "beep" ? !voiceOn : !beepOn)) {
+      toast.error(t("alarm.atLeastOne"));
+      return;
+    }
+    try {
+      if (which === "beep") {
+        await MedicineAlarm.setBeepEnabled({ enabled });
+        setBeepOn(enabled);
+      } else {
+        await MedicineAlarm.setVoiceEnabled({ enabled });
+        setVoiceOn(enabled);
+      }
+    } catch {
+      toast.error(t("alarm.atLeastOne"));
+    }
+  };
+
+  const testCaregiverAlarm = async (kind: "missed" | "sos") => {
+    setCgTesting(kind);
+    try {
+      const res = await MedicineAlarm.testCaregiverAlarm({
+        kind,
+        patientName: t("alarm.testPatient"),
+        medicineName: "Paracetamol",
+        dose: t("alarm.testDose"),
+        language,
+        delaySeconds: 60,
+      });
+      const when = new Date(res.scheduledAt).toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" });
+      toast.success(t("alarm.testSet", { time: when }));
+    } catch (e) {
+      toast.error(t("alarm.testFailed"));
+      console.error(e);
+    } finally {
+      setCgTesting(null);
     }
   };
 
@@ -201,18 +255,29 @@ const AlarmSettings = () => {
           )}
         </div>
 
-        {/* Voice (the alarm is voice-only, at full volume) and test */}
+        {/* Sound: beep (siren for SOS) then voice, at full volume; and tests */}
         <div className="bg-card border rounded-2xl p-4 shadow-card space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <BellRing className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm">{t("alarm.beep")}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{t("alarm.beepDesc")}</p>
+            </div>
+            <Switch checked={beepOn} onCheckedChange={(v) => void toggle("beep", v)} aria-label={t("alarm.beep")} />
+          </div>
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
               <Speech className="w-5 h-5" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-sm">{t("alarm.voice")}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{t("alarm.voiceAlwaysDesc", { language: languageName })}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{t("alarm.voicePatternDesc", { language: languageName })}</p>
             </div>
-            <Switch checked disabled aria-label={t("alarm.voice")} title={t("alarm.voiceAlwaysOn")} />
+            <Switch checked={voiceOn} onCheckedChange={(v) => void toggle("voice", v)} aria-label={t("alarm.voice")} />
           </div>
+          <p className="text-[11px] text-muted-foreground">{t("alarm.atLeastOne")}</p>
           {voiceAvailable === false && language !== "en" && (
             <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-100 space-y-2">
               <p className="font-semibold">{t("alarm.voiceMissing", { language: languageName })}</p>
@@ -223,10 +288,26 @@ const AlarmSettings = () => {
               </div>
             </div>
           )}
+          {showPatientTest && (
           <Button className="w-full" variant="outline" onClick={() => void testAlarm()} disabled={testing}>
             {testing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <AlarmClock className="w-4 h-4 mr-2" />}
-            {t("alarm.testVoice")}
+            {t("alarm.testFull")}
           </Button>
+          )}
+          {showCaregiverTests && (
+            <div className="space-y-2 pt-2 border-t">
+              <p className="font-semibold text-sm">{t("alarm.caregiverTests")}</p>
+              <p className="text-xs text-muted-foreground">{t("alarm.caregiverTestsDesc")}</p>
+              <Button className="w-full" variant="outline" onClick={() => void testCaregiverAlarm("missed")} disabled={!!cgTesting}>
+                {cgTesting === "missed" ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <AlarmClock className="w-4 h-4 mr-2" />}
+                {t("alarm.testMissed")}
+              </Button>
+              <Button className="w-full border-red-500/50 text-red-700 dark:text-red-300" variant="outline" onClick={() => void testCaregiverAlarm("sos")} disabled={!!cgTesting}>
+                {cgTesting === "sos" ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Siren className="w-4 h-4 mr-2" />}
+                {t("alarm.testSos")}
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Brand-specific background settings */}

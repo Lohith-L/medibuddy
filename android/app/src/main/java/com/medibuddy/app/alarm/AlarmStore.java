@@ -131,16 +131,30 @@ public final class AlarmStore {
 
     // ── Settings ──────────────────────────────────────────────────────────
 
-    /**
-     * Spoken "time to take your medicine" announcement. The alarm is voice-only,
-     * so this is always on for now (the stored switch is kept for later).
-     */
+    private static final String KEY_BEEP_ENABLED = "beep_enabled";
+
+    /** Spoken announcement (default on). At least one of beep / voice is always on. */
     public static boolean isVoiceEnabled(Context ctx) {
+        return prefs(ctx).getBoolean(KEY_VOICE_ENABLED, true);
+    }
+
+    /** Beep (medicine / missed dose) or siren (SOS) before the voice (default on). */
+    public static boolean isBeepEnabled(Context ctx) {
+        return prefs(ctx).getBoolean(KEY_BEEP_ENABLED, true) || !isVoiceEnabled(ctx);
+    }
+
+    /** Returns false (and changes nothing) if this would turn both off. */
+    public static boolean setBeepEnabled(Context ctx, boolean enabled) {
+        if (!enabled && !prefs(ctx).getBoolean(KEY_VOICE_ENABLED, true)) return false;
+        prefs(ctx).edit().putBoolean(KEY_BEEP_ENABLED, enabled).apply();
         return true;
     }
 
-    public static void setVoiceEnabled(Context ctx, boolean enabled) {
+    /** Returns false (and changes nothing) if this would turn both off. */
+    public static boolean setVoiceEnabled(Context ctx, boolean enabled) {
+        if (!enabled && !prefs(ctx).getBoolean(KEY_BEEP_ENABLED, true)) return false;
         prefs(ctx).edit().putBoolean(KEY_VOICE_ENABLED, enabled).apply();
+        return true;
     }
 
     /** App language ("en", "hi", ...) from the last sync; used when an alarm has none. */

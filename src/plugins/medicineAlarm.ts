@@ -74,8 +74,20 @@ export interface MedicineAlarmPlugin {
   openAutostartSettings(): Promise<void>;
   openAppSettings(): Promise<void>;
 
-  /** The alarm is voice-only; voiceEnabled is always true for now. */
-  getSettings(): Promise<{ voiceEnabled: boolean }>;
+  /** Beep (siren for SOS) and voice; at least one is always on. */
+  getSettings(): Promise<{ voiceEnabled: boolean; beepEnabled: boolean }>;
+  /** Rejects with code "both_off" if it would turn off both beep and voice. */
+  setBeepEnabled(options: { enabled: boolean }): Promise<void>;
+  /** Rings a caregiver alarm (missed dose / SOS) on this phone after a delay. Test only. */
+  testCaregiverAlarm(options: {
+    kind: 'missed' | 'sos';
+    patientName: string;
+    medicineName?: string;
+    dose?: string;
+    time?: string;
+    language?: string;
+    delaySeconds?: number;
+  }): Promise<{ scheduledAt: number }>;
   setVoiceEnabled(options: { enabled: boolean }): Promise<void>;
 
   /** Whether the phone has an installed (offline) text-to-speech voice for this language. */

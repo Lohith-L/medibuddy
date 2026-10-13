@@ -44,8 +44,9 @@ public class AlarmActivity extends AppCompatActivity implements AlarmService.Lis
         if (ACTION_TAKEN.equals(getIntent().getStringExtra(EXTRA_ACTION))) {
             AlarmPayload p = AlarmPayload.from(getIntent());
             if (p == null) p = AlarmService.current();
-            if (p != null) markTaken(p);
-            else finish();
+            if (p == null) finish();
+            else if (p.isCaregiver()) acknowledge(p);
+            else markTaken(p);
             return;
         }
 
@@ -56,7 +57,9 @@ public class AlarmActivity extends AppCompatActivity implements AlarmService.Lis
         moreView = findViewById(R.id.alarm_more);
 
         findViewById(R.id.alarm_taken).setOnClickListener(v -> {
-            if (shown != null) markTaken(shown);
+            if (shown == null) return;
+            if (shown.isCaregiver()) acknowledge(shown);
+            else markTaken(shown);
         });
         findViewById(R.id.alarm_snooze).setOnClickListener(v -> {
             if (shown != null) snooze(shown);
@@ -82,7 +85,8 @@ public class AlarmActivity extends AppCompatActivity implements AlarmService.Lis
         AlarmPayload p = AlarmPayload.from(intent);
         if (ACTION_TAKEN.equals(intent.getStringExtra(EXTRA_ACTION))) {
             if (p == null) p = AlarmService.current();
-            if (p != null) markTaken(p);
+            if (p != null && p.isCaregiver()) acknowledge(p);
+            else if (p != null) markTaken(p);
             return;
         }
         if (timeView != null) {
@@ -127,12 +131,37 @@ public class AlarmActivity extends AppCompatActivity implements AlarmService.Lis
         }
         shown = p;
         String lang = AlarmTexts.langFor(this, p);
-        ((TextView) findViewById(R.id.alarm_label)).setText(AlarmTexts.get(lang, "label"));
-        ((TextView) findViewById(R.id.alarm_taken)).setText(AlarmTexts.get(lang, "taken"));
-        ((TextView) findViewById(R.id.alarm_snooze)).setText(AlarmTexts.get(lang, "snooze"));
-        timeView.setText(p.displayTime());
-        medicineView.setText(p.medicineName);
-        doseView.setText(p.dose == null || p.dose.isEmpty() ? AlarmTexts.get(lang, "timeForMedicine") : p.dose);
+        View root = findViewById(R.id.alarm_root);
+        View snoozeButton = findViewById(R.id.alarm_snooze);
+        String patient = p.patientName == null ? "" : p.patientName;
+        if (p.isSos()) {
+            // SOS: red, the patient's name, "I'm responding". No snooze.
+            root.setBackgroundColor(0xFFB91C1C);
+            ((TextView) findViewById(R.id.alarm_label)).setText(AlarmTexts.get(lang, "cgSosLabel"));
+            ((TextView) findViewById(R.id.alarm_taken)).setText(AlarmTexts.get(lang, "cgResponding"));
+            snoozeButton.setVisibility(View.GONE);
+            timeView.setText(p.displayTime());
+            medicineView.setText(AlarmTexts.get(lang, "cgSosTitle", "patient", patient));
+            doseView.setText("");
+        } else if (p.isCaregiver()) {
+            // Missed dose: who missed what, "OK, I'll check". No snooze.
+            root.setBackgroundResource(R.drawable.alarm_background);
+            ((TextView) findViewById(R.id.alarm_label)).setText(AlarmTexts.get(lang, "cgMissedLabel"));
+            ((TextView) findViewById(R.id.alarm_taken)).setText(AlarmTexts.get(lang, "cgOk"));
+            snoozeButton.setVisibility(View.GONE);
+            timeView.setText(p.displayTime());
+            medicineView.setText(AlarmTexts.get(lang, "cgMissedTitle", "patient", patient).replace("{name}", p.medicineName == null ? "" : p.medicineName));
+            doseView.setText(p.dose == null ? "" : p.dose);
+        } else {
+            root.setBackgroundResource(R.drawable.alarm_background);
+            ((TextView) findViewById(R.id.alarm_label)).setText(AlarmTexts.get(lang, "label"));
+            ((TextView) findViewById(R.id.alarm_taken)).setText(AlarmTexts.get(lang, "taken"));
+            ((TextView) findViewById(R.id.alarm_snooze)).setText(AlarmTexts.get(lang, "snooze"));
+            snoozeButton.setVisibility(View.VISIBLE);
+            timeView.setText(p.displayTime());
+            medicineView.setText(p.medicineName);
+            doseView.setText(p.dose == null || p.dose.isEmpty() ? AlarmTexts.get(lang, "timeForMedicine") : p.dose);
+        }
         if (waiting > 0) {
             moreView.setVisibility(View.VISIBLE);
             moreView.setText(AlarmTexts.get(lang, "moreDue", "n", String.valueOf(waiting)));
@@ -159,6 +188,12 @@ public class AlarmActivity extends AppCompatActivity implements AlarmService.Lis
             return;
         }
         openAppToLogDose(p);
+    }
+
+    /** Caregiver "OK, I'll check" / "I'm responding": stops this alarm (nothing is logged on the phone). */
+    private void acknowledge(AlarmPayload p) {
+        AlarmService.send(this, AlarmService.ACTION_ACK, p);
+        if (AlarmService.waitingCount() == 0) finish();
     }
 
     private void snooze(AlarmPayload p) {

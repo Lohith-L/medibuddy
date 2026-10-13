@@ -14,6 +14,15 @@ public final class AlarmPayload {
     static final String EXTRA_TIME = "alarm_time";
     static final String EXTRA_IS_TEST = "alarm_is_test";
     static final String EXTRA_LANGUAGE = "alarm_language";
+    static final String EXTRA_KIND = "alarm_kind";
+    static final String EXTRA_PATIENT = "alarm_patient_name";
+
+    /** The patient's own medicine alarm. */
+    public static final String KIND_MEDICINE = "medicine";
+    /** Caregiver: a linked patient missed a dose. */
+    public static final String KIND_MISSED = "missed";
+    /** Caregiver: a linked patient pressed SOS. */
+    public static final String KIND_SOS = "sos";
 
     public int id;
     public String medicineId;
@@ -26,6 +35,18 @@ public final class AlarmPayload {
     public boolean isTest;
     /** App language for the spoken announcement, e.g. "hi". */
     public String language;
+    /** KIND_MEDICINE (default), KIND_MISSED or KIND_SOS. */
+    public String kind = KIND_MEDICINE;
+    /** Caregiver alarms: whose alarm it is. */
+    public String patientName;
+
+    public boolean isCaregiver() {
+        return KIND_MISSED.equals(kind) || KIND_SOS.equals(kind);
+    }
+
+    public boolean isSos() {
+        return KIND_SOS.equals(kind);
+    }
 
     public void writeTo(Intent intent) {
         intent.putExtra(EXTRA_ID, id);
@@ -36,6 +57,8 @@ public final class AlarmPayload {
         intent.putExtra(EXTRA_TIME, time);
         intent.putExtra(EXTRA_IS_TEST, isTest);
         intent.putExtra(EXTRA_LANGUAGE, language);
+        intent.putExtra(EXTRA_KIND, kind);
+        intent.putExtra(EXTRA_PATIENT, patientName);
     }
 
     public static AlarmPayload from(Intent intent) {
@@ -51,6 +74,8 @@ public final class AlarmPayload {
         p.time = b.getString(EXTRA_TIME, "");
         p.isTest = b.getBoolean(EXTRA_IS_TEST, false);
         p.language = b.getString(EXTRA_LANGUAGE, null);
+        p.kind = b.getString(EXTRA_KIND, KIND_MEDICINE);
+        p.patientName = b.getString(EXTRA_PATIENT, null);
         return p;
     }
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useActivePatient } from "@/contexts/CareContext";
 import { useNavigate } from "react-router-dom";
 import { App } from "@capacitor/app";
 import type { HealthDataType } from "@capgo/capacitor-health";
@@ -46,7 +47,11 @@ const NO_SENSOR: StepSensorStatus = { available: false, permission: "denied" };
 const Health = () => {
   const navigate = useNavigate();
   const { t, locale } = useLanguage();
-  const native = isNativeAndroid();
+  // Me, or the patient I'm viewing as a caregiver. Phone (Health Connect) features
+  // only apply to my own data: a caregiver sees the patient's synced data.
+  const { active, loading: careLoading } = useActivePatient();
+  const viewingOther = !!active && !active.isSelf;
+  const native = isNativeAndroid() && !viewingOther;
 
   const [loading, setLoading] = useState(true);
   const [patientId, setPatientId] = useState<string | null>(null);
@@ -66,10 +71,11 @@ const Health = () => {
   // ── Loading ────────────────────────────────────────────────────────────
 
   /** Supabase data (website, or the phone when not connected). Demo only if never synced. */
-  const loadFromServer = useCallback(async (pid: string) => {
+  const loadFromServer = useCallback(async (pid: string, other = false) => {
     const [rows, last] = await Promise.all([fetchHealthData(pid, 7), fetchLastSyncedAt(pid)]);
     setLastSyncedAt(last);
-    if (last) {
+    if (last || other) {
+      // Never show demo numbers as if they were another person's data.
       setWeek(fillWeek(rows));
       setDemo(false);
     } else {
@@ -123,8 +129,16 @@ const Health = () => {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      if (careLoading) return;
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { navigate("/auth"); return; }
+      setLoading(true);
+      if (viewingOther && active) {
+        setPatientId(active.patientId);
+        await loadFromServer(active.patientId, true);
+        if (!cancelled) setLoading(false);
+        return;
+      }
       const { data: patient } = await supabase
         .from("patients").select("id").eq("user_id", session.user.id).maybeSingle();
       if (cancelled) return;
@@ -146,7 +160,7 @@ const Health = () => {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navigate]);
+  }, [navigate, careLoading, active?.patientId]);
 
   // Background (app foreground) syncs refresh the page; returning from Health Connect re-checks access.
   useEffect(() => {
@@ -296,12 +310,12 @@ const Health = () => {
         const { types } = await refreshNativeStatus();
         await syncNow(patientId, types, true);
       } else {
-        await loadFromServer(patientId);
+        await loadFromServer(patientId, viewingOther);
       }
     } finally {
       setRefreshing(false);
     }
-  }, [patientId, refreshing, native, enabled, refreshNativeStatus, syncNow, loadFromServer]);
+  }, [patientId, refreshing, native, enabled, refreshNativeStatus, syncNow, loadFromServer, viewingOther]);
 
   useEffect(() => {
     const onStart = (e: TouchEvent) => {
@@ -414,7 +428,7 @@ const Health = () => {
           <div className="min-w-0">
             <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
               <Activity className="w-6 h-6 text-primary shrink-0" />
-              {t("healthData")}
+              {viewingOther && active ? t("care.healthOf", { name: active.name }) : t("healthData")}
             </h1>
             <p className="text-sm text-muted-foreground mt-1">{t("healthSubtitle")}</p>
           </div>

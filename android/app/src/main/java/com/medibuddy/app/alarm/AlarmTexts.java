@@ -37,6 +37,22 @@ public final class AlarmTexts {
             "{name} घेण्याची वेळ",
             "{name} খাওয়ার সময়",
             "{name} લેવાનો સમય");
+        put("cgMissedLabel",
+            "Missed medicine", "छूटी दवा", "తప్పిన మందు", "தவறிய மருந்து", "ತಪ್ಪಿದ ಔಷಧ", "चुकलेले औषध", "বাদ পড়া ওষুধ", "ચૂકી ગયેલી દવા");
+        put("cgMissedTitle",
+            "{patient} missed {name}", "{patient} ने {name} नहीं ली", "{patient} {name} తీసుకోలేదు", "{patient} {name} எடுக்கவில்லை",
+            "{patient} {name} ತೆಗೆದುಕೊಂಡಿಲ್ಲ", "{patient} यांनी {name} घेतले नाही", "{patient} {name} খাননি", "{patient} એ {name} લીધી નથી");
+        put("cgSosLabel",
+            "🚨 SOS", "🚨 SOS", "🚨 SOS", "🚨 SOS", "🚨 SOS", "🚨 SOS", "🚨 SOS", "🚨 SOS");
+        put("cgSosTitle",
+            "SOS from {patient}", "{patient} से SOS", "{patient} నుండి SOS", "{patient} இடமிருந்து SOS",
+            "{patient} ಅವರಿಂದ SOS", "{patient} यांच्याकडून SOS", "{patient}-এর থেকে SOS", "{patient} તરફથી SOS");
+        put("cgOk",
+            "👍 OK, I'll check", "👍 ठीक है, मैं देखता/देखती हूँ", "👍 సరే, నేను చూస్తాను", "👍 சரி, நான் பார்க்கிறேன்",
+            "👍 ಸರಿ, ನಾನು ನೋಡುತ್ತೇನೆ", "👍 ठीक आहे, मी पाहतो/पाहते", "👍 ঠিক আছে, আমি দেখছি", "👍 ઠીક છે, હું જોઉં છું");
+        put("cgResponding",
+            "🏃 I'm responding", "🏃 मैं आ रहा/रही हूँ", "🏃 నేను వస్తున్నాను", "🏃 நான் வருகிறேன்",
+            "🏃 ನಾನು ಬರುತ್ತಿದ್ದೇನೆ", "🏃 मी येत आहे", "🏃 আমি আসছি", "🏃 હું આવું છું");
         put("taken",
             "✅ Taken", "✅ ले ली", "✅ వేసుకున్నాను", "✅ எடுத்தேன்", "✅ ತೆಗೆದುಕೊಂಡೆ", "✅ घेतले", "✅ নিয়েছি", "✅ લીધી");
         put("snooze",

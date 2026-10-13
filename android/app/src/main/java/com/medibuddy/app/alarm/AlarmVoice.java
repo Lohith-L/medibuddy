@@ -90,6 +90,46 @@ public final class AlarmVoice {
         }
     }
 
+    /** "{patient} missed {medicine} at {time}." / "Emergency! SOS from {patient}." */
+    static String caregiverSentence(String lang, AlarmPayload p) {
+        String patient = p.patientName == null || p.patientName.isEmpty() ? "your patient" : p.patientName;
+        String med = p.medicineName == null ? "" : p.medicineName;
+        String time = p.displayTime();
+        if (p.isSos()) {
+            switch (normalize(lang)) {
+                case "hi": return "आपातकाल! " + patient + " से SOS।";
+                case "te": return "అత్యవసరం! " + patient + " నుండి SOS.";
+                case "ta": return "அவசரம்! " + patient + " இடமிருந்து SOS.";
+                case "kn": return "ತುರ್ತು! " + patient + " ಅವರಿಂದ SOS.";
+                case "mr": return "आणीबाणी! " + patient + " यांच्याकडून SOS.";
+                case "bn": return "জরুরি! " + patient + "-এর থেকে SOS।";
+                case "gu": return "કટોકટી! " + patient + " તરફથી SOS.";
+                default:   return "Emergency! SOS from " + patient + ".";
+            }
+        }
+        switch (normalize(lang)) {
+            case "hi": return patient + " ने " + time + " बजे की " + med + " नहीं ली।";
+            case "te": return patient + " " + time + " కి " + med + " తీసుకోలేదు.";
+            case "ta": return patient + " " + time + " மணிக்கு " + med + " எடுக்கவில்லை.";
+            case "kn": return patient + " " + time + " ಕ್ಕೆ " + med + " ತೆಗೆದುಕೊಂಡಿಲ್ಲ.";
+            case "mr": return patient + " यांनी " + time + " वाजताचे " + med + " घेतले नाही.";
+            case "bn": return patient + " " + time + "-এর " + med + " খাননি।";
+            case "gu": return patient + " એ " + time + " વાગ્યાની " + med + " લીધી નથી.";
+            default:   return patient + " missed " + med + " at " + time + ".";
+        }
+    }
+
+    static Choice chooseCaregiver(TextToSpeech tts, String lang, AlarmPayload p) {
+        String code = normalize(lang);
+        Locale wanted = locale(code);
+        if (!"en".equals(code) && hasInstalledVoice(tts, wanted)) {
+            return new Choice(caregiverSentence(code, p), wanted, false);
+        }
+        Locale english = new Locale("en", "IN");
+        if (tts.isLanguageAvailable(english) < TextToSpeech.LANG_AVAILABLE) english = Locale.US;
+        return new Choice(caregiverSentence("en", p), english, !"en".equals(code));
+    }
+
     /** Result of choosing what to say and in which voice. */
     static final class Choice {
         final String text;

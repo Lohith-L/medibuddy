@@ -199,13 +199,64 @@ public class MedicineAlarmPlugin extends Plugin {
     public void getSettings(PluginCall call) {
         JSObject ret = new JSObject();
         ret.put("voiceEnabled", AlarmStore.isVoiceEnabled(getContext()));
+        ret.put("beepEnabled", AlarmStore.isBeepEnabled(getContext()));
         call.resolve(ret);
     }
 
+    /** Rejected (code "both_off") if it would turn off both the beep and the voice. */
     @PluginMethod
     public void setVoiceEnabled(PluginCall call) {
-        AlarmStore.setVoiceEnabled(getContext(), Boolean.TRUE.equals(call.getBoolean("enabled", true)));
+        if (!AlarmStore.setVoiceEnabled(getContext(), Boolean.TRUE.equals(call.getBoolean("enabled", true)))) {
+            call.reject("At least one of alarm beep / voice must stay on", "both_off");
+            return;
+        }
         call.resolve();
+    }
+
+    @PluginMethod
+    public void setBeepEnabled(PluginCall call) {
+        if (!AlarmStore.setBeepEnabled(getContext(), Boolean.TRUE.equals(call.getBoolean("enabled", true)))) {
+            call.reject("At least one of alarm beep / voice must stay on", "both_off");
+            return;
+        }
+        call.resolve();
+    }
+
+    /**
+     * testCaregiverAlarm({ kind: "missed" | "sos", patientName, medicineName?, dose?, time?, language?, delaySeconds? })
+     * Rings the caregiver alarm on THIS phone after a delay (default 60 s), so it can be
+     * tested with the phone locked and the app closed. Nothing is sent or logged.
+     */
+    @PluginMethod
+    public void testCaregiverAlarm(PluginCall call) {
+        String kind = call.getString("kind", AlarmPayload.KIND_MISSED);
+        AlarmPayload p = new AlarmPayload();
+        p.kind = AlarmPayload.KIND_SOS.equals(kind) ? AlarmPayload.KIND_SOS : AlarmPayload.KIND_MISSED;
+        p.id = p.isSos() ? 2_000_000_003 : 2_000_000_002;
+        p.isTest = true;
+        p.medicineId = "test";
+        p.patientName = call.getString("patientName", "Amma");
+        p.medicineName = call.getString("medicineName", "Paracetamol");
+        p.dose = call.getString("dose", "");
+        p.time = call.getString("time", new java.text.SimpleDateFormat("HH:mm", Locale.US).format(new java.util.Date()));
+        p.date = new java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new java.util.Date());
+        p.language = call.getString("language", AlarmStore.getLanguage(getContext()));
+        int delay = Math.max(0, Math.min(600, call.getInt("delaySeconds", 60)));
+
+        Intent i = new Intent(getContext(), AlarmReceiver.class).setAction(AlarmReceiver.ACTION_TEST_CAREGIVER);
+        p.writeTo(i);
+        android.app.PendingIntent pi = android.app.PendingIntent.getBroadcast(getContext(), p.id, i,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE);
+        android.app.AlarmManager am = (android.app.AlarmManager) getContext().getSystemService(Context.ALARM_SERVICE);
+        long at = System.currentTimeMillis() + delay * 1000L;
+        if (AlarmScheduler.canScheduleExact(getContext())) {
+            am.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, at, pi);
+        } else {
+            am.setAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, at, pi);
+        }
+        JSObject ret = new JSObject();
+        ret.put("scheduledAt", at);
+        call.resolve(ret);
     }
 
     /**

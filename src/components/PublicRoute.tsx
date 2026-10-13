@@ -24,7 +24,8 @@ const PublicRoute = ({ children }: PublicRouteProps) => {
   }
 
   if (session) {
-    return <Navigate to="/dashboard" replace />;
+    // /home picks the right home (patient dashboard, caregiver home, role choice).
+    return <Navigate to="/home" replace />;
   }
 
   return <>{children}</>;

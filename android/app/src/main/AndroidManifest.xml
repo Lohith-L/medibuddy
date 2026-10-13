@@ -35,6 +35,14 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="com.medibuddy.app" android:host="login-callback" />
             </intent-filter>
+
+            <!-- Caregiver invite: com.medibuddy.app://invite?code=MB-XXXXXX opens "Add patient" -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.medibuddy.app" android:host="invite" />
+            </intent-filter>
         </activity>
 
         <!-- ── Medicine alarm (see java/com/medibuddy/app/alarm) ─────────────── -->

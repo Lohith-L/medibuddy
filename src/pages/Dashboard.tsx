@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { useRealtimeTable } from "@/hooks/useRealtimeTable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Pill, Check, BarChart3, Bell, Upload, Clock, Users, Plus, CheckCircle2, XCircle, Hourglass, Store, MapPin } from "lucide-react";
@@ -12,7 +11,10 @@ import MedicineTrackingChart from "@/components/MedicineTrackingChart";
 import SOSButton from "@/components/SOSButton";
 import WeatherHealthCard from "@/components/WeatherHealthCard";
 import AlarmSetupBanner from "@/components/AlarmSetupBanner";
-import { DOSE_LOGGED_EVENT } from "@/plugins/medicineAlarm";
+import TodayDoseList from "@/components/TodayDoseList";
+import { useTodaySchedule } from "@/hooks/useTodaySchedule";
+import { nextDose } from "@/lib/todaySchedule";
+import { useCare } from "@/contexts/CareContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 const fadeIn = (i: number) => ({
@@ -20,27 +22,6 @@ const fadeIn = (i: number) => ({
   animate: { opacity: 1, y: 0 },
   transition: { delay: i * 0.08, duration: 0.4 },
 });
-
-interface ReminderEvent {
-  id: string;
-  medicine_id: string;
-  medicineName: string;
-  dosage: string;
-  instructions: string | null;
-  scheduled_time: string;
-  status: string;
-}
-
-interface ScheduleItem {
-  logId: string;
-  medicineName: string;
-  dosage: string;
-  instructions: string | null;
-  time: string;
-  status: string;
-  reminderEventId?: string;
-  photoUrl?: string | null;
-}
 
 interface FamilyMemberBasic {
   id: string;
@@ -55,197 +36,13 @@ const Dashboard = () => {
   const [medicineCount, setMedicineCount] = useState(0);
   const [patientId, setPatientId] = useState<string | undefined>();
   const [familyMembers, setFamilyMembers] = useState<FamilyMemberBasic[]>([]);
-  const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
-  const [reminderEvents, setReminderEvents] = useState<ReminderEvent[]>([]);
-  const [takenToday, setTakenToday] = useState(0);
-  const [totalToday, setTotalToday] = useState(0);
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
-
-  const fetchSchedule = async (pid: string) => {
-    const today = new Date();
-    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
-    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).toISOString();
-    const todayDate = today.toISOString().split("T")[0];
-
-    // Fetch reminder_events for today
-    const { data: events } = await supabase
-      .from("reminder_events")
-      .select("id, medicine_id, scheduled_time, status")
-      .eq("patient_id", pid)
-      .eq("scheduled_date", todayDate)
-      .order("scheduled_time", { ascending: true });
-
-    // Fetch medicine_logs for today
-    const { data: logs } = await supabase
-      .from("medicine_logs")
-      .select("id, status, scheduled_time, medicine_id")
-      .eq("patient_id", pid)
-      .gte("scheduled_time", startOfDay)
-      .lt("scheduled_time", endOfDay)
-      .order("scheduled_time", { ascending: true });
-
-    // Merge: prefer reminder_events if they exist, else use medicine_logs, else use medicines
-    const hasEvents = events && events.length > 0;
-    const hasLogs = logs && logs.length > 0;
-
-    if (!hasEvents && !hasLogs) {
-      // Build from medicines reminder_times
-      const { data: meds } = await supabase
-        .from("medicines")
-        .select("id, name, dosage, instructions, reminder_times, medicine_photo_url")
-        .eq("patient_id", pid)
-        .eq("is_active", true);
-
-      if (meds && meds.length > 0) {
-        const items: ScheduleItem[] = [];
-        for (const med of meds) {
-          for (const t of med.reminder_times || []) {
-            items.push({
-              logId: "",
-              medicineName: med.name,
-              dosage: med.dosage,
-              instructions: med.instructions,
-              time: t,
-              status: "pending",
-              photoUrl: (med as any).medicine_photo_url || null,
-            });
-          }
-        }
-        items.sort((a, b) => a.time.localeCompare(b.time));
-        setSchedule(items);
-        setTotalToday(items.length);
-        setTakenToday(0);
-      }
-      return;
-    }
-
-    // Get all medicine IDs involved
-    const allMedIds = new Set<string>();
-    (events || []).forEach((e: any) => allMedIds.add(e.medicine_id));
-    (logs || []).forEach((l: any) => allMedIds.add(l.medicine_id));
-
-    const { data: meds } = await supabase
-      .from("medicines")
-      .select("id, name, dosage, instructions, medicine_photo_url")
-      .in("id", [...allMedIds]);
-
-    const medMap = new Map((meds || []).map((m) => [m.id, m]));
-
-    // Build schedule from reminder_events if available, else from logs
-    if (hasEvents) {
-      const evtItems: ReminderEvent[] = (events || []).map((e: any) => {
-        const med = medMap.get(e.medicine_id);
-        return {
-          id: e.id,
-          medicine_id: e.medicine_id,
-          medicineName: med?.name || "Unknown",
-          dosage: med?.dosage || "",
-          instructions: med?.instructions || null,
-          scheduled_time: e.scheduled_time,
-          status: e.status,
-        };
-      });
-      setReminderEvents(evtItems);
-
-      const items: ScheduleItem[] = evtItems.map((e) => {
-        const med = medMap.get(e.medicine_id);
-        return {
-          logId: "",
-          medicineName: e.medicineName,
-          dosage: e.dosage,
-          instructions: e.instructions,
-          time: e.scheduled_time,
-          status: e.status,
-          reminderEventId: e.id,
-          photoUrl: (med as any)?.medicine_photo_url || null,
-        };
-      });
-      setSchedule(items);
-      setTotalToday(items.length);
-      setTakenToday(items.filter((i) => i.status === "taken").length);
-    } else {
-      const items: ScheduleItem[] = (logs || []).map((l: any) => {
-        const med = medMap.get(l.medicine_id);
-        const dt = new Date(l.scheduled_time);
-        return {
-          logId: l.id,
-          medicineName: med?.name || "Unknown",
-          dosage: med?.dosage || "",
-          instructions: med?.instructions || null,
-          time: dt.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit", hour12: true }),
-          status: l.status,
-          photoUrl: (med as any)?.medicine_photo_url || null,
-        };
-      });
-      setSchedule(items);
-      setTotalToday(items.length);
-      setTakenToday(items.filter((i) => i.status === "taken").length);
-    }
-  };
-
-  const markTaken = async (item: ScheduleItem) => {
-    const id = item.reminderEventId || item.logId;
-    if (!id) {
-      toast.error(t("dash.noTrackableEntry"));
-      return;
-    }
-    setUpdatingId(id);
-
-    if (item.reminderEventId) {
-      // Update reminder_event
-      const { error } = await supabase
-        .from("reminder_events")
-        .update({ status: "taken", taken_at: new Date().toISOString() })
-        .eq("id", item.reminderEventId);
-
-      if (error) { toast.error(t("dash.updateFailed")); setUpdatingId(null); return; }
-    }
-
-    if (item.logId) {
-      await supabase
-        .from("medicine_logs")
-        .update({ status: "taken", taken_at: new Date().toISOString() })
-        .eq("id", item.logId);
-    }
-
-    toast.success(t("dash.markedTaken"));
-    if (patientId) fetchSchedule(patientId);
-    setUpdatingId(null);
-  };
-
-  const markMissed = async (item: ScheduleItem) => {
-    const id = item.reminderEventId || item.logId;
-    if (!id) return;
-    setUpdatingId(id);
-
-    if (item.reminderEventId) {
-      await supabase.from("reminder_events").update({ status: "missed" }).eq("id", item.reminderEventId);
-    }
-    if (item.logId) {
-      await supabase.from("medicine_logs").update({ status: "missed" }).eq("id", item.logId);
-    }
-
-    toast.success(t("dash.markedMissed"));
-    if (patientId) fetchSchedule(patientId);
-    setUpdatingId(null);
-  };
-
-  const undoStatus = async (item: ScheduleItem) => {
-    const id = item.reminderEventId || item.logId;
-    if (!id) return;
-    setUpdatingId(id);
-
-    if (item.reminderEventId) {
-      await supabase.from("reminder_events").update({ status: "pending", taken_at: null }).eq("id", item.reminderEventId);
-    }
-    if (item.logId) {
-      await supabase.from("medicine_logs").update({ status: "pending", taken_at: null }).eq("id", item.logId);
-    }
-
-    toast.success(t("dash.statusReset"));
-    if (patientId) fetchSchedule(patientId);
-    setUpdatingId(null);
-  };
+  // Today's FULL schedule (from the medicines, merged with what was logged), live.
+  const { me } = useCare();
+  const { doses, loading: dosesLoading, markTaken, savingKey } = useTodaySchedule(
+    patientId,
+    me?.timezone ?? "Asia/Kolkata",
+    me?.missedDoseDelay ?? 30,
+  );
 
   useEffect(() => {
     const fetchData = async () => {
@@ -294,34 +91,27 @@ const Dashboard = () => {
           .eq("is_active", true)
           .limit(5);
         setFamilyMembers((fm as FamilyMemberBasic[]) || []);
-
-        await fetchSchedule(pid);
       }
       setLoading(false);
     };
     fetchData();
   }, []);
 
-  // ── Realtime: re-fetch when medicines or reminder_events change ───
-  // This fires whenever the website (or another device) makes a change.
-  useRealtimeTable('medicines', 'patient_id', patientId, () => patientId && fetchSchedule(patientId));
-  useRealtimeTable('reminder_events', 'patient_id', patientId, () => patientId && fetchSchedule(patientId));
-
-  // Refresh after an alarm "Taken" press has been written to Supabase
-  useEffect(() => {
-    const onLogged = () => { if (patientId) fetchSchedule(patientId); };
-    window.addEventListener(DOSE_LOGGED_EVENT, onLogged);
-    return () => window.removeEventListener(DOSE_LOGGED_EVENT, onLogged);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [patientId]);
-
-  const nextPending = schedule.find((s) => s.status === "pending");
+  const nextUp = nextDose(doses);
+  const takenToday = doses.filter((d) => d.status === "taken").length;
+  const totalToday = doses.length;
+  const fmtDoseTime = (hhmm: string) => {
+    const [h, m] = hhmm.split(":").map(Number);
+    return new Date(2000, 0, 1, h, m).toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" });
+  };
+  // The chart counts taken / missed / pending.
+  const chartSchedule = doses.map((d) => ({ status: d.status === "taken" || d.status === "missed" ? d.status : "pending" }));
 
   const statCards = [
     { label: t("dash.totalMedicines"), value: medicineCount > 0 ? String(medicineCount) : "0", icon: Pill, color: "bg-success/15 text-success" },
     { label: t("dash.takenToday"), value: t("dash.xOfY", { x: takenToday, y: totalToday || medicineCount }), icon: Check, color: "bg-accent/15 text-accent-foreground" },
     { label: t("dash.weeklyAdherence"), value: "—", icon: BarChart3, color: "bg-success/15 text-success" },
-    { label: t("dash.nextReminder"), value: nextPending?.time || "—", sub: nextPending?.medicineName, icon: Bell, color: "bg-warning/15 text-warning" },
+    { label: t("dash.nextReminder"), value: nextUp ? fmtDoseTime(nextUp.time) : "—", sub: nextUp?.name, icon: Bell, color: "bg-warning/15 text-warning" },
   ];
 
   const statusPill = (status: string) => {
@@ -413,7 +203,7 @@ const Dashboard = () => {
         {/* Pie Chart + Family Card row */}
         <div className="grid lg:grid-cols-2 gap-6">
           <motion.div {...fadeIn(5)}>
-            <MedicineTrackingChart schedule={schedule} loading={loading} />
+            <MedicineTrackingChart schedule={chartSchedule} loading={loading || dosesLoading} />
           </motion.div>
 
           <motion.div {...fadeIn(6)} className="bg-card rounded-2xl border p-5 shadow-card">
@@ -474,85 +264,8 @@ const Dashboard = () => {
             <h2 className="text-xl font-bold">{t("dash.todaySchedule")}</h2>
             <button className="text-sm font-semibold text-primary hover:underline" onClick={() => navigate("/log")}>{t("viewAll")}</button>
           </div>
-          <div className="p-5 space-y-3">
-            {loading ? (
-              [1,2,3].map(i => <Skeleton key={i} className="h-20 rounded-xl" />)
-            ) : schedule.length === 0 ? (
-              <div className="text-center py-8">
-                <Pill className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                <p className="text-muted-foreground">{t("dash.noneToday")}</p>
-              </div>
-            ) : (
-              schedule.slice(0, 6).map((med, idx) => {
-                const itemId = med.reminderEventId || med.logId || `${med.time}-${med.medicineName}`;
-                const isPending = med.status === "pending";
-                const isTaken = med.status === "taken";
-                const isMissed = med.status === "missed" || med.status === "escalated";
-
-                return (
-                  <div key={itemId} className="flex items-center gap-4 p-4 rounded-xl bg-muted/40 hover:bg-muted/70 transition-colors">
-                    {/* Medicine Photo */}
-                    <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 hidden sm:block">
-                      {med.photoUrl ? (
-                        <img src={med.photoUrl} alt={med.medicineName} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full bg-primary/10 flex items-center justify-center">
-                          <Pill className="w-5 h-5 text-primary" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm sm:text-base truncate">{med.medicineName} — {med.dosage}</p>
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">{med.instructions || ""}</p>
-                    </div>
-                    <div className="text-right shrink-0 flex flex-col items-end gap-1.5">
-                      <p className="text-sm font-medium flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5" /> {med.time}
-                      </p>
-                      <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusPill(med.status)}`}>
-                        {statusIcon(med.status)} {tOr(`status.${med.status}`, med.status)}
-                      </span>
-                      {isPending && (med.reminderEventId || med.logId) && (
-                        <div className="flex gap-1.5 mt-1">
-                          <button
-                            disabled={updatingId === itemId}
-                            onClick={() => markTaken(med)}
-                            className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-success/15 text-success hover:bg-success/25 transition-colors disabled:opacity-50"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" /> {t("chart.taken")}
-                          </button>
-                          <button
-                            disabled={updatingId === itemId}
-                            onClick={() => markMissed(med)}
-                            className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-destructive/15 text-destructive hover:bg-destructive/25 transition-colors disabled:opacity-50"
-                          >
-                            <XCircle className="w-3.5 h-3.5" /> {t("chart.missed")}
-                          </button>
-                        </div>
-                      )}
-                      {isTaken && (med.reminderEventId || med.logId) && (
-                        <button
-                          disabled={updatingId === itemId}
-                          onClick={() => undoStatus(med)}
-                          className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-warning/15 text-warning hover:bg-warning/25 transition-colors disabled:opacity-50 mt-1"
-                        >
-                          <Hourglass className="w-3.5 h-3.5" /> {t("dash.undo")}
-                        </button>
-                      )}
-                      {isMissed && (med.reminderEventId || med.logId) && (
-                        <button
-                          disabled={updatingId === itemId}
-                          onClick={() => markTaken(med)}
-                          className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-success/15 text-success hover:bg-success/25 transition-colors disabled:opacity-50 mt-1"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" /> {t("dash.markTaken")}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
-            )}
+          <div className="p-3 sm:p-5">
+            <TodayDoseList doses={doses} loading={loading || dosesLoading} canManage onMarkTaken={markTaken} savingKey={savingKey} limit={6} />
           </div>
         </motion.div>
       </div>

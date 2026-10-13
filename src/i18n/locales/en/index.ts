@@ -17,6 +17,7 @@ import landing from "./landing";
 import health from "./health";
 import account from "./account";
 import alarmVoice from "./alarmVoice";
+import care from "./care";
 
 const en = {
   ...common,
@@ -37,6 +38,7 @@ const en = {
   ...health,
   ...account,
   ...alarmVoice,
+  ...care,
 };
 
 export default en;

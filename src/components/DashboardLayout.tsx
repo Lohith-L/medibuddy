@@ -4,7 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import {
   Home, Pill, Camera, Users, BarChart3, Settings, LogOut, Heart, Menu, X, Bell, Globe, Check, AlertTriangle, Clock, CheckCircle2, XCircle, Mail, Activity, Store,
+  HeartHandshake, ClipboardList,
 } from "lucide-react";
+import { useCare } from "@/contexts/CareContext";
+import { peekPendingInvite } from "@/lib/care";
+import ViewingBar from "@/components/ViewingBar";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,6 +38,24 @@ const navKeys = [
   { key: "settings", icon: Settings, path: "/profile" },
 ];
 
+/** Caregiver who is not also a patient: their own nav. */
+const caregiverNavKeys = [
+  { key: "care.navPatients", icon: HeartHandshake, path: "/care" },
+  { key: "myMedicines", icon: Pill, path: "/medicines" },
+  { key: "healthData", icon: Activity, path: "/health" },
+  { key: "healthReports", icon: BarChart3, path: "/health-reports" },
+  { key: "care.navHistory", icon: ClipboardList, path: "/log" },
+  { key: "nearbyPharmacies", icon: Store, path: "/pharmacies" },
+  { key: "settings", icon: Settings, path: "/profile" },
+];
+
+/** Pages that show the active patient's data: the "Viewing:" bar goes on top. */
+const PATIENT_DATA_ROUTES = new Set(["/medicines", "/health", "/health-reports", "/log", "/upload", "/care/patient"]);
+/** Patient-interface pages (my own medicines, alarms, contacts, caregiver invites). */
+const PATIENT_ONLY_ROUTES = new Set(["/dashboard", "/family-alerts", "/caregivers"]);
+/** Caregiver-interface pages. ("/care/add" is allowed in both: accepting an invite.) */
+const CAREGIVER_ONLY_ROUTES = new Set(["/care", "/care/patient"]);
+
 interface Props {
   children: React.ReactNode;
 }
@@ -52,6 +74,37 @@ const DashboardLayout = ({ children }: Props) => {
   const [notifOpen, setNotifOpen] = useState(false);
   const [recentAlerts, setRecentAlerts] = useState<AlertItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const care = useCare();
+
+  // Pending invite (opened a link before signing in) -> role picker -> keep caregivers off patient-only pages.
+  useEffect(() => {
+    if (care.loading || !care.me) return;
+    const pending = peekPendingInvite();
+    if (pending && location.pathname !== "/care/add" && care.me.rolesConfirmed) {
+      navigate(`/care/add?code=${encodeURIComponent(pending)}&auto=1`, { replace: true });
+      return;
+    }
+    if (!care.me.rolesConfirmed) {
+      navigate("/choose-role", { replace: true });
+      return;
+    }
+    // Route guards: the interface (mode) decides which pages can be opened.
+    if (care.mode === "caregiver" && PATIENT_ONLY_ROUTES.has(location.pathname)) {
+      navigate("/care", { replace: true });
+      return;
+    }
+    if (care.mode === "patient" && CAREGIVER_ONLY_ROUTES.has(location.pathname)) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [care.loading, care.me, care.mode, location.pathname, navigate]);
+
+  const both = care.isPatient && care.isCaregiver;
+  type SideItem = { key: string; icon: typeof Home; path: string; switchTo?: "patient" | "caregiver" };
+  const sideNav: SideItem[] = care.mode === "caregiver"
+    ? [...caregiverNavKeys, ...(both ? [{ key: "nav.switchToPatient", icon: Home, path: "/dashboard", switchTo: "patient" as const }] : [])]
+    : both
+      ? [navKeys[0], { key: "nav.switchToCaregiver", icon: HeartHandshake, path: "/care", switchTo: "caregiver" as const }, ...navKeys.slice(1)]
+      : navKeys;
 
   useEffect(() => {
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -156,12 +209,12 @@ const DashboardLayout = ({ children }: Props) => {
 
       {/* Nav */}
       <nav className="flex-1 px-3 space-y-1">
-        {navKeys.map((item) => {
+        {sideNav.map((item) => {
           const active = location.pathname === item.path;
           return (
             <button
               key={item.path}
-              onClick={() => { navigate(item.path); setMobileOpen(false); }}
+              onClick={() => { if (item.switchTo) care.setMode(item.switchTo); navigate(item.path); setMobileOpen(false); }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium transition-all ${
                 active
                   ? "bg-accent text-accent-foreground font-semibold shadow-sm"
@@ -298,6 +351,7 @@ const DashboardLayout = ({ children }: Props) => {
 
         {/* Page content */}
         <main className="app-main flex-1 min-w-0 w-full max-w-full p-3 sm:p-4 lg:p-8 pb-20 lg:pb-8">
+          {PATIENT_DATA_ROUTES.has(location.pathname) && <ViewingBar />}
           {children}
         </main>
       </div>

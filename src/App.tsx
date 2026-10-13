@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { CareProvider } from "@/contexts/CareContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import PublicRoute from "@/components/PublicRoute";
 import { MotionConfig } from "framer-motion";
@@ -29,6 +30,15 @@ const Health = lazy(() => import("./pages/Health"));
 const Pharmacies = lazy(() => import("./pages/Pharmacies"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const AlarmSettings = lazy(() => import("./pages/AlarmSettings"));
+const ChooseRole = lazy(() => import("./pages/ChooseRole"));
+const Caregivers = lazy(() => import("./pages/Caregivers"));
+const CareHome = lazy(() => import("./pages/CareHome"));
+const CarePatient = lazy(() => import("./pages/CarePatient"));
+const CareAdd = lazy(() => import("./pages/CareAdd"));
+const SignupRole = lazy(() => import("./pages/SignupRole"));
+const AuthStart = lazy(() => import("./pages/AuthStart"));
+const Join = lazy(() => import("./pages/Join"));
+const HomeRedirect = lazy(() => import("./pages/HomeRedirect"));
 
 const isNative = Capacitor.isNativePlatform();
 
@@ -65,7 +75,18 @@ const AppRoutes = () => {
     <Routes>
       {/* Public routes – redirect to /dashboard if already logged in */}
       <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
-      <Route path="/auth" element={<PublicRoute><Auth /></PublicRoute>} />
+      {/* Start: "Patient login" / "Caregiver login" / "New here? Sign up" */}
+      <Route path="/auth" element={<PublicRoute><AuthStart /></PublicRoute>} />
+      <Route path="/login/patient" element={<PublicRoute><Auth loginMode="patient" /></PublicRoute>} />
+      <Route path="/login/caregiver" element={<PublicRoute><Auth loginMode="caregiver" /></PublicRoute>} />
+      {/* Sign-up: choose the role first, then the matching form */}
+      <Route path="/signup" element={<PublicRoute><SignupRole /></PublicRoute>} />
+      <Route path="/signup/patient" element={<PublicRoute><Auth signupRole="patient" /></PublicRoute>} />
+      <Route path="/signup/caregiver" element={<PublicRoute><Auth signupRole="caregiver" /></PublicRoute>} />
+      {/* Invite links: signed in -> accept; signed out -> caregiver sign-up with the code */}
+      <Route path="/join" element={<Join />} />
+      {/* After login / OAuth: send each user to their home */}
+      <Route path="/home" element={<HomeRedirect />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
 
       {/* Semi-public: onboarding runs right after Google OAuth callback */}
@@ -82,6 +103,13 @@ const AppRoutes = () => {
       <Route path="/health" element={<ProtectedRoute><Health /></ProtectedRoute>} />
       <Route path="/pharmacies" element={<ProtectedRoute><Pharmacies /></ProtectedRoute>} />
       <Route path="/alarm-settings" element={<ProtectedRoute><AlarmSettings /></ProtectedRoute>} />
+      {/* Caregiver accounts */}
+      <Route path="/choose-role" element={<ProtectedRoute><ChooseRole /></ProtectedRoute>} />
+      <Route path="/caregivers" element={<ProtectedRoute><Caregivers /></ProtectedRoute>} />
+      <Route path="/care" element={<ProtectedRoute><CareHome /></ProtectedRoute>} />
+      <Route path="/care/patient" element={<ProtectedRoute><CarePatient /></ProtectedRoute>} />
+      {/* Not wrapped: saves the invite code before sending a signed-out user to /auth */}
+      <Route path="/care/add" element={<CareAdd />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
     </Suspense>
@@ -99,7 +127,9 @@ const App = () => (
           <Toaster />
           <Sonner />
           <HashRouter>
-            <AppRoutes />
+            <CareProvider>
+              <AppRoutes />
+            </CareProvider>
           </HashRouter>
         </AuthProvider>
       </LanguageProvider>

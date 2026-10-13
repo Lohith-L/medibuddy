@@ -257,17 +257,12 @@ serve(async (req) => {
           continue;
         }
 
-        if (!patient.email) {
-          console.error(`[reminder-cron] No email for patient ${patient.id}`);
-          results.push({ medicine: med.name, status: "skipped", reason: "no email" });
-          skipCount++;
-          continue;
-        }
-
         const langCode = normalizeLanguageCode(patient.language);
 
-        // Create reminder_event
-        await supabase.from("reminder_events").insert({
+        // Create reminder_event. It is unique per (medicine, date, time): if the
+        // alarm's "Taken" (or another run) created it first, this dose is already
+        // handled, so create nothing else and send nothing.
+        const { error: eventError } = await supabase.from("reminder_events").insert({
           medicine_id: med.id,
           patient_id: patient.id,
           caretaker_email: patient.caregiver_email,
@@ -276,15 +271,40 @@ serve(async (req) => {
           status: "pending",
           sent_at: new Date().toISOString(),
         });
+        if (eventError) {
+          console.log(`[reminder-cron] SKIP: event for ${med.name} at ${currentTime} not created (${eventError.code}): ${eventError.message}`);
+          skipCount++;
+          results.push({ medicine: med.name, status: "skipped", reason: `event not created: ${eventError.code}` });
+          continue;
+        }
 
-        // Create medicine_log
+        // Create medicine_log (one per dose; never a second one)
         const scheduledDateTime = new Date(`${currentDate}T${currentTime}:00+05:30`);
-        await supabase.from("medicine_logs").insert({
-          medicine_id: med.id,
-          patient_id: patient.id,
-          scheduled_time: scheduledDateTime.toISOString(),
-          status: "pending",
-        });
+        const { data: doseLog } = await supabase
+          .from("medicine_logs")
+          .select("id")
+          .eq("medicine_id", med.id)
+          .eq("scheduled_time", scheduledDateTime.toISOString())
+          .maybeSingle();
+        if (!doseLog) {
+          const { error: logError } = await supabase.from("medicine_logs").insert({
+            medicine_id: med.id,
+            patient_id: patient.id,
+            scheduled_time: scheduledDateTime.toISOString(),
+            status: "pending",
+          });
+          if (logError && logError.code !== "23505") {
+            console.error(`[reminder-cron] medicine_log insert failed for ${med.name}:`, logError.message);
+          }
+        }
+
+        // The dose is tracked even without an email address; only the email is skipped.
+        if (!patient.email) {
+          console.log(`[reminder-cron] No email for patient ${patient.id}: dose tracked, email skipped`);
+          results.push({ medicine: med.name, status: "tracked", reason: "no email" });
+          skipCount++;
+          continue;
+        }
 
         // Build and send email using static templates
         const emailData: EmailData = {

@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { useActivePatient } from "@/contexts/CareContext";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Upload as UploadIcon, FileImage, Loader2, Check, Pencil, Trash2, Plus, Clock, X, Camera, ImagePlus, ImageOff, Pill } from "lucide-react";
@@ -55,6 +56,7 @@ function getDefaultTimes(count: number): string[] {
 }
 
 const UploadPrescription = () => {
+  const { active } = useActivePatient();
   const navigate = useNavigate();
   const { t } = useLanguage();
   const [file, setFile] = useState<File | null>(null);
@@ -258,11 +260,14 @@ const UploadPrescription = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { toast.error(t("upload.loginFirst")); return; }
 
-      let { data: patient } = await supabase
-        .from("patients")
-        .select("id")
-        .eq("user_id", user.id)
-        .maybeSingle();
+      // Me, or the patient I'm viewing as a 'manage' caregiver.
+      let patient: { id: string } | null = active && active.canManage ? { id: active.patientId } : null;
+      if (active && !active.canManage) { toast.error(t("care.viewOnlyCannotAdd", { name: active.name })); return; }
+
+      if (!patient) {
+        const { data: own } = await supabase.from("patients").select("id").eq("user_id", user.id).maybeSingle();
+        patient = own;
+      }
 
       if (!patient) {
         // Attempt to auto-create patient profile if missing
@@ -372,7 +377,12 @@ const UploadPrescription = () => {
   return (
     <DashboardLayout>
       <div className="w-full max-w-2xl space-y-6 overflow-x-hidden">
-        <h1 className="text-xl sm:text-2xl font-extrabold">{t("uploadPrescription")}</h1>
+        <h1 className="text-xl sm:text-2xl font-extrabold">
+          {active && !active.isSelf ? t("care.uploadFor", { name: active.name }) : t("uploadPrescription")}
+        </h1>
+        {active && !active.canManage && (
+          <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm">{t("care.viewOnlyCannotAdd", { name: active.name })}</p>
+        )}
 
         {medicines.length === 0 && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
