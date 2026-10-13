@@ -60,6 +60,8 @@ public class AlarmService extends Service {
     public static final String ACTION_DISMISS_ALL = "com.medibuddy.app.alarm.DISMISS_ALL";
 
     public static final String ACTION_ACK = "com.medibuddy.app.alarm.ACK";
+    /** Stop one caregiver alarm because it was answered elsewhere (nothing is recorded). */
+    public static final String ACTION_REMOVE = "com.medibuddy.app.alarm.REMOVE";
 
     private static final long RING_TIMEOUT_MS = 2 * 60 * 1000L;
     private static final long SOS_TIMEOUT_MS = 5 * 60 * 1000L;
@@ -193,7 +195,19 @@ public class AlarmService extends Service {
             }
         } else if (ACTION_ACK.equals(action)) {
             AlarmPayload acked = resolve(payload);
-            if (acked != null) finishCurrent(acked);
+            if (acked != null) {
+                if (acked.isCaregiver()) {
+                    AlarmStore.addCareAction(this, acked, "ack");
+                    MedicineAlarmPlugin.notifyCareAction();
+                }
+                finishCurrent(acked);
+            }
+        } else if (ACTION_REMOVE.equals(action)) {
+            if (payload != null) {
+                for (AlarmPayload q : new ArrayList<>(queue)) {
+                    if (q.id == payload.id) finishCurrent(q);
+                }
+            }
         } else if (ACTION_DISMISS_ALL.equals(action)) {
             queue.clear();
             stopEverything();
@@ -235,10 +249,18 @@ public class AlarmService extends Service {
         for (AlarmPayload q : queue) {
             if (q.id == p.id) return; // already ringing for this reminder
         }
-        queue.add(p);
-        if (queue.size() == 1) {
+        if (p.isSos() && !queue.isEmpty() && !queue.get(0).isSos()) {
+            // An SOS interrupts a medicine alarm (which keeps waiting behind it).
+            queue.add(0, p);
+            stopRinging();
             startRinging();
             restartTimeout();
+        } else {
+            queue.add(p);
+            if (queue.size() == 1) {
+                startRinging();
+                restartTimeout();
+            }
         }
         updateNotification();
         notifyListener();

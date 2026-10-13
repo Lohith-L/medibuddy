@@ -26,6 +26,7 @@ public final class AlarmStore {
     private static final String PREFS = "medibuddy_alarms";
     private static final String KEY_REMINDERS = "reminders";
     private static final String KEY_PENDING_ACTIONS = "pending_dose_actions";
+    private static final String KEY_PENDING_CARE_ACTIONS = "pending_care_actions";
     private static final String KEY_VOICE_ENABLED = "voice_enabled";
     private static final String KEY_LANGUAGE = "language";
     private static final String KEY_VOICE_FALLBACK = "voice_fallback_language";
@@ -109,6 +110,51 @@ public final class AlarmStore {
             prefs(ctx).edit().putString(KEY_PENDING_ACTIONS, arr.toString()).apply();
         } catch (JSONException ignored) {
         }
+    }
+
+    /** Caregiver pressed "I'm responding" / "OK" on the native alarm: the app writes it to Supabase. */
+    public static synchronized void addCareAction(Context ctx, AlarmPayload payload, String action) {
+        if (payload.refId == null || payload.refId.isEmpty()) return; // tests: nothing to send
+        try {
+            JSONArray arr = new JSONArray(prefs(ctx).getString(KEY_PENDING_CARE_ACTIONS, "[]"));
+            JSONObject o = new JSONObject();
+            o.put("uid", UUID.randomUUID().toString());
+            o.put("action", action);
+            o.put("kind", payload.kind);
+            o.put("refId", payload.refId);
+            o.put("at", System.currentTimeMillis());
+            arr.put(o);
+            prefs(ctx).edit().putString(KEY_PENDING_CARE_ACTIONS, arr.toString()).apply();
+        } catch (JSONException ignored) {
+        }
+    }
+
+    public static synchronized JSONArray getCareActions(Context ctx) {
+        try {
+            return new JSONArray(prefs(ctx).getString(KEY_PENDING_CARE_ACTIONS, "[]"));
+        } catch (JSONException e) {
+            return new JSONArray();
+        }
+    }
+
+    /** Already answered on this phone (waiting to be sent): don't ring it again. */
+    public static synchronized boolean hasCareAction(Context ctx, String refId) {
+        JSONArray arr = getCareActions(ctx);
+        for (int i = 0; i < arr.length(); i++) {
+            JSONObject o = arr.optJSONObject(i);
+            if (o != null && refId.equals(o.optString("refId"))) return true;
+        }
+        return false;
+    }
+
+    public static synchronized void removeCareActions(Context ctx, List<String> uids) {
+        JSONArray arr = getCareActions(ctx);
+        JSONArray kept = new JSONArray();
+        for (int i = 0; i < arr.length(); i++) {
+            JSONObject o = arr.optJSONObject(i);
+            if (o != null && !uids.contains(o.optString("uid"))) kept.put(o);
+        }
+        prefs(ctx).edit().putString(KEY_PENDING_CARE_ACTIONS, kept.toString()).apply();
     }
 
     public static synchronized JSONArray getPendingActions(Context ctx) {

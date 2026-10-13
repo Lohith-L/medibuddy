@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
-  Home, Camera, Store, Activity, Menu, Pill, Users, BarChart3, Settings, LogOut, ChevronRight, HeartHandshake, ClipboardList,
+  Home, Camera, Store, Activity, Menu, Pill, Users, BarChart3, Settings, LogOut, ChevronRight, HeartHandshake, ClipboardList, BellRing,
 } from "lucide-react";
 import { useCare } from "@/contexts/CareContext";
+import { useCaregiverAlerts } from "@/contexts/CaregiverAlertsContext";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,14 +25,15 @@ const BottomNav = () => {
   const { mode, isCaregiver, isPatient, setMode } = useCare();
   const caregiverMode = mode === "caregiver";
   const both = isCaregiver && isPatient;
+  const { unseen, activeSos } = useCaregiverAlerts();
 
   // Caregiver who is not also a patient: their own tabs (no alarm / upload / contacts of their own).
   const tabs = caregiverMode
     ? [
         { label: t("care.navPatients"), icon: HeartHandshake, path: "/care" },
         { label: t("medicines"), icon: Pill, path: "/medicines" },
+        { label: t("sosAlert.navAlerts"), icon: BellRing, path: "/care/alerts", badge: true },
         { label: t("nav.health"), icon: Activity, path: "/health" },
-        { label: t("reports"), icon: BarChart3, path: "/health-reports" },
       ]
     : [
         { label: t("home"), icon: Home, path: "/dashboard" },
@@ -44,11 +46,14 @@ const BottomNav = () => {
     ? [
         ...(both ? [{ label: t("nav.switchToPatient"), icon: Home, path: "/dashboard", switchTo: "patient" as const }] : []),
         { label: t("care.navHistory"), icon: ClipboardList, path: "/log" },
+        { label: t("healthReports"), icon: BarChart3, path: "/health-reports" },
         { label: t("nearbyPharmacies"), icon: Store, path: "/pharmacies" },
         { label: t("settings"), icon: Settings, path: "/profile" },
       ]
     : [
         ...(both ? [{ label: t("nav.switchToCaregiver"), icon: HeartHandshake, path: "/care", switchTo: "caregiver" as const }] : []),
+        // Also a caregiver: their SOS / missed-dose alerts.
+        ...(isCaregiver ? [{ label: t("sosAlert.navAlerts"), icon: BellRing, path: "/care/alerts" }] : []),
         { label: t("myMedicines"), icon: Pill, path: "/medicines" },
         { label: t("familyAlerts"), icon: Users, path: "/family-alerts" },
         { label: t("healthReports"), icon: BarChart3, path: "/health-reports" },
@@ -95,7 +100,10 @@ const BottomNav = () => {
       <nav className="app-bottom-nav lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-lg border-t safe-bottom">
         <div className="grid grid-cols-5 h-16">
           {tabs.map((item) => {
-            const active = location.pathname === item.path || (item.path === "/care" && location.pathname.startsWith("/care/"));
+            const active =
+              location.pathname === item.path ||
+              (item.path === "/care" && location.pathname.startsWith("/care/") && location.pathname !== "/care/alerts");
+            const badge = "badge" in item && item.badge ? (activeSos.some((a) => !a.sos?.acknowledgedAt) ? "!" : unseen) : 0;
             return (
               <button
                 key={item.path}
@@ -103,7 +111,17 @@ const BottomNav = () => {
                 aria-current={active ? "page" : undefined}
                 className={itemClass(active)}
               >
-                <item.icon className={`w-5 h-5 shrink-0 ${active ? "stroke-[2.5]" : ""}`} />
+                <span className="relative">
+                  <item.icon className={`w-5 h-5 shrink-0 ${active ? "stroke-[2.5]" : ""}`} />
+                  {badge ? (
+                    <span
+                      className={`absolute -top-1.5 -right-2.5 min-w-[17px] h-[17px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center border-2 border-card ${badge === "!" ? "animate-pulse" : ""}`}
+                      aria-label={t("sosAlert.unseenCount", { n: badge })}
+                    >
+                      {typeof badge === "number" && badge > 99 ? "99+" : badge}
+                    </span>
+                  ) : null}
+                </span>
                 <span className={labelClass(active)}>{item.label}</span>
                 {active && indicator}
               </button>

@@ -16,6 +16,7 @@ public final class AlarmPayload {
     static final String EXTRA_LANGUAGE = "alarm_language";
     static final String EXTRA_KIND = "alarm_kind";
     static final String EXTRA_PATIENT = "alarm_patient_name";
+    static final String EXTRA_REF = "alarm_ref_id";
 
     /** The patient's own medicine alarm. */
     public static final String KIND_MEDICINE = "medicine";
@@ -39,6 +40,8 @@ public final class AlarmPayload {
     public String kind = KIND_MEDICINE;
     /** Caregiver alarms: whose alarm it is. */
     public String patientName;
+    /** Caregiver alarms: the SOS event id in Supabase (null for tests). */
+    public String refId;
 
     public boolean isCaregiver() {
         return KIND_MISSED.equals(kind) || KIND_SOS.equals(kind);
@@ -59,6 +62,7 @@ public final class AlarmPayload {
         intent.putExtra(EXTRA_LANGUAGE, language);
         intent.putExtra(EXTRA_KIND, kind);
         intent.putExtra(EXTRA_PATIENT, patientName);
+        intent.putExtra(EXTRA_REF, refId);
     }
 
     public static AlarmPayload from(Intent intent) {
@@ -76,6 +80,7 @@ public final class AlarmPayload {
         p.language = b.getString(EXTRA_LANGUAGE, null);
         p.kind = b.getString(EXTRA_KIND, KIND_MEDICINE);
         p.patientName = b.getString(EXTRA_PATIENT, null);
+        p.refId = b.getString(EXTRA_REF, null);
         return p;
     }
 

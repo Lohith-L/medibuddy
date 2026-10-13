@@ -63,6 +63,21 @@ public class MedicineAlarmPlugin extends Plugin {
         if (p != null) p.notifyListeners("doseActionQueued", new JSObject(), true);
     }
 
+    static void notifyCareAction() {
+        MedicineAlarmPlugin p = active;
+        if (p != null) p.notifyListeners("careActionQueued", new JSObject(), true);
+    }
+
+    /** Alarm id for a caregiver alert: stable per SOS id, clear of medicine and test ids. */
+    static int caregiverAlarmId(String refId) {
+        int h = 0x811c9dc5; // FNV-1a
+        for (int i = 0; i < refId.length(); i++) {
+            h ^= refId.charAt(i);
+            h *= 0x01000193;
+        }
+        return 2_000_000_100 + (int) ((h & 0xffffffffL) % 100_000_000L);
+    }
+
     // ── Scheduling ────────────────────────────────────────────────────────
 
     /**
@@ -227,6 +242,101 @@ public class MedicineAlarmPlugin extends Plugin {
      * Rings the caregiver alarm on THIS phone after a delay (default 60 s), so it can be
      * tested with the phone locked and the app closed. Nothing is sent or logged.
      */
+    /**
+     * ringCaregiverAlarm({ kind: "sos" | "missed", refId, patientName, medicineName?, dose?, time?, language? })
+     * Rings the caregiver alarm now (siren + voice, full screen over the lock screen).
+     * Started through an exact alarm, which Android allows even when the app is in
+     * the background. Stage 4 (push) will ring the same way from the FCM service.
+     */
+    @PluginMethod
+    public void ringCaregiverAlarm(PluginCall call) {
+        String refId = call.getString("refId");
+        if (refId == null || refId.isEmpty()) {
+            call.reject("refId is required");
+            return;
+        }
+        JSObject ret = new JSObject();
+        if (AlarmStore.hasCareAction(getContext(), refId)) {
+            ret.put("rang", false); // already answered on this phone
+            call.resolve(ret);
+            return;
+        }
+        AlarmPayload p = new AlarmPayload();
+        p.kind = AlarmPayload.KIND_MISSED.equals(call.getString("kind")) ? AlarmPayload.KIND_MISSED : AlarmPayload.KIND_SOS;
+        p.refId = refId;
+        p.id = caregiverAlarmId(refId);
+        p.medicineId = "care:" + refId;
+        p.patientName = call.getString("patientName", "");
+        p.medicineName = call.getString("medicineName", "");
+        p.dose = call.getString("dose", "");
+        p.time = call.getString("time", new java.text.SimpleDateFormat("HH:mm", Locale.US).format(new java.util.Date()));
+        p.date = new java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new java.util.Date());
+        p.language = call.getString("language", AlarmStore.getLanguage(getContext()));
+        scheduleCaregiverRing(p, 0);
+        ret.put("rang", true);
+        ret.put("id", p.id);
+        call.resolve(ret);
+    }
+
+    /** stopCaregiverAlarm({ refId }): answered on another phone / cancelled by the patient. */
+    @PluginMethod
+    public void stopCaregiverAlarm(PluginCall call) {
+        String refId = call.getString("refId");
+        if (refId == null || refId.isEmpty()) {
+            call.reject("refId is required");
+            return;
+        }
+        AlarmPayload p = new AlarmPayload();
+        p.id = caregiverAlarmId(refId);
+        p.refId = refId;
+        // Not fired yet: cancel it. Ringing: stop it without recording anything.
+        android.app.AlarmManager am = (android.app.AlarmManager) getContext().getSystemService(Context.ALARM_SERVICE);
+        Intent i = new Intent(getContext(), AlarmReceiver.class).setAction(AlarmReceiver.ACTION_TEST_CAREGIVER);
+        android.app.PendingIntent pi = android.app.PendingIntent.getBroadcast(getContext(), p.id, i,
+            android.app.PendingIntent.FLAG_NO_CREATE | android.app.PendingIntent.FLAG_IMMUTABLE);
+        if (pi != null && am != null) {
+            am.cancel(pi);
+            pi.cancel();
+        }
+        if (AlarmService.current() != null) AlarmService.send(getContext(), AlarmService.ACTION_REMOVE, p);
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void getPendingCareActions(PluginCall call) {
+        JSObject ret = new JSObject();
+        try {
+            ret.put("actions", new JSArray(AlarmStore.getCareActions(getContext()).toString()));
+        } catch (JSONException e) {
+            ret.put("actions", new JSArray());
+        }
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void removePendingCareActions(PluginCall call) {
+        JSArray uids = call.getArray("uids", new JSArray());
+        List<String> list = new ArrayList<>();
+        for (int i = 0; i < uids.length(); i++) list.add(uids.optString(i));
+        AlarmStore.removeCareActions(getContext(), list);
+        call.resolve();
+    }
+
+    /** Rings a caregiver alarm through AlarmManager after delaySeconds (0 = now). */
+    private void scheduleCaregiverRing(AlarmPayload p, int delaySeconds) {
+        Intent i = new Intent(getContext(), AlarmReceiver.class).setAction(AlarmReceiver.ACTION_TEST_CAREGIVER);
+        p.writeTo(i);
+        android.app.PendingIntent pi = android.app.PendingIntent.getBroadcast(getContext(), p.id, i,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE);
+        android.app.AlarmManager am = (android.app.AlarmManager) getContext().getSystemService(Context.ALARM_SERVICE);
+        long at = System.currentTimeMillis() + delaySeconds * 1000L;
+        if (AlarmScheduler.canScheduleExact(getContext())) {
+            am.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, at, pi);
+        } else {
+            am.setAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, at, pi);
+        }
+    }
+
     @PluginMethod
     public void testCaregiverAlarm(PluginCall call) {
         String kind = call.getString("kind", AlarmPayload.KIND_MISSED);
@@ -242,20 +352,9 @@ public class MedicineAlarmPlugin extends Plugin {
         p.date = new java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new java.util.Date());
         p.language = call.getString("language", AlarmStore.getLanguage(getContext()));
         int delay = Math.max(0, Math.min(600, call.getInt("delaySeconds", 60)));
-
-        Intent i = new Intent(getContext(), AlarmReceiver.class).setAction(AlarmReceiver.ACTION_TEST_CAREGIVER);
-        p.writeTo(i);
-        android.app.PendingIntent pi = android.app.PendingIntent.getBroadcast(getContext(), p.id, i,
-            android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE);
-        android.app.AlarmManager am = (android.app.AlarmManager) getContext().getSystemService(Context.ALARM_SERVICE);
-        long at = System.currentTimeMillis() + delay * 1000L;
-        if (AlarmScheduler.canScheduleExact(getContext())) {
-            am.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, at, pi);
-        } else {
-            am.setAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, at, pi);
-        }
+        scheduleCaregiverRing(p, delay);
         JSObject ret = new JSObject();
-        ret.put("scheduledAt", at);
+        ret.put("scheduledAt", System.currentTimeMillis() + delay * 1000L);
         call.resolve(ret);
     }
 

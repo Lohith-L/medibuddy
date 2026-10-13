@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { CareProvider } from "@/contexts/CareContext";
+import { CaregiverAlertsProvider } from "@/contexts/CaregiverAlertsContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import PublicRoute from "@/components/PublicRoute";
 import { MotionConfig } from "framer-motion";
@@ -35,6 +36,7 @@ const Caregivers = lazy(() => import("./pages/Caregivers"));
 const CareHome = lazy(() => import("./pages/CareHome"));
 const CarePatient = lazy(() => import("./pages/CarePatient"));
 const CareAdd = lazy(() => import("./pages/CareAdd"));
+const CareAlerts = lazy(() => import("./pages/CareAlerts"));
 const SignupRole = lazy(() => import("./pages/SignupRole"));
 const AuthStart = lazy(() => import("./pages/AuthStart"));
 const Join = lazy(() => import("./pages/Join"));
@@ -108,6 +110,7 @@ const AppRoutes = () => {
       <Route path="/caregivers" element={<ProtectedRoute><Caregivers /></ProtectedRoute>} />
       <Route path="/care" element={<ProtectedRoute><CareHome /></ProtectedRoute>} />
       <Route path="/care/patient" element={<ProtectedRoute><CarePatient /></ProtectedRoute>} />
+      <Route path="/care/alerts" element={<ProtectedRoute><CareAlerts /></ProtectedRoute>} />
       {/* Not wrapped: saves the invite code before sending a signed-out user to /auth */}
       <Route path="/care/add" element={<CareAdd />} />
       <Route path="*" element={<NotFound />} />
@@ -128,7 +131,10 @@ const App = () => (
           <Sonner />
           <HashRouter>
             <CareProvider>
-              <AppRoutes />
+              {/* Caregivers: SOS alerts over every page (Realtime + alarm). */}
+              <CaregiverAlertsProvider>
+                <AppRoutes />
+              </CaregiverAlertsProvider>
             </CareProvider>
           </HashRouter>
         </AuthProvider>

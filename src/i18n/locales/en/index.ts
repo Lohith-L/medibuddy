@@ -18,6 +18,7 @@ import health from "./health";
 import account from "./account";
 import alarmVoice from "./alarmVoice";
 import care from "./care";
+import sosAlert from "./sosAlert";
 
 const en = {
   ...common,
@@ -39,6 +40,7 @@ const en = {
   ...account,
   ...alarmVoice,
   ...care,
+  ...sosAlert,
 };
 
 export default en;

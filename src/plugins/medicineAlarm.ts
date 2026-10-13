@@ -55,6 +55,17 @@ export interface PendingDoseAction {
   at: number;
 }
 
+/** A caregiver answered a native caregiver alarm; the app still has to tell Supabase. */
+export interface PendingCareAction {
+  uid: string;
+  action: 'ack';
+  kind: 'sos' | 'missed';
+  /** SOS event id. */
+  refId: string;
+  /** Epoch ms when it was pressed. */
+  at: number;
+}
+
 export interface MedicineAlarmPlugin {
   scheduleAlarm(options: AlarmReminder): Promise<{ scheduledAt: number }>;
   cancelAlarm(options: { id: number }): Promise<void>;
@@ -88,6 +99,25 @@ export interface MedicineAlarmPlugin {
     language?: string;
     delaySeconds?: number;
   }): Promise<{ scheduledAt: number }>;
+  /**
+   * Rings a caregiver alarm now (siren + voice, full screen, alarm stream) for an
+   * SOS / missed-dose alert. Does nothing if it was already answered on this phone.
+   */
+  ringCaregiverAlarm(options: {
+    kind: 'sos' | 'missed';
+    /** The SOS event id (also identifies the alarm). */
+    refId: string;
+    patientName: string;
+    medicineName?: string;
+    dose?: string;
+    time?: string;
+    language?: string;
+  }): Promise<{ rang: boolean; id?: number }>;
+  /** Stops (or cancels before it rings) a caregiver alarm answered elsewhere. Nothing is recorded. */
+  stopCaregiverAlarm(options: { refId: string }): Promise<void>;
+  /** "I'm responding" / "OK" pressed on the native alarm, still to be sent to Supabase. */
+  getPendingCareActions(): Promise<{ actions: PendingCareAction[] }>;
+  removePendingCareActions(options: { uids: string[] }): Promise<void>;
   setVoiceEnabled(options: { enabled: boolean }): Promise<void>;
 
   /** Whether the phone has an installed (offline) text-to-speech voice for this language. */
@@ -105,6 +135,7 @@ export interface MedicineAlarmPlugin {
   removePendingDoseActions(options: { uids: string[] }): Promise<void>;
 
   addListener(eventName: 'doseActionQueued', listener: () => void): Promise<PluginListenerHandle>;
+  addListener(eventName: 'careActionQueued', listener: () => void): Promise<PluginListenerHandle>;
 }
 
 export const MedicineAlarm = registerPlugin<MedicineAlarmPlugin>('MedicineAlarm');

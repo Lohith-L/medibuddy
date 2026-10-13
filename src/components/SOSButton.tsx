@@ -1,12 +1,19 @@
-import { useState, useEffect, useCallback, createContext, useContext, ReactNode } from "react";
+import { useState, useEffect, useCallback, useRef, createContext, useContext, ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, type PluginListenerHandle } from "@capacitor/core";
+import { App } from "@capacitor/app";
 import { Geolocation } from "@capacitor/geolocation";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Siren, X, UserPlus, PhoneCall, Loader2 } from "lucide-react";
+import { Siren, X, UserPlus, PhoneCall, Loader2, CheckCircle2, ShieldCheck, MapPin, Hourglass, AlertTriangle, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useCare } from "@/contexts/CareContext";
+import { dialable } from "@/lib/phone";
+import {
+  attachLocationLater, cancelSos, fetchMyActiveSos, raiseSos, timeAgo, type SosEvent, type SosOption,
+} from "@/lib/sos";
 
 interface SOSButtonProps {
   variant?: "floating" | "header" | "inline";
@@ -21,10 +28,26 @@ interface Caregiver {
   primary: boolean;
 }
 
+/** Result of the last "Alert my caregivers" on this screen. */
+type SendState =
+  | { state: "idle" }
+  | { state: "sending" }
+  | { state: "sent"; caregivers: number; rateLimited: boolean }
+  | { state: "error" };
+
 interface SOSContextType {
   open: boolean;
   setOpen: (open: boolean) => void;
   t: (key: string, vars?: Record<string, string | number>) => string;
+  /** This user is a patient: SOS also alerts their caregivers. */
+  canAlert: boolean;
+  /** The patient's SOS that is still active (alerted, not cancelled). */
+  activeSos: SosEvent | null;
+  send: SendState;
+  /** Alerts the caregivers (never waits for the location). */
+  sendAlert: (option: SosOption) => Promise<void>;
+  /** "I'm safe now - cancel SOS". */
+  cancelActive: () => Promise<void>;
 }
 
 const SOSContext = createContext<SOSContextType | undefined>(undefined);
@@ -35,9 +58,6 @@ const HELPLINES = [
   { id: "health_helpline", emoji: "🏥", labelKey: "sos.helplineName", descKey: "sos.advisoryDesc", number: "104" },
   { id: "national_emergency", emoji: "🆘", labelKey: "sos.nationalName", descKey: "sos.nationalDesc", number: "112" },
 ] as const;
-
-/** Keeps digits and a leading + so the number works in a tel: link. */
-const dialable = (phone: string) => phone.replace(/[^\d+]/g, "");
 
 /**
  * Location for the SOS log, only if permission was already given:
@@ -104,8 +124,19 @@ async function logSosCall(option: string, number: string, recipientName: string,
 
 export const SOSProvider = ({ children }: { children: ReactNode }) => {
   const { t } = useLanguage();
+  const care = useCare();
   const [open, setOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [activeSos, setActiveSos] = useState<SosEvent | null>(null);
+  const [send, setSend] = useState<SendState>({ state: "idle" });
+  const sendingRef = useRef(false);
+  const lastAckRef = useRef<string | null | undefined>(undefined);
+  const tRef = useRef(t);
+  tRef.current = t;
+
+  // Patients (also caregivers who are patients) alert their caregivers.
+  const patientId = care.isPatient ? care.me?.patientId ?? null : null;
+  const canAlert = !!patientId;
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setIsLoggedIn(!!data.session));
@@ -113,10 +144,83 @@ export const SOSProvider = ({ children }: { children: ReactNode }) => {
     return () => listener.subscription.unsubscribe();
   }, []);
 
+  const refresh = useCallback(async () => {
+    if (!patientId) return;
+    const sos = await fetchMyActiveSos(patientId);
+    // "Ravi is responding" as it happens (not for an old SOS loaded on start).
+    const ack = sos?.acknowledgedAt ? `${sos.id}:${sos.acknowledgedByName ?? ""}` : null;
+    if (lastAckRef.current !== undefined && ack && ack !== lastAckRef.current) {
+      toast.success(tRef.current("sosAlert.isResponding", { name: sos!.acknowledgedByName || tRef.current("sosAlert.aCaregiver") }), {
+        duration: 10_000,
+      });
+    }
+    lastAckRef.current = ack;
+    setActiveSos(sos);
+  }, [patientId]);
+
+  // Live: caregivers responding to my SOS.
+  useEffect(() => {
+    if (!isLoggedIn || !patientId) return;
+    void refresh();
+    const channel = supabase
+      // Unique per mount: this provider remounts on every page, and supabase-js
+      // would hand back the old (still closing) channel for the same name.
+      .channel(`my-sos-${patientId}-${Math.random().toString(36).slice(2, 8)}`)
+      .on("postgres_changes" as never, { event: "*", schema: "public", table: "sos_events", filter: `patient_id=eq.${patientId}` }, () => void refresh())
+      .subscribe((status: string) => {
+        if (status === "SUBSCRIBED") void refresh();
+      });
+    const onVisible = () => document.visibilityState === "visible" && void refresh();
+    document.addEventListener("visibilitychange", onVisible);
+    let handle: Promise<PluginListenerHandle> | null = null;
+    if (Capacitor.isNativePlatform()) handle = App.addListener("resume", () => void refresh());
+    return () => {
+      void supabase.removeChannel(channel);
+      document.removeEventListener("visibilitychange", onVisible);
+      void handle?.then((h) => h.remove());
+    };
+  }, [isLoggedIn, patientId, refresh]);
+
+  const sendAlert = useCallback(
+    async (option: SosOption) => {
+      if (!patientId || sendingRef.current) return;
+      sendingRef.current = true;
+      setSend({ state: "sending" });
+      try {
+        // Send first, location afterwards: the alert never waits for GPS.
+        const res = await raiseSos(option, null);
+        setSend({ state: "sent", caregivers: res.caregivers, rateLimited: res.rateLimited });
+        void refresh();
+        // The alert button may ask for location permission; a call option never
+        // interrupts the dialer with a permission popup.
+        void attachLocationLater(res.sosId, option === "alert").then((added) => added && refresh());
+      } catch (e) {
+        console.warn("[SOS] caregivers not alerted:", e);
+        setSend({ state: "error" });
+      } finally {
+        sendingRef.current = false;
+      }
+    },
+    [patientId, refresh],
+  );
+
+  const cancelActive = useCallback(async () => {
+    if (!activeSos) return;
+    try {
+      await cancelSos(activeSos.id);
+      setSend({ state: "idle" });
+      toast.success(tRef.current("sosAlert.cancelledToast"));
+    } catch (e) {
+      console.warn("[SOS] cancel failed:", e);
+      toast.error(tRef.current("sosAlert.cancelFailed"));
+    }
+    await refresh();
+  }, [activeSos, refresh]);
+
   if (!isLoggedIn) return <>{children}</>;
 
   return (
-    <SOSContext.Provider value={{ open, setOpen, t }}>
+    <SOSContext.Provider value={{ open, setOpen, t, canAlert, activeSos, send, sendAlert, cancelActive }}>
       {children}
       <SOSSheet />
     </SOSContext.Provider>
@@ -126,7 +230,18 @@ export const SOSProvider = ({ children }: { children: ReactNode }) => {
 export const useSOS = () => {
   const context = useContext(SOSContext);
   // Graceful fallback — should always be inside SOSProvider in practice
-  return context ?? { open: false, setOpen: () => {}, t: (k: string) => k };
+  return (
+    context ?? {
+      open: false,
+      setOpen: () => {},
+      t: (k: string) => k,
+      canAlert: false,
+      activeSos: null,
+      send: { state: "idle" } as SendState,
+      sendAlert: async () => {},
+      cancelActive: async () => {},
+    }
+  );
 };
 
 /** Bottom sheet on phones, centred dialog on larger screens. */
@@ -139,6 +254,15 @@ const SOSSheet = () => {
   const setOpen = context?.setOpen;
   const t = context?.t ?? ((k: string) => k);
   const { tOr } = useLanguage();
+  const [, tick] = useState(0);
+  const [cancelling, setCancelling] = useState(false);
+
+  // Keep "2 min ago" fresh while the sheet is open.
+  useEffect(() => {
+    if (!open) return;
+    const id = setInterval(() => tick((n) => n + 1), 15_000);
+    return () => clearInterval(id);
+  }, [open]);
 
   // Load caregivers each time the sheet opens (they may have changed).
   useEffect(() => {
@@ -193,10 +317,13 @@ const SOSSheet = () => {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, setOpen]);
 
-  /** Opens the dialer (tel: link) and logs the call in the background. */
+  const sendAlert = context?.sendAlert;
+
+  /** Opens the dialer (tel: link), alerts the caregivers and logs the call, all in the background. */
   const call = useCallback(
-    (key: string, option: string, number: string, recipientName: string, email: string | null = null) => {
+    (key: string, option: SosOption, number: string, recipientName: string, email: string | null = null) => {
       setCalling(key);
+      void sendAlert?.(option);
       void logSosCall(option, number, recipientName, email);
       // A real <a href="tel:"> click: on Android, Capacitor hands non-web URLs
       // to the system, which opens the dialer with the number filled in.
@@ -208,10 +335,11 @@ const SOSSheet = () => {
       link.remove();
       setTimeout(() => setCalling(null), 1500);
     },
-    [],
+    [sendAlert],
   );
 
   if (!context || !open) return null;
+  const { canAlert, activeSos, send, cancelActive } = context;
 
   const close = () => setOpen?.(false);
 
@@ -253,6 +381,28 @@ const SOSSheet = () => {
         </div>
 
         <div className="px-4 py-4 space-y-2.5">
+          {canAlert && (
+            <CaregiverAlertBox
+              t={t}
+              activeSos={activeSos}
+              send={send}
+              cancelling={cancelling}
+              onAlert={() => void context.sendAlert("alert")}
+              onCancel={async () => {
+                setCancelling(true);
+                await cancelActive();
+                setCancelling(false);
+              }}
+              onAddCaregiver={() => {
+                close();
+                navigate("/caregivers");
+              }}
+            />
+          )}
+
+          {canAlert && (
+            <p className="pt-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">{t("sosAlert.callForHelp")}</p>
+          )}
           {HELPLINES.map((h) => (
             <button
               key={h.id}
@@ -340,8 +490,105 @@ const SOSSheet = () => {
   );
 };
 
+/**
+ * Top of the SOS sheet: the big "Alert my caregivers" button, or, once sent,
+ * who is responding and "I'm safe now - cancel SOS".
+ */
+const CaregiverAlertBox = ({
+  t, activeSos, send, cancelling, onAlert, onCancel, onAddCaregiver,
+}: {
+  t: SOSContextType["t"];
+  activeSos: SosEvent | null;
+  send: SendState;
+  cancelling: boolean;
+  onAlert: () => void;
+  onCancel: () => void;
+  onAddCaregiver: () => void;
+}) => {
+  const noCaregivers = send.state === "sent" && send.caregivers === 0;
+
+  if (activeSos) {
+    const responder = activeSos.acknowledgedAt ? activeSos.acknowledgedByName || t("sosAlert.aCaregiver") : null;
+    const olderThan2Min = Date.now() - new Date(activeSos.createdAt).getTime() > 2 * 60_000;
+    return (
+      <div className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-950/40" role="status" aria-live="polite">
+        <p className="flex items-center gap-2 text-base font-extrabold text-emerald-800 dark:text-emerald-200">
+          <CheckCircle2 className="h-5 w-5 shrink-0" /> {t("sosAlert.alerted")}
+        </p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {timeAgo(activeSos.createdAt, t)}
+          {send.state === "sent" && send.rateLimited ? ` · ${t("sosAlert.alreadySent")}` : ""}
+        </p>
+
+        {noCaregivers ? (
+          <div className="mt-3 rounded-xl bg-amber-100 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+            <p className="flex items-start gap-2 font-semibold">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> {t("sosAlert.noLinkedCaregivers")}
+            </p>
+            <button onClick={onAddCaregiver} className="mt-2 text-sm font-bold underline">
+              {t("sosAlert.linkCaregiver")}
+            </button>
+          </div>
+        ) : responder ? (
+          <p className="mt-3 flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2.5 text-base font-extrabold text-white">
+            <CheckCircle2 className="h-5 w-5 shrink-0" /> {t("sosAlert.isResponding", { name: responder })}
+          </p>
+        ) : (
+          <p className="mt-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+            <Hourglass className="h-4 w-4 shrink-0 animate-pulse" /> {t("sosAlert.waiting")}
+          </p>
+        )}
+
+        <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <MapPin className="h-3.5 w-3.5 shrink-0" />
+          {activeSos.lat != null ? t("sosAlert.locationShared") : t("sosAlert.locationNotShared")}
+        </p>
+
+        <div className="mt-3 grid gap-2">
+          <Button
+            variant="outline"
+            onClick={onCancel}
+            disabled={cancelling}
+            className="min-h-[52px] rounded-2xl border-2 border-emerald-600 text-base font-bold text-emerald-800 hover:bg-emerald-100 dark:text-emerald-200"
+          >
+            {cancelling ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <ShieldCheck className="mr-2 h-5 w-5" />}
+            {t("sosAlert.imSafe")}
+          </Button>
+          {olderThan2Min && !responder && (
+            <Button variant="ghost" onClick={onAlert} disabled={send.state === "sending"} className="min-h-[44px] rounded-2xl font-semibold">
+              {send.state === "sending" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCw className="mr-2 h-4 w-4" />}
+              {t("sosAlert.alertAgain")}
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <button
+        onClick={onAlert}
+        disabled={send.state === "sending"}
+        className="w-full rounded-2xl bg-red-600 px-4 py-4 text-white shadow-lg shadow-red-600/30 ring-4 ring-red-600/20 transition-transform hover:bg-red-700 active:scale-[0.99] disabled:opacity-80 min-h-[80px]"
+      >
+        <span className="flex items-center justify-center gap-2 text-xl font-black">
+          {send.state === "sending" ? <Loader2 className="h-6 w-6 animate-spin" /> : <span aria-hidden="true">🚨</span>}
+          {send.state === "sending" ? t("sosAlert.sending") : t("sosAlert.alertButton")}
+        </span>
+        <span className="mt-1 block text-xs font-medium text-white/90">{t("sosAlert.alertButtonDesc")}</span>
+      </button>
+      {send.state === "error" && (
+        <p className="mt-2 flex items-start gap-2 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800 dark:bg-red-950/40 dark:text-red-200" role="alert">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> {t("sosAlert.sendFailed")}
+        </p>
+      )}
+    </div>
+  );
+};
+
 export const SOSButton = ({ variant = "floating" }: SOSButtonProps) => {
-  const { setOpen, t } = useSOS();
+  const { setOpen, t, activeSos } = useSOS();
 
   return (
     <>
@@ -353,6 +600,12 @@ export const SOSButton = ({ variant = "floating" }: SOSButtonProps) => {
           aria-label={t("sos.fabLabel")}
         >
           <Siren className="w-7 h-7" />
+          {activeSos && (
+            <span className="absolute -top-1 -right-1 flex h-5 w-5" aria-hidden="true">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-300 opacity-75" />
+              <span className="relative inline-flex h-5 w-5 rounded-full border-2 border-white bg-amber-400" />
+            </span>
+          )}
         </button>
       )}
 

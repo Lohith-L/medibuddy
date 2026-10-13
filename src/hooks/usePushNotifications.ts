@@ -19,6 +19,7 @@
 import { useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications, Token, PushNotificationActionPerformed } from '@capacitor/push-notifications';
+import { CAREGIVER_ALERT_EVENT } from '@/contexts/CaregiverAlertsContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 
@@ -89,7 +90,11 @@ export function usePushNotifications() {
       (notification) => {
         console.log('[Push] notification received in foreground:', notification.title);
         // The notification will appear as a heads-up banner on Android.
-        // No extra action needed — the OS handles display.
+        // Caregiver alerts (SOS / missed dose): fetch them now, which shows the
+        // full-screen SOS and starts the alarm (CaregiverAlertsContext).
+        if (notification.data?.type === 'sos' || notification.data?.type === 'missed_dose') {
+          window.dispatchEvent(new Event(CAREGIVER_ALERT_EVENT));
+        }
       }
     );
 
@@ -98,6 +103,7 @@ export function usePushNotifications() {
       'pushNotificationActionPerformed',
       (action: PushNotificationActionPerformed) => {
         const data = action.notification.data;
+        if (data?.type === 'sos' || data?.type === 'missed_dose') window.dispatchEvent(new Event(CAREGIVER_ALERT_EVENT));
         const route = data?.route ?? '/dashboard';
         navigate(route, { replace: false });
       }

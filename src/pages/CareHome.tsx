@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Activity, CheckCircle2, ChevronRight, Clock, Eye, HeartHandshake, Loader2, PencilLine, Timer, UserPlus, XCircle } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
+import CaregiverAlertSetupCard from "@/components/CaregiverAlertSetupCard";
 import { Button } from "@/components/ui/button";
 import { useCare } from "@/contexts/CareContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -66,6 +67,8 @@ const CareHome = () => {
             <UserPlus className="w-4 h-4" /> {t("care.addPatient")}
           </Button>
         </div>
+
+        {!loading && linked.length > 0 && <CaregiverAlertSetupCard dismissible />}
 
         {loading ? (
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />

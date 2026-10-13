@@ -42,3 +42,6 @@ export function formatPhoneForDisplay(phone: string | null | undefined): string 
   const m = /^\+91(\d{5})(\d{5})$/.exec(e164);
   return m ? `+91 ${m[1]} ${m[2]}` : e164;
 }
+
+/** Keeps digits and a leading + so the number works in a tel: link. */
+export const dialable = (phone: string) => phone.replace(/[^\d+]/g, "");

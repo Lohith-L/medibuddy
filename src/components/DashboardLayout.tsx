@@ -4,9 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import {
   Home, Pill, Camera, Users, BarChart3, Settings, LogOut, Heart, Menu, X, Bell, Globe, Check, AlertTriangle, Clock, CheckCircle2, XCircle, Mail, Activity, Store,
-  HeartHandshake, ClipboardList,
+  HeartHandshake, ClipboardList, BellRing, Siren,
 } from "lucide-react";
 import { useCare } from "@/contexts/CareContext";
+import { useCaregiverAlerts } from "@/contexts/CaregiverAlertsContext";
 import { peekPendingInvite } from "@/lib/care";
 import ViewingBar from "@/components/ViewingBar";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,7 @@ const navKeys = [
 /** Caregiver who is not also a patient: their own nav. */
 const caregiverNavKeys = [
   { key: "care.navPatients", icon: HeartHandshake, path: "/care" },
+  { key: "sosAlert.navAlerts", icon: BellRing, path: "/care/alerts" },
   { key: "myMedicines", icon: Pill, path: "/medicines" },
   { key: "healthData", icon: Activity, path: "/health" },
   { key: "healthReports", icon: BarChart3, path: "/health-reports" },
@@ -75,6 +77,10 @@ const DashboardLayout = ({ children }: Props) => {
   const [recentAlerts, setRecentAlerts] = useState<AlertItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const care = useCare();
+  const cgAlerts = useCaregiverAlerts();
+  const caregiverBell = care.mode === "caregiver";
+  /** Bell badge: my caregiver alerts in caregiver mode, my own notifications otherwise. */
+  const bellCount = caregiverBell ? cgAlerts.unseen : unreadCount;
 
   // Pending invite (opened a link before signing in) -> role picker -> keep caregivers off patient-only pages.
   useEffect(() => {
@@ -103,7 +109,12 @@ const DashboardLayout = ({ children }: Props) => {
   const sideNav: SideItem[] = care.mode === "caregiver"
     ? [...caregiverNavKeys, ...(both ? [{ key: "nav.switchToPatient", icon: Home, path: "/dashboard", switchTo: "patient" as const }] : [])]
     : both
-      ? [navKeys[0], { key: "nav.switchToCaregiver", icon: HeartHandshake, path: "/care", switchTo: "caregiver" as const }, ...navKeys.slice(1)]
+      ? [
+          navKeys[0],
+          { key: "nav.switchToCaregiver", icon: HeartHandshake, path: "/care", switchTo: "caregiver" as const },
+          { key: "sosAlert.navAlerts", icon: BellRing, path: "/care/alerts" },
+          ...navKeys.slice(1),
+        ]
       : navKeys;
 
   useEffect(() => {
@@ -222,7 +233,12 @@ const DashboardLayout = ({ children }: Props) => {
               }`}
             >
               <item.icon className="w-5 h-5 shrink-0" />
-              <span>{t(item.key)}</span>
+              <span className="flex-1 text-left">{t(item.key)}</span>
+              {item.path === "/care/alerts" && cgAlerts.unseen > 0 && (
+                <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-[11px] font-bold flex items-center justify-center">
+                  {cgAlerts.unseen > 99 ? "99+" : cgAlerts.unseen}
+                </span>
+              )}
             </button>
           );
         })}
@@ -305,9 +321,9 @@ const DashboardLayout = ({ children }: Props) => {
               <div className="relative" ref={notifRef}>
                 <Button variant="ghost" size="icon" className="relative shrink-0" aria-label={t("notifications")} onClick={() => setNotifOpen(!notifOpen)}>
                   <Bell className="w-5 h-5" />
-                  {unreadCount > 0 && (
+                  {bellCount > 0 && (
                     <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center border-2 border-card">
-                      {unreadCount > 99 ? "99+" : unreadCount}
+                      {bellCount > 99 ? "99+" : bellCount}
                     </span>
                   )}
                 </Button>
@@ -315,12 +331,28 @@ const DashboardLayout = ({ children }: Props) => {
                   <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 max-w-[calc(100vw-1.5rem)] bg-card border rounded-xl shadow-float z-50 animate-fade-in max-h-[400px] overflow-hidden flex flex-col">
                     <div className="flex items-center justify-between px-4 py-3 border-b">
                       <p className="font-bold text-sm">{t("notifications")}</p>
-                      <button onClick={() => { navigate("/family-alerts"); setNotifOpen(false); }} className="text-xs text-primary font-semibold hover:underline">
+                      <button onClick={() => { navigate(caregiverBell ? "/care/alerts" : "/family-alerts"); setNotifOpen(false); }} className="text-xs text-primary font-semibold hover:underline">
                         {t("viewAll")}
                       </button>
                     </div>
                     <div className="overflow-y-auto flex-1">
-                      {recentAlerts.length === 0 ? (
+                      {/* Caregiver alerts (SOS / missed doses): open the Alerts page. */}
+                      {cgAlerts.enabled && (caregiverBell || cgAlerts.unseen > 0 || cgAlerts.activeSos.length > 0) && (
+                        <button
+                          onClick={() => { navigate("/care/alerts"); setNotifOpen(false); }}
+                          className={`w-full flex items-center gap-2.5 px-4 py-3 text-left border-b transition-colors ${
+                            cgAlerts.activeSos.some((a) => !a.sos?.acknowledgedAt) ? "bg-red-50 hover:bg-red-100 dark:bg-red-950/40" : "hover:bg-muted/50"
+                          }`}
+                        >
+                          {cgAlerts.activeSos.length > 0 ? <Siren className="w-4 h-4 text-red-600 shrink-0" /> : <BellRing className="w-4 h-4 text-primary shrink-0" />}
+                          <span className="flex-1 min-w-0 text-sm font-semibold truncate">
+                            {cgAlerts.activeSos.length > 0
+                              ? t("sosAlert.bellActive", { n: cgAlerts.activeSos.length })
+                              : t("sosAlert.bellUnseen", { n: cgAlerts.unseen })}
+                          </span>
+                        </button>
+                      )}
+                      {caregiverBell ? null : recentAlerts.length === 0 ? (
                         <div className="p-6 text-center text-muted-foreground text-sm">{t("noNotifications")}</div>
                       ) : (
                         recentAlerts.map(a => (
