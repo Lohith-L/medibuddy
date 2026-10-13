@@ -63,6 +63,8 @@ const sosAlert = {
   "sosAlert.voice": "आपातकाल! {name} से SOS।",
   "sosAlert.waiting": "किसी देखभालकर्ता के जवाब का इंतज़ार…",
   "sosAlert.yourPatient": "आपका मरीज़",
+  "sosAlert.yourPatients": "आपके मरीज़",
+  "sosAlert.patientNoPhone": "कोई फ़ोन नंबर सेव नहीं है",
 };
 
 export default sosAlert;

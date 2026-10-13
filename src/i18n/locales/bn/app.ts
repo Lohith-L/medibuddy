@@ -134,6 +134,13 @@ const app = {
   "pharm.kmAway": "{km} কিমি দূরে",
   "pharm.callShort": "কল",
   "pharm.directions": "পথ",
+  "pharm.open24": "২৪ ঘণ্টা খোলা",
+  "pharm.hours": "সময়: {hours}",
+  "pharm.noPhone": "কোনো ফোন নম্বর দেওয়া নেই",
+  "pharm.showMore": "আরও {n}টি দেখান",
+  "pharm.loadError": "ফার্মেসির তালিকায় পৌঁছানো যায়নি। ইন্টারনেট দেখে 'আবার চেষ্টা করুন' চাপুন।",
+  "pharm.updating": "আপডেট হচ্ছে…",
+  "pharm.staleResults": "{time}-এর সেভ করা ফলাফল দেখানো হচ্ছে: ফার্মেসির তালিকা এখন ব্যস্ত।",
 
   // profile, onboarding, misc
   "profile.title": "প্রোফাইল",

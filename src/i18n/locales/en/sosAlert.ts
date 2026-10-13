@@ -63,6 +63,8 @@ const sosAlert = {
   "sosAlert.voice": "Emergency! SOS from {name}.",
   "sosAlert.waiting": "Waiting for a caregiver to respond…",
   "sosAlert.yourPatient": "Your patient",
+  "sosAlert.yourPatients": "Your patients",
+  "sosAlert.patientNoPhone": "No phone number saved",
 };
 
 export default sosAlert;

@@ -105,6 +105,13 @@ const app = {
   "pharm.kmAway": "{km} கி.மீ. தொலைவில்",
   "pharm.callShort": "அழை",
   "pharm.directions": "வழி",
+  "pharm.open24": "24 மணி நேரமும் திறந்திருக்கும்",
+  "pharm.hours": "நேரம்: {hours}",
+  "pharm.noPhone": "தொலைபேசி எண் இல்லை",
+  "pharm.showMore": "மேலும் {n} காட்டு",
+  "pharm.loadError": "மருந்தகப் பட்டியலை அணுக முடியவில்லை. இணையத்தைச் சரிபார்த்து 'மீண்டும் முயல்' தட்டவும்.",
+  "pharm.updating": "புதுப்பிக்கிறது…",
+  "pharm.staleResults": "{time} அன்று சேமித்த முடிவுகள் காட்டப்படுகின்றன: மருந்தகப் பட்டியல் இப்போது பிஸியாக உள்ளது.",
 
   // profile, onboarding, misc
   "profile.title": "சுயவிவரம்",

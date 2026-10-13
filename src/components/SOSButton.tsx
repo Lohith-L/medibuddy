@@ -134,8 +134,9 @@ export const SOSProvider = ({ children }: { children: ReactNode }) => {
   const tRef = useRef(t);
   tRef.current = t;
 
-  // Patients (also caregivers who are patients) alert their caregivers.
-  const patientId = care.isPatient ? care.me?.patientId ?? null : null;
+  // Patient login only: a caregiver (even one who is also a patient) using the
+  // caregiver interface has no caregivers of their own to alert.
+  const patientId = care.mode === "patient" && care.isPatient ? care.me?.patientId ?? null : null;
   const canAlert = !!patientId;
 
   useEffect(() => {
@@ -254,6 +255,8 @@ const SOSSheet = () => {
   const setOpen = context?.setOpen;
   const t = context?.t ?? ((k: string) => k);
   const { tOr } = useLanguage();
+  const care = useCare();
+  const caregiverMode = care.mode === "caregiver";
   const [, tick] = useState(0);
   const [cancelling, setCancelling] = useState(false);
 
@@ -265,8 +268,9 @@ const SOSSheet = () => {
   }, [open]);
 
   // Load caregivers each time the sheet opens (they may have changed).
+  // Caregiver login: the patients they look after are shown instead.
   useEffect(() => {
-    if (!open) return;
+    if (!open || caregiverMode) return;
     let cancelled = false;
     setCaregivers(null);
     (async () => {
@@ -307,7 +311,7 @@ const SOSSheet = () => {
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, caregiverMode]);
 
   // Escape closes the dialog on desktop.
   useEffect(() => {
@@ -421,6 +425,58 @@ const SOSSheet = () => {
             </button>
           ))}
 
+          {caregiverMode ? (
+            /* Caregiver login: call the patients I look after. */
+            <>
+              <p className="pt-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">{t("sosAlert.yourPatients")}</p>
+              {care.linked.length === 0 ? (
+                <div className="rounded-2xl border-2 border-dashed p-4 text-center space-y-3">
+                  <p className="text-sm text-muted-foreground">{t("care.noPatients")}</p>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => {
+                      close();
+                      navigate("/care/add");
+                    }}
+                  >
+                    <UserPlus className="w-4 h-4 mr-2" /> {t("care.addPatient")}
+                  </Button>
+                </div>
+              ) : (
+                care.linked.map((p) =>
+                  p.phone && dialable(p.phone) ? (
+                    <button
+                      key={p.patientId}
+                      onClick={() => call(`pt-${p.patientId}`, "caregiver", p.phone!, p.name)}
+                      className={`${optionClass} border-emerald-200 bg-emerald-50 hover:bg-emerald-100 dark:border-emerald-900/50 dark:bg-emerald-950/30`}
+                    >
+                      <span className="text-3xl leading-none shrink-0" aria-hidden="true">👤</span>
+                      <span className="flex-1 min-w-0">
+                        <span className="block font-extrabold text-base leading-tight truncate">{p.name}</span>
+                        <span className="block text-xs text-muted-foreground truncate">
+                          {p.relationship ? `${tOr(`rel.${p.relationship}`, p.relationship)} · ` : ""}
+                          {p.phone}
+                        </span>
+                      </span>
+                      <span className="shrink-0 rounded-xl bg-emerald-600 text-white p-2.5">
+                        {calling === `pt-${p.patientId}` ? <Loader2 className="w-5 h-5 animate-spin" /> : <PhoneCall className="w-5 h-5" />}
+                      </span>
+                    </button>
+                  ) : (
+                    <div key={p.patientId} className={`${optionClass} border-border bg-muted/40`}>
+                      <span className="text-3xl leading-none shrink-0 opacity-60" aria-hidden="true">👤</span>
+                      <span className="flex-1 min-w-0">
+                        <span className="block font-bold text-base leading-tight truncate">{p.name}</span>
+                        <span className="block text-xs text-muted-foreground">{t("sosAlert.patientNoPhone")}</span>
+                      </span>
+                    </div>
+                  ),
+                )
+              )}
+            </>
+          ) : (
+          <>
           {/* Caregivers */}
           <p className="pt-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">{t("sos.caregivers")}</p>
           {caregivers === null ? (
@@ -478,6 +534,8 @@ const SOSSheet = () => {
                 </button>
               ),
             )
+          )}
+          </>
           )}
 
           <Button variant="outline" className="w-full mt-2 min-h-[52px] rounded-2xl text-base font-bold" onClick={close}>

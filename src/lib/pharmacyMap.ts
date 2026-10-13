@@ -71,10 +71,10 @@ export interface PharmacyPopupData {
   name: string;
   address: string;
   distanceLabel: string;
-  isOpen: boolean;
-  openLabel: string;
-  closedLabel: string;
-  phone: string;
+  /** e.g. "Open 24 hours" or "Hours: Mo-Sa 09:00-21:00"; null when unknown. */
+  hoursLabel: string | null;
+  /** Only a real listed number; null hides the Call button. */
+  phone: string | null;
   callLabel: string;
   directionsLabel: string;
   directionsUrl: string;
@@ -82,12 +82,12 @@ export interface PharmacyPopupData {
 
 /** Popup shown when a pin is tapped. All text is escaped. */
 export function pharmacyPopupHtml(d: PharmacyPopupData): string {
-  const phone = d.phone.replace(/[^\d+]/g, "");
+  const phone = d.phone ? d.phone.replace(/[^\d+]/g, "") : "";
   return `<div class="pharm-popup">
   <p class="pharm-popup__name">${escapeHtml(d.name)}</p>
   ${d.address ? `<p class="pharm-popup__address">${escapeHtml(d.address)}</p>` : ""}
   <p class="pharm-popup__meta">
-    <span class="pharm-popup__status ${d.isOpen ? "is-open" : "is-closed"}">${escapeHtml(d.isOpen ? d.openLabel : d.closedLabel)}</span>
+    ${d.hoursLabel ? `<span class="pharm-popup__status is-open">${escapeHtml(d.hoursLabel)}</span>` : ""}
     <span>📍 ${escapeHtml(d.distanceLabel)}</span>
   </p>
   <div class="pharm-popup__actions">

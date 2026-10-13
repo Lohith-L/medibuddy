@@ -1,441 +1,324 @@
-import { useEffect, useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
-  MapPin, Phone, Navigation, Search, AlertCircle, RefreshCw, Clock, ExternalLink, ShieldAlert, Store, CheckCircle2,
+  MapPin, Phone, Navigation, Search, AlertCircle, RefreshCw, ExternalLink, ShieldAlert, Store, Clock, ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
-import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { L, clusterIcon, pharmacyPinIcon, pharmacyPopupHtml, userDotIcon } from "@/lib/pharmacyMap";
-import { getCurrentLocation, LocationError } from "@/lib/location";
+import { getQuickLocation, LocationError } from "@/lib/location";
+import {
+  MAX_RADIUS_KM, REFETCH_DISTANCE_KM, fetchPharmacies, cachedPharmacies, haversineKm, readLastLocation, saveLastLocation,
+  withinRadius, type Pharmacy, type PharmacyWithDistance,
+} from "@/lib/pharmacies";
 
-interface Pharmacy {
-  id: string;
-  name: string;
-  address: string;
-  distanceKm: number;
-  phone: string;
-  isOpen: boolean;
-  lat: number;
-  lng: number;
-  brand?: string;
-}
+type Coords = { lat: number; lng: number };
 
-// Calculate distance in km between two lat/lng pairs (Haversine formula)
-function getHaversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371; // Earth radius in km
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return Math.round(R * c * 10) / 10;
-}
+/** Used only when location is off and nothing was searched yet. */
+const DEFAULT_COORDS: Coords = { lat: 17.385, lng: 78.4867 }; // Hyderabad
+const RADII = [2, 5, 10, 15] as const;
+/** Cards shown at first; "Show more" adds this many. */
+const PAGE = 20;
+
+const directionsUrl = (p: Pharmacy) => `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}`;
+const round1 = (km: number) => Math.round(km * 10) / 10;
 
 const Pharmacies = () => {
-  const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
 
-  const [locationStatus, setLocationStatus] = useState<"requesting" | "granted" | "denied" | "error">("requesting");
-  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
-  // Native-only explanation of why location failed (permission off, GPS off, ...)
+  /** The blue dot and where distances are measured from (my position, or the searched place). */
+  const [origin, setOrigin] = useState<Coords | null>(readLastLocation);
+  const [placeName, setPlaceName] = useState("pharm.currentLocation");
+  const [mode, setMode] = useState<"gps" | "search">("gps");
+  const [locationStatus, setLocationStatus] = useState<"requesting" | "granted" | "denied">("requesting");
   const [locationMessage, setLocationMessage] = useState<string | null>(null);
-  const [manualQuery, setManualQuery] = useState("");
-  const [searchLocationName, setSearchLocationName] = useState("Your Current Location");
-  const [radiusKm, setRadiusKm] = useState<number>(5);
-  const [pharmacies, setPharmacies] = useState<Pharmacy[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [selectedPharmacyId, setSelectedPharmacyId] = useState<string | null>(null);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [locating, setLocating] = useState(false);
 
-  const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<L.Map | null>(null);
-  /** User dot layer (not clustered) and the clustered pharmacy pins. */
+  const [all, setAll] = useState<Pharmacy[] | null>(() => {
+    const last = readLastLocation();
+    return last ? cachedPharmacies(last.lat, last.lng)?.items ?? null : null;
+  });
+  const [status, setStatus] = useState<"loading" | "ok" | "error">("loading");
+  const [loadMs, setLoadMs] = useState<number | null>(null);
+  /** Every server failed: showing results saved at this time. */
+  const [staleAt, setStaleAt] = useState<number | null>(null);
+
+  const [radiusKm, setRadiusKm] = useState<number>(5);
+  const [shown, setShown] = useState(PAGE);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [manualQuery, setManualQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+
+  /** Where the current results were fetched (re-fetch only after moving > 500 m). */
+  const fetchedAtRef = useRef<Coords | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const scrollToCardRef = useRef<string | null>(null);
+
+  // A callback ref: the container only appears once the page layout has loaded.
+  const [mapEl, setMapEl] = useState<HTMLDivElement | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+  const mapRef = useRef<L.Map | null>(null);
   const userLayerRef = useRef<L.LayerGroup | null>(null);
+  const circleRef = useRef<L.Circle | null>(null);
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null);
-  /** Pharmacy id → its pin, for highlighting and panning to a selection. */
   const pinsRef = useRef<Map<string, L.Marker>>(new Map());
 
-  // Request browser geolocation on mount
-  useEffect(() => {
-    requestUserLocation();
+  // ── Data ────────────────────────────────────────────────────────────
+
+  /** Everything within 15 km of `c` (cache first). Aborts any request still running. */
+  const load = useCallback(async (c: Coords, force = false) => {
+    abortRef.current?.abort();
+    const ctl = new AbortController();
+    abortRef.current = ctl;
+    fetchedAtRef.current = c;
+    const t0 = performance.now();
+    if (!force) {
+      const hit = cachedPharmacies(c.lat, c.lng);
+      if (hit) {
+        setAll(hit.items);
+        setStaleAt(null);
+        setStatus("ok");
+        setLoadMs(Math.round(performance.now() - t0));
+        return;
+      }
+    }
+    setStatus("loading");
+    try {
+      const { items, stats } = await fetchPharmacies(c.lat, c.lng, { signal: ctl.signal, force });
+      if (ctl.signal.aborted) return;
+      setAll(items);
+      setStatus("ok");
+      setStaleAt(stats.stale ? stats.savedAt ?? null : null);
+      setLoadMs(stats.ms);
+      console.info(`[pharmacies] ${items.length} within ${MAX_RADIUS_KM} km in ${stats.ms} ms (${stats.mirror})`);
+    } catch (e) {
+      if ((e as Error).name === "AbortError" || ctl.signal.aborted) return;
+      console.warn("[pharmacies] directory unreachable:", (e as Error).message);
+      setStatus("error");
+    }
   }, []);
 
-  const requestUserLocation = () => {
-    setLocationStatus("requesting");
-    setLocationMessage(null);
-    setLoading(true);
-
-    getCurrentLocation({ timeout: 10000, enableHighAccuracy: true })
-      .then((coords) => {
-        setUserCoords(coords);
+  /** My position: quick fix (cached / network) unless `fresh`. */
+  const locate = useCallback(
+    async (fresh: boolean): Promise<Coords | null> => {
+      setLocating(true);
+      setLocationMessage(null);
+      try {
+        const c = await getQuickLocation(fresh ? 0 : 5 * 60_000, fresh ? 15_000 : 8000);
+        saveLastLocation(c);
         setLocationStatus("granted");
-        setSearchLocationName("pharm.currentLocation");
-        fetchPharmacies(coords.lat, coords.lng, radiusKm);
-      })
-      .catch((err: LocationError) => {
+        return { lat: c.lat, lng: c.lng };
+      } catch (e) {
+        const err = e as LocationError;
         console.warn("Geolocation error:", err);
-        if (err.reason === "unsupported") {
-          toast.error(t("pharm.geoUnsupported"));
-        }
-        // On the phone, explain how to turn location back on
+        if (err.reason === "unsupported") toast.error(t("pharm.geoUnsupported"));
         if (err.userMessage) {
           setLocationMessage(err.messageKey);
           toast.error(t(err.messageKey), { id: "location-error" });
         }
         setLocationStatus("denied");
-        setLoading(false);
-        // Fallback default coordinates (Hyderabad city center)
-        const defaultCoords = { lat: 17.3850, lng: 78.4867 };
-        setUserCoords(defaultCoords);
-        setSearchLocationName("weather.hyderabadDefault");
-        fetchPharmacies(defaultCoords.lat, defaultCoords.lng, radiusKm);
-      });
+        return null;
+      } finally {
+        setLocating(false);
+      }
+    },
+    [t],
+  );
+
+  // First visit: map + results for the last known place at once, then the real position.
+  useEffect(() => {
+    const last = readLastLocation();
+    if (last) void load(last);
+    void locate(false).then((c) => {
+      if (c) {
+        setOrigin(c);
+        const at = fetchedAtRef.current;
+        if (!at || haversineKm(at.lat, at.lng, c.lat, c.lng) > REFETCH_DISTANCE_KM) void load(c);
+      } else if (!last) {
+        setOrigin(DEFAULT_COORDS);
+        setPlaceName("weather.hyderabadDefault");
+        void load(DEFAULT_COORDS);
+      }
+    });
+    return () => abortRef.current?.abort();
+    // Runs once on open; later updates come from Refresh / Search.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** "Refresh location": a fresh fix and fresh results. */
+  const refresh = async () => {
+    const c = await locate(true);
+    if (!c) return;
+    setMode("gps");
+    setPlaceName("pharm.currentLocation");
+    setOrigin(c);
+    void load(c, true);
   };
 
-  // Search manual location via Nominatim API
   const handleManualSearch = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
+    e?.preventDefault();
     if (!manualQuery.trim()) {
       toast.error(t("pharm.enterCity"));
       return;
     }
-
-    setLoading(true);
+    setSearching(true);
     try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&countrycodes=in&q=${encodeURIComponent(
-          manualQuery.trim()
-        )}`
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=in&q=${encodeURIComponent(manualQuery.trim())}`,
       );
-      const data = await response.json();
-
-      if (data && data.length > 0) {
-        const first = data[0];
-        const newCoords = { lat: parseFloat(first.lat), lng: parseFloat(first.lon) };
-        setUserCoords(newCoords);
-        setSearchLocationName(first.display_name.split(",")[0] || manualQuery);
+      const data = await res.json();
+      if (data?.length) {
+        const c = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+        const place = data[0].display_name.split(",")[0] || manualQuery;
+        setMode("search");
+        setOrigin(c);
+        setPlaceName(place);
         setLocationStatus("granted");
-        toast.success(t("pharm.foundLocation", { place: first.display_name.split(",")[0] }));
-        await fetchPharmacies(newCoords.lat, newCoords.lng, radiusKm);
+        toast.success(t("pharm.foundLocation", { place }));
+        void load(c);
       } else {
         toast.error(t("pharm.locationNotFound"));
       }
-    } catch (err) {
+    } catch {
       toast.error(t("pharm.geocodeFailed"));
     } finally {
-      setLoading(false);
+      setSearching(false);
     }
   };
 
+  /** Within the chosen radius (0 to X km), closest first. Instant: no request. */
+  const visible: PharmacyWithDistance[] = useMemo(
+    () => (all && origin ? withinRadius(all, origin.lat, origin.lng, radiusKm) : []),
+    [all, origin, radiusKm],
+  );
 
-  // Overpass mirrors to try in order
-  const OVERPASS_MIRRORS = [
-    "https://overpass-api.de/api/interpreter",
-    "https://overpass.kumi.systems/api/interpreter",
-    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
-  ];
+  useEffect(() => setShown(PAGE), [radiusKm, origin]);
 
-  // Fetch pharmacies using Overpass API (POST + proper encoding) + Fallback
-  const fetchPharmacies = async (lat: number, lng: number, radius: number) => {
-    setLoading(true);
-    setFetchError(null);
+  // ── Map: created once, as soon as its container exists ───────────────
 
-    // Build OverpassQL query — includes all 3 tag variants used in Indian OSM data
-    const radiusMeters = radius * 1000;
-    const query = `[out:json][timeout:25];(
-node["amenity"="pharmacy"](around:${radiusMeters},${lat},${lng});
-way["amenity"="pharmacy"](around:${radiusMeters},${lat},${lng});
-node["shop"="chemist"](around:${radiusMeters},${lat},${lng});
-way["shop"="chemist"](around:${radiusMeters},${lat},${lng});
-node["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
-way["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
-);out center;`;
-
-    const body = "data=" + encodeURIComponent(query);
-    let apiSucceeded = false;
-    let fetched: Pharmacy[] = [];
-
-    // Try each mirror until one succeeds
-    for (const mirror of OVERPASS_MIRRORS) {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 20000);
-
-        const res = await fetch(mirror, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-            "Accept": "application/json",
-          },
-          body,
-          signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
-
-        if (!res.ok) {
-          console.warn(`Overpass mirror ${mirror} returned ${res.status}`);
-          continue; // try next mirror
-        }
-
-        const data = await res.json();
-
-        if (data?.elements) {
-          for (const el of data.elements) {
-            const elLat = el.lat ?? el.center?.lat;
-            const elLng = el.lon ?? el.center?.lon;
-            if (elLat == null || elLng == null) continue;
-
-            const dist = getHaversineDistance(lat, lng, elLat, elLng);
-            if (dist > radius) continue;
-
-            const name =
-              el.tags?.name ||
-              el.tags?.["name:en"] ||
-              el.tags?.["name:te"] ||
-              el.tags?.["name:hi"] ||
-              "pharm.localStore"; // translation key, rendered with t()
-
-            const addr =
-              el.tags?.["addr:full"] ||
-              [
-                el.tags?.["addr:housenumber"],
-                el.tags?.["addr:street"],
-                el.tags?.["addr:suburb"],
-                el.tags?.["addr:city"],
-              ]
-                .filter(Boolean)
-                .join(", ") ||
-              ""; // empty: the list shows "x km from the selected location"
-
-            const phone =
-              el.tags?.phone ||
-              el.tags?.["contact:phone"] ||
-              el.tags?.["contact:mobile"] ||
-              "";
-
-            fetched.push({
-              id: String(el.id),
-              name,
-              address: addr,
-              distanceKm: dist,
-              phone: phone || "+91 1800 200 4444",
-              isOpen: el.tags?.opening_hours
-                ? el.tags.opening_hours !== "closed"
-                : true,
-              lat: elLat,
-              lng: elLng,
-              brand: name.includes("Apollo")
-                ? "Apollo"
-                : name.includes("MedPlus")
-                ? "MedPlus"
-                : name.includes("Jan Aushadhi") || name.includes("Janaushadhi")
-                ? "Jan Aushadhi"
-                : "Local",
-            });
-          }
-          apiSucceeded = true;
-          break; // got a good response, stop trying mirrors
-        }
-      } catch (err: any) {
-        if (err?.name === "AbortError") {
-          console.warn(`Overpass mirror ${mirror} timed out`);
-        } else {
-          console.warn(`Overpass mirror ${mirror} failed:`, err?.message);
-        }
-        // try next mirror
-      }
-    }
-
-    // If Overpass returned few or zero results, supplement with realistic fallback stores
-    if (fetched.length < 4) {
-      const fallbacks: Pharmacy[] = [
-        {
-          id: "fb-1",
-          name: "Apollo Pharmacy 24x7",
-          address: "Main Road, Near Hospital Complex",
-          distanceKm: Math.round((0.4 + Math.random() * 0.5) * 10) / 10,
-          phone: "+91 98490 12345",
-          isOpen: true,
-          lat: lat + 0.003,
-          lng: lng + 0.004,
-          brand: "Apollo",
-        },
-        {
-          id: "fb-2",
-          name: "MedPlus Medicals & Healthcare",
-          address: "Station Road, Commercial Hub",
-          distanceKm: Math.round((0.9 + Math.random() * 0.6) * 10) / 10,
-          phone: "+91 98490 67890",
-          isOpen: true,
-          lat: lat - 0.004,
-          lng: lng + 0.003,
-          brand: "MedPlus",
-        },
-        {
-          id: "fb-3",
-          name: "Pradhan Mantri Jan Aushadhi Kendra",
-          address: "Government Hospital Road",
-          distanceKm: Math.round((1.4 + Math.random() * 0.7) * 10) / 10,
-          phone: "+91 1800 180 8080",
-          isOpen: true,
-          lat: lat + 0.006,
-          lng: lng - 0.005,
-          brand: "Jan Aushadhi",
-        },
-        {
-          id: "fb-4",
-          name: "Wellness Forever Chemists",
-          address: "Cross Roads, Market Area",
-          distanceKm: Math.round((2.1 + Math.random() * 0.8) * 10) / 10,
-          phone: "+91 98200 99887",
-          isOpen: true,
-          lat: lat - 0.007,
-          lng: lng - 0.004,
-          brand: "Wellness",
-        },
-        {
-          id: "fb-5",
-          name: "LifeCare Generic & Surgical Store",
-          address: "Opposite Diagnostic Center",
-          distanceKm: Math.round((3.2 + Math.random() * 1.0) * 10) / 10,
-          phone: "+91 97000 11223",
-          isOpen: false,
-          lat: lat + 0.012,
-          lng: lng + 0.008,
-          brand: "Local",
-        },
-      ];
-
-      // Merge deduplicated fallbacks
-      const existingIds = new Set(fetched.map((f) => f.id));
-      fallbacks.forEach((fb) => {
-        if (!existingIds.has(fb.id) && fb.distanceKm <= radius) {
-          fetched.push(fb);
-        }
-      });
-
-      // Surface a soft error banner if the API completely failed
-      if (!apiSucceeded) {
-        setFetchError(
-          "pharm.directoryError"
-        );
-      }
-    }
-
-    // Sort by distance (closest first)
-    fetched.sort((a, b) => a.distanceKm - b.distanceKm);
-    setPharmacies(fetched);
-    setLoading(false);
-  };
-
-
-  // ── Map: created once per search centre ─────────────────────────────
   useEffect(() => {
-    if (!mapContainerRef.current || !userCoords) return;
-
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.remove();
-      mapInstanceRef.current = null;
-    }
-
-    const map = L.map(mapContainerRef.current, { zoomControl: true }).setView([userCoords.lat, userCoords.lng], 14);
-    mapInstanceRef.current = map;
-
+    if (!mapEl || mapRef.current) return;
+    const start = origin ?? DEFAULT_COORDS;
+    const map = L.map(mapEl, { zoomControl: true }).setView([start.lat, start.lng], 13);
+    mapRef.current = map;
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       maxZoom: 19,
     }).addTo(map);
-
     userLayerRef.current = L.layerGroup().addTo(map);
-    // Pins that overlap at the current zoom are grouped into a numbered bubble.
     clusterRef.current = L.markerClusterGroup({
       showCoverageOnHover: false,
       spiderfyOnMaxZoom: true,
       maxClusterRadius: 45,
+      chunkedLoading: true,
       iconCreateFunction: clusterIcon,
     }).addTo(map);
-
+    setMapReady(true);
     return () => {
+      setMapReady(false);
       map.remove();
-      if (mapInstanceRef.current === map) mapInstanceRef.current = null;
+      mapRef.current = null;
       clusterRef.current = null;
       userLayerRef.current = null;
+      circleRef.current = null;
       pinsRef.current.clear();
     };
-  }, [userCoords]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapEl]);
 
-  // ── Markers: user's blue dot + one pin per pharmacy ─────────────────
+  // Blue dot + radius circle; the map fits the circle when the place or radius changes.
+  useEffect(() => {
+    const map = mapRef.current;
+    const layer = userLayerRef.current;
+    if (!map || !layer || !origin) return;
+    layer.clearLayers();
+    circleRef.current = L.circle([origin.lat, origin.lng], {
+      radius: radiusKm * 1000,
+      color: "#2563eb",
+      weight: 1.5,
+      fillColor: "#2563eb",
+      fillOpacity: 0.05,
+      interactive: false,
+    }).addTo(layer);
+    L.marker([origin.lat, origin.lng], { icon: userDotIcon(), zIndexOffset: 1000, keyboard: false })
+      .addTo(layer)
+      .bindPopup(`<b>📍 ${t("weather.yourLocation")}</b><br/>${t(placeName).replace(/</g, "&lt;")}`);
+    map.fitBounds(circleRef.current.getBounds(), { padding: [12, 12], animate: true });
+  }, [mapReady, origin, radiusKm, placeName, t]);
+
+  // Pins: only the pharmacies inside the circle, clustered.
   useEffect(() => {
     const cluster = clusterRef.current;
-    const userLayer = userLayerRef.current;
-    if (!cluster || !userLayer || !userCoords) return;
-
-    userLayer.clearLayers();
-    L.marker([userCoords.lat, userCoords.lng], { icon: userDotIcon(), zIndexOffset: 1000, keyboard: false })
-      .addTo(userLayer)
-      .bindPopup(`<b>📍 ${t("weather.yourLocation")}</b><br/>${t(searchLocationName).replace(/</g, "&lt;")}`);
-
+    if (!cluster) return;
     cluster.clearLayers();
     pinsRef.current.clear();
-    const pins = pharmacies.map((p) => {
+    const pins = visible.map((p) => {
       const pin = L.marker([p.lat, p.lng], {
-        icon: pharmacyPinIcon(p.id === selectedPharmacyId),
-        title: t(p.name),
+        icon: pharmacyPinIcon(p.id === selectedId),
+        title: p.name || t("pharm.localStore"),
         riseOnHover: true,
       });
       pin.bindPopup(
         pharmacyPopupHtml({
-          name: t(p.name),
+          name: p.name || t("pharm.localStore"),
           address: p.address,
-          distanceLabel: t("pharm.kmAway", { km: p.distanceKm }),
-          isOpen: p.isOpen,
-          openLabel: t("openNow"),
-          closedLabel: t("closed"),
+          distanceLabel: t("pharm.kmAway", { km: round1(p.distanceKm) }),
+          hoursLabel: p.hours === "24/7" ? t("pharm.open24") : null,
           phone: p.phone,
           callLabel: t("pharm.callShort"),
           directionsLabel: t("pharm.directions"),
-          directionsUrl: `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}`,
+          directionsUrl: directionsUrl(p),
         }),
         { maxWidth: 260, minWidth: 200, autoPanPadding: [16, 16] },
       );
-      // Tapping a pin highlights the matching card in the list.
-      pin.on("click", () => setSelectedPharmacyId(p.id));
+      // Tapping a pin highlights its card and scrolls the list to it.
+      pin.on("click", () => {
+        scrollToCardRef.current = p.id;
+        setSelectedId(p.id);
+      });
       pinsRef.current.set(p.id, pin);
       return pin;
     });
     cluster.addLayers(pins);
-  // selectedPharmacyId is applied by the effect below without rebuilding pins
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userCoords, pharmacies, searchLocationName, t]);
+    // The selected pin is restyled below without rebuilding every pin.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapReady, visible, t]);
 
-  // ── Selection: bigger blue pin for the selected pharmacy ────────────
   useEffect(() => {
     pinsRef.current.forEach((pin, id) => {
-      const selected = id === selectedPharmacyId;
+      const selected = id === selectedId;
       pin.setIcon(pharmacyPinIcon(selected));
       pin.setZIndexOffset(selected ? 900 : 0);
     });
-  }, [selectedPharmacyId, pharmacies]);
+  }, [selectedId, visible]);
 
-  /** Card tapped: highlight its pin, bring it into view and open its popup. */
-  const selectAndPanToPharmacy = (p: Pharmacy) => {
-    setSelectedPharmacyId(p.id);
-    const map = mapInstanceRef.current;
+  // Pin tapped: make sure its card is rendered, then scroll to it.
+  useEffect(() => {
+    const id = scrollToCardRef.current;
+    if (!id || id !== selectedId) return;
+    const index = visible.findIndex((p) => p.id === id);
+    if (index >= shown) {
+      setShown(Math.ceil((index + 1) / PAGE) * PAGE);
+      return; // runs again after the card renders
+    }
+    scrollToCardRef.current = null;
+    document.getElementById(`pharm-card-${id}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [selectedId, shown, visible]);
+
+  /** Card tapped: highlight its pin, pan the map to it and open its popup. */
+  const selectAndPan = (p: PharmacyWithDistance) => {
+    setSelectedId(p.id);
+    const map = mapRef.current;
     const pin = pinsRef.current.get(p.id);
     const cluster = clusterRef.current;
     if (!map) return;
-    // On phones the map sits above the list: scroll it into view first.
     if (window.matchMedia("(max-width: 1023px)").matches) {
-      mapContainerRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      mapEl?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
     if (pin && cluster) {
-      // Zooms in far enough to break up its cluster, then pans to the pin.
       cluster.zoomToShowLayer(pin, () => {
         map.panTo(pin.getLatLng(), { animate: true });
         pin.openPopup();
@@ -445,60 +328,44 @@ way["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
     }
   };
 
-  const changeRadius = (r: number) => {
-    setRadiusKm(r);
-    if (userCoords) {
-      fetchPharmacies(userCoords.lat, userCoords.lng, r);
-    }
-  };
+  const busy = locating || searching;
+  const firstLoad = status === "loading" && !all;
 
   return (
     <DashboardLayout>
       <div className="space-y-6 max-w-6xl">
-        {/* Title Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight flex items-center gap-2">
               <Store className="w-7 h-7 text-primary" /> {t("nearbyPharmacies")}
             </h1>
-            <p className="text-muted-foreground text-sm mt-1">
-              {t("pharm.subtitle")}
-            </p>
+            <p className="text-muted-foreground text-sm mt-1">{t("pharm.subtitle")}</p>
           </div>
           <Button
             variant="outline"
             size="sm"
-            onClick={requestUserLocation}
-            disabled={loading}
+            onClick={() => void refresh()}
+            disabled={busy}
             className="self-start sm:self-auto rounded-xl flex items-center gap-2"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} /> {t("pharm.refreshLocation")}
+            <RefreshCw className={`w-4 h-4 ${locating ? "animate-spin" : ""}`} /> {t("pharm.refreshLocation")}
           </Button>
         </div>
 
-        {/* Location Denied Warning & Manual Location Search */}
-        {locationStatus === "denied" && (
-          <div className="bg-amber-500/10 border-2 border-amber-500/30 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-start gap-3">
-              <ShieldAlert className="w-6 h-6 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-bold text-amber-800 dark:text-amber-200 text-sm sm:text-base">
-                  {t("pharm.permissionDenied")}
-                </p>
-                {locationMessage && (
-                  <p className="text-xs sm:text-sm font-medium text-amber-800 dark:text-amber-200 mt-0.5">
-                    {t(locationMessage)}
-                  </p>
-                )}
-                <p className="text-xs sm:text-sm text-amber-700/90 dark:text-amber-300/90 mt-0.5">
-                  {t("pharm.enterCityHelp")}
-                </p>
-              </div>
+        {locationStatus === "denied" && mode === "gps" && (
+          <div className="bg-amber-500/10 border-2 border-amber-500/30 rounded-2xl p-4 sm:p-5 flex items-start gap-3">
+            <ShieldAlert className="w-6 h-6 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-amber-800 dark:text-amber-200 text-sm sm:text-base">{t("pharm.permissionDenied")}</p>
+              {locationMessage && (
+                <p className="text-xs sm:text-sm font-medium text-amber-800 dark:text-amber-200 mt-0.5">{t(locationMessage)}</p>
+              )}
+              <p className="text-xs sm:text-sm text-amber-700/90 dark:text-amber-300/90 mt-0.5">{t("pharm.enterCityHelp")}</p>
             </div>
           </div>
         )}
 
-        {/* Search Bar & Radius Selector */}
+        {/* Search + radius */}
         <div className="bg-card border rounded-2xl p-4 shadow-card space-y-4">
           <form onSubmit={handleManualSearch} className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
@@ -510,23 +377,22 @@ way["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
                 className="pl-11 rounded-xl min-h-btn text-base"
               />
             </div>
-            <Button type="submit" variant="hero" className="rounded-xl px-6 shrink-0" disabled={loading}>
+            <Button type="submit" variant="hero" className="rounded-xl px-6 shrink-0" disabled={busy}>
               <Search className="w-4 h-4 mr-2" /> {t("pharm.searchArea")}
             </Button>
           </form>
 
-          {/* Radius Selector */}
           <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t">
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("pharm.searchRadius")}</span>
-            <div className="flex items-center gap-1.5 bg-muted p-1 rounded-xl">
-              {[2, 5, 10, 15].map((r) => (
+            <div className="flex items-center gap-1.5 bg-muted p-1 rounded-xl" role="radiogroup" aria-label={t("pharm.searchRadius")}>
+              {RADII.map((r) => (
                 <button
                   key={r}
-                  onClick={() => changeRadius(r)}
+                  role="radio"
+                  aria-checked={radiusKm === r}
+                  onClick={() => setRadiusKm(r)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                    radiusKm === r
-                      ? "bg-card text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
+                    radiusKm === r ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   {t("pharm.km", { km: r })}
@@ -536,38 +402,46 @@ way["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
           </div>
         </div>
 
-        {/* Main Content Layout: Map + Pharmacies List */}
         <div className="grid lg:grid-cols-12 gap-6 items-start">
-          {/* Leaflet Map Box */}
+          {/* Map: shown at once, pins arrive when the list loads */}
           <div className="lg:col-span-6 bg-card border rounded-2xl shadow-card overflow-hidden lg:sticky lg:top-24">
             <div className="p-3.5 bg-muted/50 border-b flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
               <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                <Navigation className="w-4 h-4 text-primary" /> {t("pharm.map", { place: t(searchLocationName) })}
+                <Navigation className="w-4 h-4 text-primary" /> {t("pharm.map", { place: t(placeName) })}
               </span>
               <span className="text-xs text-muted-foreground font-medium">{t("pharm.tapMarkers")}</span>
             </div>
             {/* isolate: keeps Leaflet's internal z-indexes below the sticky header and bottom nav */}
-            <div ref={mapContainerRef} className="pharm-map relative isolate z-0 w-full h-[340px] sm:h-[480px]" />
+            <div ref={setMapEl} className="pharm-map relative isolate z-0 w-full h-[340px] sm:h-[480px]" />
           </div>
 
-          {/* Pharmacies List */}
+          {/* List */}
           <div className="lg:col-span-6 space-y-4">
-            <div className="flex items-center justify-between px-1">
-              <p className="font-bold text-base">
-                {t("pharm.foundCount", { count: pharmacies.length, km: radiusKm })}
+            <div className="flex items-center justify-between gap-2 px-1">
+              <p className="font-bold text-base" data-load-ms={loadMs ?? undefined} data-count={visible.length} id="pharm-count">
+                {firstLoad ? t("pharm.searching") : t("pharm.foundCount", { count: visible.length, km: radiusKm })}
               </p>
-              <span className="text-xs text-muted-foreground font-medium">{t("pharm.sortedByDistance")}</span>
+              <span className="text-xs text-muted-foreground font-medium flex items-center gap-1 shrink-0">
+                {status === "loading" && all ? (
+                  <>
+                    <RefreshCw className="w-3 h-3 animate-spin" /> {t("pharm.updating")}
+                  </>
+                ) : (
+                  t("pharm.sortedByDistance")
+                )}
+              </span>
             </div>
 
-            {/* API error banner — shown when all Overpass mirrors fail */}
-            {fetchError && !loading && (
-              <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold">{t(fetchError)}</p>
-                </div>
+            {staleAt && status === "ok" && (
+              <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200" role="status">
+                <Clock className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                <p className="flex-1 min-w-0 text-xs font-semibold">
+                  {t("pharm.staleResults", {
+                    time: new Date(staleAt).toLocaleString(locale, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }),
+                  })}
+                </p>
                 <button
-                  onClick={() => userCoords && fetchPharmacies(userCoords.lat, userCoords.lng, radiusKm)}
+                  onClick={() => origin && void load(origin, true)}
                   className="shrink-0 text-xs font-bold text-amber-700 dark:text-amber-300 hover:underline"
                 >
                   {t("pharm.retry")}
@@ -575,81 +449,106 @@ way["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
               </div>
             )}
 
-            {loading ? (
-              <div className="text-center py-12 bg-card border rounded-2xl p-6">
-                <RefreshCw className="w-8 h-8 text-primary animate-spin mx-auto mb-3" />
-                <p className="font-semibold text-foreground">{t("pharm.searching")}</p>
-                <p className="text-xs text-muted-foreground mt-1">{t("pharm.checkingDirectory")}</p>
+            {status === "error" && (
+              <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200" role="alert">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                <p className="flex-1 min-w-0 text-xs font-semibold">{t("pharm.loadError")}</p>
+                <button
+                  onClick={() => origin && void load(origin, true)}
+                  className="shrink-0 text-xs font-bold text-amber-700 dark:text-amber-300 hover:underline"
+                >
+                  {t("pharm.retry")}
+                </button>
               </div>
-            ) : pharmacies.length === 0 ? (
+            )}
+
+            {firstLoad ? (
+              <div className="space-y-3" aria-busy="true" aria-label={t("pharm.searching")}>
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i} className="p-4 sm:p-5 rounded-2xl border-2 bg-card space-y-3">
+                    <Skeleton className="h-5 w-2/3" />
+                    <Skeleton className="h-4 w-1/2" />
+                    <Skeleton className="h-9 w-full" />
+                  </div>
+                ))}
+                <p className="text-xs text-center text-muted-foreground">{t("pharm.checkingDirectory")}</p>
+              </div>
+            ) : status !== "error" && visible.length === 0 && all ? (
               <div className="text-center py-12 bg-card border rounded-2xl p-6 space-y-4">
                 <AlertCircle className="w-10 h-10 text-muted-foreground mx-auto" />
                 <div>
                   <p className="font-bold text-lg">{t("noPharmaciesFound")}</p>
-                  <p className="text-sm text-muted-foreground mt-1">{t("widenRadius")}</p>
+                  {radiusKm < MAX_RADIUS_KM && <p className="text-sm text-muted-foreground mt-1">{t("widenRadius")}</p>}
                 </div>
-                <div className="flex justify-center gap-2 pt-2">
-                  <Button variant="outline" size="sm" onClick={() => changeRadius(10)}>
-                    {t("pharm.searchKm", { km: 10 })}
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => changeRadius(15)}>
-                    {t("pharm.searchKm", { km: 15 })}
-                  </Button>
-                </div>
+                {radiusKm < MAX_RADIUS_KM && (
+                  <div className="flex justify-center gap-2 pt-2">
+                    {RADII.filter((r) => r > radiusKm).map((r) => (
+                      <Button key={r} variant="outline" size="sm" onClick={() => setRadiusKm(r)}>
+                        {t("pharm.searchKm", { km: r })}
+                      </Button>
+                    ))}
+                  </div>
+                )}
               </div>
             ) : (
-              <div className="space-y-3 max-h-[540px] overflow-y-auto pr-1">
-                {pharmacies.map((p) => {
-                  const isSelected = selectedPharmacyId === p.id;
-                  const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}`;
-
+              <div className="space-y-3 max-h-[540px] overflow-y-auto pr-1" id="pharm-list">
+                {visible.slice(0, shown).map((p) => {
+                  const isSelected = selectedId === p.id;
                   return (
-                    <motion.div
+                    <div
                       key={p.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      onClick={() => selectAndPanToPharmacy(p)}
-                      className={`p-4 sm:p-5 rounded-2xl border-2 cursor-pointer transition-all ${
-                        isSelected
-                          ? "border-primary bg-primary/5 shadow-card-hover"
-                          : "border-border bg-card hover:border-primary/40 hover:shadow-card"
+                      id={`pharm-card-${p.id}`}
+                      onClick={() => selectAndPan(p)}
+                      className={`p-4 sm:p-5 rounded-2xl border-2 cursor-pointer transition-colors ${
+                        isSelected ? "border-primary bg-primary/5 shadow-card-hover" : "border-border bg-card hover:border-primary/40 hover:shadow-card"
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3 mb-2">
-                        <div>
-                          <h3 className="font-bold text-base sm:text-lg flex items-center gap-2">
-                            {t(p.name)}
-                          </h3>
-                          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">{p.address || t("pharm.kmFromSelected", { km: p.distanceKm })}</p>
+                        <div className="min-w-0">
+                          <h3 className="font-bold text-base sm:text-lg [overflow-wrap:anywhere]">{p.name || t("pharm.localStore")}</h3>
+                          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 [overflow-wrap:anywhere]">
+                            {p.address || t("pharm.kmFromSelected", { km: round1(p.distanceKm) })}
+                          </p>
                         </div>
-                        <span
-                          className={`shrink-0 text-[11px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider ${
-                            p.isOpen ? "bg-emerald-500/15 text-emerald-600" : "bg-red-500/15 text-red-600"
-                          }`}
-                        >
-                          {p.isOpen ? t("openNow") : t("closed")}
-                        </span>
+                        {p.hours === "24/7" && (
+                          <span className="shrink-0 text-[11px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider bg-emerald-500/15 text-emerald-600">
+                            {t("pharm.open24")}
+                          </span>
+                        )}
                       </div>
 
-                      <div className="flex items-center gap-4 text-xs font-semibold text-muted-foreground my-3">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-semibold text-muted-foreground my-3">
                         <span className="flex items-center gap-1 text-primary">
-                          <MapPin className="w-3.5 h-3.5" /> {t("pharm.kmAway", { km: p.distanceKm })}
+                          <MapPin className="w-3.5 h-3.5" /> {t("pharm.kmAway", { km: round1(p.distanceKm) })}
                         </span>
-                        <span className="flex items-center gap-1">
-                          <Phone className="w-3.5 h-3.5" /> {p.phone}
-                        </span>
+                        {p.phone ? (
+                          <span className="flex items-center gap-1">
+                            <Phone className="w-3.5 h-3.5" /> {p.phone}
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 font-medium">
+                            <Phone className="w-3.5 h-3.5" /> {t("pharm.noPhone")}
+                          </span>
+                        )}
+                        {p.hours && p.hours !== "24/7" && (
+                          <span className="flex items-center gap-1 font-medium [overflow-wrap:anywhere]">
+                            <Clock className="w-3.5 h-3.5 shrink-0" /> {t("pharm.hours", { hours: p.hours })}
+                          </span>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-2 pt-2 border-t">
+                        {p.phone && (
+                          <a
+                            href={`tel:${p.phone.replace(/[^\d+]/g, "")}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex-1 py-2 px-3 rounded-xl bg-primary text-primary-foreground text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity"
+                          >
+                            <Phone className="w-4 h-4" /> {t("callPharmacy")}
+                          </a>
+                        )}
                         <a
-                          href={`tel:${p.phone}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="flex-1 py-2 px-3 rounded-xl bg-primary text-primary-foreground text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity"
-                        >
-                          <Phone className="w-4 h-4" /> {t("callPharmacy")}
-                        </a>
-                        <a
-                          href={directionsUrl}
+                          href={directionsUrl(p)}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
@@ -658,9 +557,14 @@ way["healthcare"="pharmacy"](around:${radiusMeters},${lat},${lng});
                           <Navigation className="w-4 h-4 text-primary" /> {t("pharm.directions")} <ExternalLink className="w-3 h-3" />
                         </a>
                       </div>
-                    </motion.div>
+                    </div>
                   );
                 })}
+                {visible.length > shown && (
+                  <Button variant="outline" className="w-full rounded-xl min-h-[48px] font-bold" onClick={() => setShown((n) => n + PAGE)}>
+                    <ChevronDown className="w-4 h-4 mr-1.5" /> {t("pharm.showMore", { n: Math.min(PAGE, visible.length - shown) })}
+                  </Button>
+                )}
               </div>
             )}
           </div>

@@ -107,6 +107,13 @@ const app = {
   "pharm.kmAway": "{km} किमी दूर",
   "pharm.callShort": "कॉल",
   "pharm.directions": "मार्ग",
+  "pharm.open24": "24 तास सुरू",
+  "pharm.hours": "वेळ: {hours}",
+  "pharm.noPhone": "फोन नंबर दिलेला नाही",
+  "pharm.showMore": "आणखी {n} दाखवा",
+  "pharm.loadError": "फार्मसी यादीपर्यंत पोहोचता आले नाही. इंटरनेट तपासा आणि 'पुन्हा प्रयत्न करा' दाबा.",
+  "pharm.updating": "अपडेट होत आहे…",
+  "pharm.staleResults": "{time} चे सेव्ह केलेले निकाल दाखवत आहोत: फार्मसी यादी सध्या व्यस्त आहे.",
 
   // profile, onboarding, misc
   "profile.title": "प्रोफाइल",

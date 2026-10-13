@@ -63,6 +63,8 @@ const sosAlert = {
   "sosAlert.voice": "అత్యవసరం! {name} నుండి SOS.",
   "sosAlert.waiting": "సంరక్షకుడి స్పందన కోసం వేచి ఉంది…",
   "sosAlert.yourPatient": "మీ రోగి",
+  "sosAlert.yourPatients": "మీ రోగులు",
+  "sosAlert.patientNoPhone": "ఫోన్ నంబర్ సేవ్ చేయలేదు",
 };
 
 export default sosAlert;

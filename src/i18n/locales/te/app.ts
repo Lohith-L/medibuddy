@@ -98,6 +98,13 @@ const app = {
   "pharm.kmAway": "{km} కి.మీ. దూరం",
   "pharm.callShort": "కాల్",
   "pharm.directions": "దారి",
+  "pharm.open24": "24 గంటలు తెరిచి ఉంటుంది",
+  "pharm.hours": "సమయం: {hours}",
+  "pharm.noPhone": "ఫోన్ నంబర్ ఇవ్వలేదు",
+  "pharm.showMore": "మరో {n} చూపించు",
+  "pharm.loadError": "ఫార్మసీ జాబితాను చేరలేకపోయాం. ఇంటర్నెట్ చూసి 'మళ్లీ ప్రయత్నించండి' నొక్కండి.",
+  "pharm.updating": "అప్‌డేట్ అవుతోంది…",
+  "pharm.staleResults": "{time} నాటి సేవ్ చేసిన ఫలితాలు చూపిస్తున్నాం: ఫార్మసీ జాబితా ఇప్పుడు బిజీగా ఉంది.",
 
   // profile, onboarding, misc
   "profile.title": "ప్రొఫైల్",

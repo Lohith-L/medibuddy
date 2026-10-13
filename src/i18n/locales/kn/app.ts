@@ -84,6 +84,13 @@ const app = {
   "pharm.kmAway": "{km} ಕಿ.ಮೀ. ದೂರ",
   "pharm.callShort": "ಕರೆ",
   "pharm.directions": "ದಾರಿ",
+  "pharm.open24": "24 ಗಂಟೆ ತೆರೆದಿರುತ್ತದೆ",
+  "pharm.hours": "ಸಮಯ: {hours}",
+  "pharm.noPhone": "ಫೋನ್ ಸಂಖ್ಯೆ ಇಲ್ಲ",
+  "pharm.showMore": "ಇನ್ನೂ {n} ತೋರಿಸಿ",
+  "pharm.loadError": "ಔಷಧಾಲಯ ಪಟ್ಟಿಯನ್ನು ತಲುಪಲಾಗಲಿಲ್ಲ. ಇಂಟರ್ನೆಟ್ ಪರಿಶೀಲಿಸಿ 'ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ' ಒತ್ತಿ.",
+  "pharm.updating": "ಅಪ್‌ಡೇಟ್ ಆಗುತ್ತಿದೆ…",
+  "pharm.staleResults": "{time} ರ ಉಳಿಸಿದ ಫಲಿತಾಂಶಗಳನ್ನು ತೋರಿಸಲಾಗುತ್ತಿದೆ: ಔಷಧಾಲಯ ಪಟ್ಟಿ ಈಗ ಬ್ಯುಸಿಯಾಗಿದೆ.",
 
   // profile, onboarding, misc
   "profile.title": "ಪ್ರೊಫೈಲ್",

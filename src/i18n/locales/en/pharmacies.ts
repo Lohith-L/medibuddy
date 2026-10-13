@@ -28,6 +28,13 @@ const pharmacies = {
   "pharm.kmAway": "{km} km away",
   "pharm.callShort": "Call",
   "pharm.directions": "Directions",
+  "pharm.open24": "Open 24 hours",
+  "pharm.hours": "Hours: {hours}",
+  "pharm.noPhone": "No phone number listed",
+  "pharm.showMore": "Show {n} more",
+  "pharm.loadError": "Couldn't reach the pharmacy directory. Check your internet and tap Retry.",
+  "pharm.updating": "Updating…",
+  "pharm.staleResults": "Showing saved results from {time}: the pharmacy directory is busy right now.",
 };
 
 export default pharmacies;

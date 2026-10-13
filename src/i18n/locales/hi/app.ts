@@ -84,6 +84,13 @@ const app = {
   "pharm.kmAway": "{km} किमी दूर",
   "pharm.callShort": "कॉल",
   "pharm.directions": "रास्ता",
+  "pharm.open24": "24 घंटे खुला",
+  "pharm.hours": "समय: {hours}",
+  "pharm.noPhone": "कोई फ़ोन नंबर नहीं दिया गया",
+  "pharm.showMore": "{n} और दिखाएं",
+  "pharm.loadError": "फ़ार्मेसी सूची तक नहीं पहुंच सके। इंटरनेट जाँचें और 'फिर से कोशिश करें' दबाएं।",
+  "pharm.updating": "अपडेट हो रहा है…",
+  "pharm.staleResults": "{time} के सेव किए गए नतीजे दिखा रहे हैं: फ़ार्मेसी सूची अभी व्यस्त है।",
 
   // profile, onboarding, misc
   "profile.title": "प्रोफ़ाइल",

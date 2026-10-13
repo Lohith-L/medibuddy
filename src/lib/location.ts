@@ -138,3 +138,44 @@ export function getCurrentLocation(webOptions: LocationOptions = {}): Promise<Co
     timeout: webOptions.timeout ?? 10000,
   });
 }
+
+/**
+ * A fast position for "what is near me" screens: accepts a fix up to
+ * `maxAgeMs` old and network/Wi-Fi accuracy (~100 m) instead of waiting for
+ * GPS. Asks for permission like getCurrentLocation(). Rejects with a LocationError.
+ */
+export async function getQuickLocation(maxAgeMs = 5 * 60_000, timeoutMs = 8000): Promise<Coords & { accuracy: number | null }> {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      let status = await Geolocation.checkPermissions();
+      if (status.location !== 'granted' && status.coarseLocation !== 'granted') {
+        status = await Geolocation.requestPermissions();
+      }
+      if (status.location !== 'granted' && status.coarseLocation !== 'granted') {
+        throw new LocationError('permission-denied');
+      }
+      const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: false, timeout: timeoutMs, maximumAge: maxAgeMs });
+      return { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy ?? null };
+    } catch (err) {
+      if (err instanceof LocationError) throw err;
+      throw new LocationError(reasonFromNativeError(err), err);
+    }
+  }
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new LocationError('unsupported'));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy ?? null }),
+      (err) =>
+        reject(
+          new LocationError(
+            err.code === err.PERMISSION_DENIED ? 'permission-denied' : err.code === err.TIMEOUT ? 'timeout' : 'unavailable',
+            err,
+          ),
+        ),
+      { enableHighAccuracy: false, timeout: timeoutMs, maximumAge: maxAgeMs },
+    );
+  });
+}

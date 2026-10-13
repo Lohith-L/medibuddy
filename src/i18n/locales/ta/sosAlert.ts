@@ -63,6 +63,8 @@ const sosAlert = {
   "sosAlert.voice": "அவசரம்! {name} இடமிருந்து SOS.",
   "sosAlert.waiting": "பராமரிப்பாளரின் பதிலுக்காகக் காத்திருக்கிறது…",
   "sosAlert.yourPatient": "உங்கள் நோயாளி",
+  "sosAlert.yourPatients": "உங்கள் நோயாளிகள்",
+  "sosAlert.patientNoPhone": "தொலைபேசி எண் சேமிக்கப்படவில்லை",
 };
 
 export default sosAlert;
