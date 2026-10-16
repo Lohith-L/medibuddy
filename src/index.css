@@ -364,4 +364,13 @@
 .dark .leaflet-control-attribution { background: hsl(var(--card) / 0.8) !important; color: hsl(var(--muted-foreground)); }
 .dark .leaflet-control-attribution a { color: hsl(var(--primary)); }
 .dark .leaflet-container { background: #1b1f27; }
+/* Dark map: OpenStreetMap tiles darkened (CARTO's dark tiles now need an API key).
+   Only the tile pane: pins, the radius circle and popups keep their colours. */
+.dark .pharm-map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9) saturate(0.8); }
+/* Pins and the my-location dot: a light outline so they stand out on the dark map */
+.dark .pharm-pin svg { filter: drop-shadow(0 0 1.5px rgb(255 255 255 / 0.9)) drop-shadow(0 2px 3px rgb(0 0 0 / 0.6)); }
+.dark .pharm-pin--selected svg { filter: drop-shadow(0 0 2px rgb(255 255 255 / 0.95)) drop-shadow(0 3px 8px rgb(96 165 250 / 0.8)); }
+.dark .leaflet-marker-icon.pharm-cluster { border-color: #e2e8f0; box-shadow: 0 0 0 4px rgb(45 212 191 / 0.35), 0 2px 6px rgb(0 0 0 / 0.6); }
+.dark .user-dot__core { background: #3b82f6; border-color: #f8fafc; box-shadow: 0 0 8px rgb(96 165 250 / 0.9); }
+.dark .user-dot__halo { background: rgb(96 165 250 / 0.3); }
 .dark .leaflet-popup-close-button { color: hsl(var(--muted-foreground)) !important; }

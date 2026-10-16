@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { Capacitor, type PluginListenerHandle } from "@capacitor/core";
 import { App } from "@capacitor/app";
-import { Geolocation } from "@capacitor/geolocation";
+import { getLocation } from "@/lib/location";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Siren, X, UserPlus, PhoneCall, Loader2, CheckCircle2, ShieldCheck, MapPin, Hourglass, AlertTriangle, RotateCw } from "lucide-react";
@@ -65,22 +65,8 @@ const HELPLINES = [
  */
 async function quietLocation(): Promise<string | null> {
   try {
-    if (Capacitor.isNativePlatform()) {
-      const perm = await Geolocation.checkPermissions();
-      if (perm.location !== "granted" && perm.coarseLocation !== "granted") return null;
-      const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: false, timeout: 4000, maximumAge: 120000 });
-      return `${pos.coords.latitude.toFixed(5)},${pos.coords.longitude.toFixed(5)}`;
-    }
-    if (!navigator.geolocation || !navigator.permissions) return null;
-    const status = await navigator.permissions.query({ name: "geolocation" as PermissionName });
-    if (status.state !== "granted") return null;
-    return await new Promise((resolve) => {
-      navigator.geolocation.getCurrentPosition(
-        (p) => resolve(`${p.coords.latitude.toFixed(5)},${p.coords.longitude.toFixed(5)}`),
-        () => resolve(null),
-        { timeout: 4000, maximumAge: 120000 },
-      );
-    });
+    const loc = await getLocation({ prompt: false, maxAgeMs: 120_000, allowLastKnown: false });
+    return `${loc.lat.toFixed(5)},${loc.lng.toFixed(5)}`;
   } catch {
     return null;
   }
@@ -688,9 +674,9 @@ export const SOSButton = ({ variant = "floating" }: SOSButtonProps) => {
       {variant === "header" && (
         <button
           onClick={() => setOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-red-600/15 text-red-600 font-bold border border-red-600/30 hover:bg-red-600 hover:text-white transition-all text-xs sm:text-sm animate-pulse"
+          className="group flex h-10 shrink-0 items-center gap-1.5 px-3 rounded-full bg-red-600/15 text-red-600 dark:text-red-400 font-bold border border-red-600/30 hover:bg-red-600 hover:text-white transition-all text-sm whitespace-nowrap animate-pulse"
         >
-          <Siren className="w-4 h-4 text-red-600 group-hover:text-white" />
+          <Siren className="w-4 h-4 shrink-0" />
           <span>{t("sos.short")}</span>
         </button>
       )}

@@ -21,6 +21,7 @@ import care from "./care";
 import sosAlert from "./sosAlert";
 import start from "./start";
 import theme from "./theme";
+import locperm from "./locperm";
 
 const en = {
   ...common,
@@ -45,6 +46,7 @@ const en = {
   ...sosAlert,
   ...start,
   ...theme,
+  ...locperm,
 };
 
 export default en;

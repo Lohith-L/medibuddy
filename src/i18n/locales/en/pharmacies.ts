@@ -35,6 +35,7 @@ const pharmacies = {
   "pharm.loadError": "Couldn't reach the pharmacy directory. Check your internet and tap Retry.",
   "pharm.updating": "Updating…",
   "pharm.staleResults": "Showing saved results from {time}: the pharmacy directory is busy right now.",
+  "pharm.partialResults": "The full pharmacy directory is busy, so these are only the nearest pharmacies. Tap Retry for the full list.",
 };
 
 export default pharmacies;

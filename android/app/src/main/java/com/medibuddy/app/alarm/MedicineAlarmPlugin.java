@@ -516,6 +516,34 @@ public class MedicineAlarmPlugin extends Plugin {
         openAppDetails(call);
     }
 
+    /**
+     * isLocationEnabled(): the phone's Location switch. The geolocation plugin only
+     * reports a timeout when it is off, so the app asks this first.
+     */
+    @PluginMethod
+    public void isLocationEnabled(PluginCall call) {
+        android.location.LocationManager lm = (android.location.LocationManager) getContext().getSystemService(Context.LOCATION_SERVICE);
+        boolean on = lm != null && (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+            ? lm.isLocationEnabled()
+            : lm.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER)
+                || lm.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER));
+        JSObject ret = new JSObject();
+        ret.put("enabled", on);
+        call.resolve(ret);
+    }
+
+    /** The phone's Location settings (location turned off). */
+    @PluginMethod
+    public void openLocationSettings(PluginCall call) {
+        try {
+            Intent i = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(i);
+            call.resolve();
+        } catch (ActivityNotFoundException e) {
+            openAppDetails(call);
+        }
+    }
+
     /** Brand-specific "autostart / background" pages; falls back to app details. */
     @PluginMethod
     public void openAutostartSettings(PluginCall call) {

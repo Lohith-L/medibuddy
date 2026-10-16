@@ -20,6 +20,8 @@ import SOSButton, { SOSProvider } from "@/components/SOSButton";
 import BrandLogo from "@/components/BrandLogo";
 import { signedOutPath } from "@/lib/startFlow";
 import ThemeToggle from "@/components/ThemeToggle";
+import { Capacitor } from "@capacitor/core";
+import { App } from "@capacitor/app";
 
 interface AlertItem {
   id: string;
@@ -202,7 +204,22 @@ const DashboardLayout = ({ children }: Props) => {
 
   const userName = user?.user_metadata?.name || t("layout.friend");
 
-  const now = new Date();
+  // Re-render every minute so the greeting/date stay correct while the app is left open
+  // (otherwise "Good morning" sticks past noon until the layout remounts), and at once
+  // when the app / tab comes back to the foreground (timers sleep in the background).
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const tick = () => setNow(new Date());
+    const id = window.setInterval(tick, 60_000);
+    const onVisible = () => document.visibilityState === "visible" && tick();
+    document.addEventListener("visibilitychange", onVisible);
+    const resume = Capacitor.isNativePlatform() ? App.addListener("resume", tick) : null;
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+      void resume?.then((h) => h.remove());
+    };
+  }, []);
   const hour = now.getHours();
   const greeting = hour < 12 ? t("goodMorning") : hour < 17 ? t("goodAfternoon") : t("goodEvening");
   const dateStr = now.toLocaleDateString(locale, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
@@ -278,12 +295,12 @@ const DashboardLayout = ({ children }: Props) => {
       <div className="flex-1 min-w-0 w-full lg:ml-[260px] flex flex-col min-h-screen">
         {/* Top header — compact on mobile */}
         <header className="app-header sticky top-0 z-30 bg-card/80 backdrop-blur-lg border-b px-3 lg:px-8">
-          <div className="flex items-center justify-between gap-2 h-14 lg:h-[72px]">
-            {/* min-w-0 lets the greeting shrink so the buttons (incl. the bell) always fit */}
-            <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center justify-end sm:justify-between gap-2 h-14 lg:h-[72px]">
+            {/* Desktop/tablet: greeting inline. On phones it gets its own row below (see after this row). */}
+            <div className="hidden sm:flex items-center gap-3 min-w-0">
               <div className="min-w-0">
-                <h1 className="text-base lg:text-xl font-bold truncate max-w-[200px] sm:max-w-none">{greeting}, {userName}! 👋</h1>
-                <p className="text-sm text-muted-foreground hidden sm:block">{dateStr}</p>
+                <h1 className="text-base lg:text-xl font-bold truncate">{greeting}, {userName}! 👋</h1>
+                <p className="text-sm text-muted-foreground">{dateStr}</p>
               </div>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
@@ -292,10 +309,10 @@ const DashboardLayout = ({ children }: Props) => {
               <div className="relative" ref={langRef}>
                 <button
                   onClick={() => setLangDropdownOpen(!langDropdownOpen)}
-                  className="px-2.5 sm:px-3 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-semibold border border-primary/20 hover:bg-primary/20 transition-colors flex items-center gap-1.5"
+                  className="h-10 min-w-10 justify-center px-2.5 max-[380px]:px-0 max-[380px]:w-10 sm:px-3 rounded-full bg-primary/10 text-primary text-sm font-semibold border border-primary/20 hover:bg-primary/20 transition-colors flex items-center gap-1.5"
                   aria-label={t("layout.changeLanguage")}
                 >
-                  <Globe className="w-3.5 h-3.5 shrink-0" />
+                  <Globe className="w-5 h-5 shrink-0" />
                   <span className="max-[380px]:hidden">{languageLabelByCode[language] || language}</span>
                 </button>
                 {langDropdownOpen && (
@@ -316,10 +333,10 @@ const DashboardLayout = ({ children }: Props) => {
                 )}
               </div>
               <div className="relative" ref={notifRef}>
-                <Button variant="ghost" size="icon" className="relative shrink-0" aria-label={t("notifications")} onClick={() => setNotifOpen(!notifOpen)}>
+                <Button variant="ghost" size="icon" className="relative shrink-0 h-10 w-10 rounded-full border border-primary/20 bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary" aria-label={t("notifications")} onClick={() => setNotifOpen(!notifOpen)}>
                   <Bell className="w-5 h-5" />
                   {bellCount > 0 && (
-                    <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center border-2 border-card">
+                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center border-2 border-card">
                       {bellCount > 99 ? "99+" : bellCount}
                     </span>
                   )}
@@ -377,6 +394,12 @@ const DashboardLayout = ({ children }: Props) => {
             </div>
           </div>
         </header>
+
+        {/* Phones: full greeting on its own line (scrolls with the page, never truncated) */}
+        <div className="sm:hidden px-3 pt-3">
+          <h1 className="text-lg font-bold leading-snug break-words">{greeting}, {userName}! 👋</h1>
+          <p className="text-sm text-muted-foreground">{dateStr}</p>
+        </div>
 
         {/* Page content */}
         <main className="app-main flex-1 min-w-0 w-full max-w-full p-3 sm:p-4 lg:p-8 pb-20 lg:pb-8">

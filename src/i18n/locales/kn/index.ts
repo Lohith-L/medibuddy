@@ -10,7 +10,8 @@ import care from "./care";
 import sosAlert from "./sosAlert";
 import start from "./start";
 import theme from "./theme";
+import locperm from "./locperm";
 
-const dictionary: Dictionary = { ...common, ...report, ...app, ...health, ...account, ...alarmVoice, ...care, ...sosAlert, ...start, ...theme };
+const dictionary: Dictionary = { ...common, ...report, ...app, ...health, ...account, ...alarmVoice, ...care, ...sosAlert, ...start, ...theme, ...locperm };
 
 export default dictionary;

@@ -5,8 +5,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { motion } from "framer-motion";
-import { toast } from "sonner";
-import { getCurrentLocation, LocationError } from "@/lib/location";
+import { getLocation, placeName, type LocationError, type LocationReason } from "@/lib/location";
+import LocationNotice from "@/components/LocationNotice";
 
 interface WeatherState {
   temp: number;
@@ -26,14 +26,19 @@ interface RuleTip {
   badgeBg: string;
 }
 
-const CACHE_KEY = "medbuddy_weather_data_v1";
+// v2: v1 could hold the old silent "Hyderabad" fallback.
+const CACHE_KEY = "medbuddy_weather_data_v2";
 const CACHE_EXPIRY_MS = 2 * 60 * 60 * 1000; // 2 hours
 
 export const WeatherHealthCard = () => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [weather, setWeather] = useState<WeatherState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  /** Why there is no location (shown with the button that fixes it). */
+  const [locError, setLocError] = useState<LocationReason | null>(null);
+  /** Weather is for the last known location (a fresh fix failed). */
+  const [lastKnownAt, setLastKnownAt] = useState<number | null>(null);
 
   useEffect(() => {
     // Check cached weather first
@@ -54,26 +59,33 @@ export const WeatherHealthCard = () => {
     fetchWeatherForLocation();
   }, []);
 
-  const fetchWeatherForLocation = () => {
+  /** Weather for the user's real position (shared location service). No made-up city. */
+  const fetchWeatherForLocation = async () => {
     setLoading(true);
     setError(false);
-
-    getCurrentLocation({ timeout: 8000 })
-      .then(({ lat, lng }) => fetchOpenMeteo(lat, lng, "weather.yourLocation"))
-      .catch((err: LocationError) => {
-        console.warn("Geolocation fallback:", err);
-        // On the phone, tell the user how to fix it (web stays silent as before)
-        if (err.userMessage) toast.error(t(err.messageKey), { id: "location-error" });
-        // Fallback default coordinates (Hyderabad)
-        fetchOpenMeteo(
-          17.385,
-          78.4867,
-          err.reason === "unsupported" ? "weather.hyderabadDefault" : "weather.hyderabad",
-        );
-      });
+    setLocError(null);
+    let loc;
+    try {
+      loc = await getLocation();
+    } catch (e) {
+      const err = e as LocationError;
+      console.warn("[weather] no location:", err.reason, err.code);
+      setLocError(err.reason ?? "unavailable");
+      setWeather(null);
+      setLoading(false);
+      return;
+    }
+    setLastKnownAt(loc.lastKnown ? loc.at : null);
+    if (loc.lastKnown) setLocError("unavailable");
+    // "Rajajinagar, Bengaluru" when the lookup answers quickly; else "Your location".
+    const name = await Promise.race([
+      placeName(loc.lat, loc.lng, language),
+      new Promise<null>((r) => setTimeout(() => r(null), 4000)),
+    ]);
+    await fetchOpenMeteo(loc.lat, loc.lng, name || "weather.yourLocation", !loc.lastKnown);
   };
 
-  const fetchOpenMeteo = async (lat: number, lng: number, cityLabel: string) => {
+  const fetchOpenMeteo = async (lat: number, lng: number, cityLabel: string, cache = true) => {
     try {
       const weatherPromise = fetch(
         `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m`
@@ -99,23 +111,15 @@ export const WeatherHealthCard = () => {
         };
 
         setWeather(newState);
-        localStorage.setItem(CACHE_KEY, JSON.stringify(newState));
+        if (cache) localStorage.setItem(CACHE_KEY, JSON.stringify(newState));
       } else {
         throw new Error("Invalid weather payload");
       }
     } catch (err) {
       console.error("Weather fetch failed:", err);
+      // No invented numbers: show that the forecast couldn't load.
       setError(true);
-      // Fallback display state so dashboard never breaks
-      setWeather({
-        temp: 28,
-        humidity: 65,
-        weatherCode: 1,
-        windSpeed: 8,
-        aqi: 45,
-        cityName: cityLabel,
-        timestamp: Date.now(),
-      });
+      setWeather(null);
     } finally {
       setLoading(false);
     }
@@ -131,7 +135,23 @@ export const WeatherHealthCard = () => {
     );
   }
 
-  if (!weather) return null;
+  if (!weather) {
+    return (
+      <div className="bg-card border rounded-2xl p-5 shadow-card space-y-3">
+        <h3 className="font-extrabold text-lg text-foreground flex items-center gap-2">{t("weatherAdvisory")} ⛅</h3>
+        {locError ? (
+          <LocationNotice reason={locError} onRetry={() => void fetchWeatherForLocation()} compact />
+        ) : error ? (
+          <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
+            <span>{t("locperm.weatherFailed")}</span>
+            <Button variant="outline" size="sm" onClick={() => void fetchWeatherForLocation()}>
+              <RefreshCw className="w-4 h-4 mr-1.5" /> {t("locperm.retry")}
+            </Button>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
 
   // Generate rule-based tips based on current weather parameters
   const generateTips = (): RuleTip[] => {
@@ -241,13 +261,14 @@ export const WeatherHealthCard = () => {
               {t("weatherAdvisory")} ⛅
             </h3>
             <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <MapPin className="w-3 h-3 text-primary" /> {t(weather.cityName)} · {t("weather.subtitle")}
+              <MapPin className="w-3 h-3 text-primary" /> {t(weather.cityName)}
+              {lastKnownAt ? ` (${t("locperm.lastKnown")})` : ""} · {t("weather.subtitle")}
             </p>
           </div>
         </div>
 
         <button
-          onClick={fetchWeatherForLocation}
+          onClick={() => void fetchWeatherForLocation()}
           className="self-start sm:self-auto px-3 py-1.5 rounded-xl bg-muted text-xs font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1.5 transition-colors"
           title={t("weather.refreshTitle")}
         >

@@ -9,7 +9,8 @@ import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { L, clusterIcon, pharmacyPinIcon, pharmacyPopupHtml, userDotIcon } from "@/lib/pharmacyMap";
-import { getQuickLocation, LocationError } from "@/lib/location";
+import { getLocation, placeName as lookupPlaceName, type LocationError, type LocationReason } from "@/lib/location";
+import LocationNotice from "@/components/LocationNotice";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import {
   MAX_RADIUS_KM, REFETCH_DISTANCE_KM, fetchPharmacies, cachedPharmacies, haversineKm, readLastLocation, saveLastLocation,
@@ -28,15 +29,19 @@ const directionsUrl = (p: Pharmacy) => `https://www.google.com/maps/dir/?api=1&d
 const round1 = (km: number) => Math.round(km * 10) / 10;
 
 const Pharmacies = () => {
-  const { t, locale } = useLanguage();
+  const { t, locale, language } = useLanguage();
   const { resolved: themeMode } = useAppTheme();
 
   /** The blue dot and where distances are measured from (my position, or the searched place). */
   const [origin, setOrigin] = useState<Coords | null>(readLastLocation);
   const [placeName, setPlaceName] = useState("pharm.currentLocation");
   const [mode, setMode] = useState<"gps" | "search">("gps");
-  const [locationStatus, setLocationStatus] = useState<"requesting" | "granted" | "denied">("requesting");
-  const [locationMessage, setLocationMessage] = useState<string | null>(null);
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  /** Why there is no fresh location (shown with the button that fixes it). */
+  const [locError, setLocError] = useState<LocationReason | null>(null);
+  /** The origin is the last known location (a fresh fix failed). */
+  const [lastKnownAt, setLastKnownAt] = useState<number | null>(null);
   const [locating, setLocating] = useState(false);
 
   const [all, setAll] = useState<Pharmacy[] | null>(() => {
@@ -47,6 +52,8 @@ const Pharmacies = () => {
   const [loadMs, setLoadMs] = useState<number | null>(null);
   /** Every server failed: showing results saved at this time. */
   const [staleAt, setStaleAt] = useState<number | null>(null);
+  /** Every Overpass server failed: only the nearest ~50 pharmacies are shown. */
+  const [partial, setPartial] = useState(false);
 
   const [radiusKm, setRadiusKm] = useState<number>(5);
   const [shown, setShown] = useState(PAGE);
@@ -61,7 +68,8 @@ const Pharmacies = () => {
 
   // A callback ref: the container only appears once the page layout has loaded.
   const [mapEl, setMapEl] = useState<HTMLDivElement | null>(null);
-  const [mapReady, setMapReady] = useState(false);
+  /** Bumped each time the map is (re)created: map effects re-run for the new map. */
+  const [mapGen, setMapGen] = useState(0);
   const mapRef = useRef<L.Map | null>(null);
   const tilesRef = useRef<L.TileLayer | null>(null);
   const userLayerRef = useRef<L.LayerGroup | null>(null);
@@ -76,6 +84,10 @@ const Pharmacies = () => {
     abortRef.current?.abort();
     const ctl = new AbortController();
     abortRef.current = ctl;
+    // A different place: never show the previous place's pharmacies (wrong area,
+    // wrong counts) while loading or if this request fails.
+    const prev = fetchedAtRef.current;
+    if (prev && haversineKm(prev.lat, prev.lng, c.lat, c.lng) > REFETCH_DISTANCE_KM) setAll(null);
     fetchedAtRef.current = c;
     const t0 = performance.now();
     if (!force) {
@@ -83,6 +95,7 @@ const Pharmacies = () => {
       if (hit) {
         setAll(hit.items);
         setStaleAt(null);
+        setPartial(false);
         setStatus("ok");
         setLoadMs(Math.round(performance.now() - t0));
         return;
@@ -95,6 +108,7 @@ const Pharmacies = () => {
       setAll(items);
       setStatus("ok");
       setStaleAt(stats.stale ? stats.savedAt ?? null : null);
+      setPartial(!!stats.partial);
       setLoadMs(stats.ms);
       console.info(`[pharmacies] ${items.length} within ${MAX_RADIUS_KM} km in ${stats.ms} ms (${stats.mirror})`);
     } catch (e) {
@@ -108,27 +122,25 @@ const Pharmacies = () => {
   const locate = useCallback(
     async (fresh: boolean): Promise<Coords | null> => {
       setLocating(true);
-      setLocationMessage(null);
       try {
-        const c = await getQuickLocation(fresh ? 0 : 5 * 60_000, fresh ? 15_000 : 8000);
-        saveLastLocation(c);
-        setLocationStatus("granted");
+        const c = await getLocation({ maxAgeMs: fresh ? 0 : 5 * 60_000 });
+        setLastKnownAt(c.lastKnown ? c.at : null);
+        setLocError(c.lastKnown ? "unavailable" : null);
+        // "Rajajinagar, Bengaluru" for the map title (best effort).
+        void lookupPlaceName(c.lat, c.lng, language).then((name) => {
+          if (name && modeRef.current === "gps") setPlaceName(name);
+        });
         return { lat: c.lat, lng: c.lng };
       } catch (e) {
         const err = e as LocationError;
-        console.warn("Geolocation error:", err);
-        if (err.reason === "unsupported") toast.error(t("pharm.geoUnsupported"));
-        if (err.userMessage) {
-          setLocationMessage(err.messageKey);
-          toast.error(t(err.messageKey), { id: "location-error" });
-        }
-        setLocationStatus("denied");
+        console.warn("[pharmacies] no location:", err.reason, err.code);
+        setLocError(err.reason ?? "unavailable");
         return null;
       } finally {
         setLocating(false);
       }
     },
-    [t],
+    [language],
   );
 
   // First visit: map + results for the last known place at once, then the real position.
@@ -141,9 +153,8 @@ const Pharmacies = () => {
         const at = fetchedAtRef.current;
         if (!at || haversineKm(at.lat, at.lng, c.lat, c.lng) > REFETCH_DISTANCE_KM) void load(c);
       } else if (!last) {
-        setOrigin(DEFAULT_COORDS);
-        setPlaceName("weather.hyderabadDefault");
-        void load(DEFAULT_COORDS);
+        // No location at all: no made-up city. The notice explains; Search area works.
+        setStatus("ok");
       }
     });
     return () => abortRef.current?.abort();
@@ -179,7 +190,8 @@ const Pharmacies = () => {
         setMode("search");
         setOrigin(c);
         setPlaceName(place);
-        setLocationStatus("granted");
+        setLocError(null);
+        setLastKnownAt(null);
         toast.success(t("pharm.foundLocation", { place }));
         void load(c);
       } else {
@@ -200,24 +212,28 @@ const Pharmacies = () => {
 
   useEffect(() => setShown(PAGE), [radiusKm, origin]);
 
-  // ── Map tiles: OpenStreetMap in light mode, CARTO dark in dark mode ───
+  // ── Map tiles: OpenStreetMap in both themes ───────────────────────────
+  // Dark mode darkens only the tile pane with CSS (index.css, .dark .pharm-map
+  // .leaflet-tile-pane): CARTO's dark_all / light_all now return an "API KEY
+  // REQUIRED" placeholder instead of streets. Markers, circle and popups are in
+  // other panes, so they are never filtered.
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     tilesRef.current?.remove();
-    const osm = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
-    tilesRef.current = (
-      themeMode === "dark"
-        ? L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-            attribution: `${osm} &copy; <a href="https://carto.com/attributions">CARTO</a>`,
-            subdomains: "abcd",
-            maxZoom: 20,
-          })
-        : L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: osm, maxZoom: 19 })
-    ).addTo(map);
+    tilesRef.current = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19,
+    }).addTo(map);
     tilesRef.current.bringToBack();
-  }, [mapReady, themeMode]);
+  }, [mapGen]);
+
+  // Theme switched (Light / Dark / System, also when the phone's setting changes):
+  // the CSS filter applies at once; re-measure in case the layout shifted.
+  useEffect(() => {
+    mapRef.current?.invalidateSize();
+  }, [themeMode]);
 
   // ── Map: created once, as soon as its container exists ───────────────
 
@@ -235,9 +251,8 @@ const Pharmacies = () => {
       chunkedLoading: true,
       iconCreateFunction: clusterIcon,
     }).addTo(map);
-    setMapReady(true);
+    setMapGen((g) => g + 1);
     return () => {
-      setMapReady(false);
       map.stop(); // a running zoom animation would fail on the removed map (_leaflet_pos)
       map.remove();
       mapRef.current = null;
@@ -258,10 +273,11 @@ const Pharmacies = () => {
     layer.clearLayers();
     circleRef.current = L.circle([origin.lat, origin.lng], {
       radius: radiusKm * 1000,
-      color: "#2563eb",
-      weight: 1.5,
-      fillColor: "#2563eb",
-      fillOpacity: 0.05,
+      // Lighter blue on the dark map so the radius stays visible.
+      color: themeMode === "dark" ? "#60a5fa" : "#2563eb",
+      weight: themeMode === "dark" ? 2 : 1.5,
+      fillColor: themeMode === "dark" ? "#60a5fa" : "#2563eb",
+      fillOpacity: themeMode === "dark" ? 0.08 : 0.05,
       interactive: false,
     }).addTo(layer);
     L.marker([origin.lat, origin.lng], { icon: userDotIcon(), zIndexOffset: 1000, keyboard: false })
@@ -269,7 +285,7 @@ const Pharmacies = () => {
       .bindPopup(`<b>📍 ${t("weather.yourLocation")}</b><br/>${t(placeName).replace(/</g, "&lt;")}`);
     // No animation: an animated fit racing the cluster / tile updates throws in Leaflet.
     map.fitBounds(circleRef.current.getBounds(), { padding: [12, 12], animate: false });
-  }, [mapReady, origin, radiusKm, placeName, t]);
+  }, [mapGen, origin, radiusKm, placeName, t, themeMode]);
 
   // Pins: only the pharmacies inside the circle, clustered.
   useEffect(() => {
@@ -307,7 +323,7 @@ const Pharmacies = () => {
     cluster.addLayers(pins);
     // The selected pin is restyled below without rebuilding every pin.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapReady, visible, t]);
+  }, [mapGen, visible, t]);
 
   useEffect(() => {
     pinsRef.current.forEach((pin, id) => {
@@ -355,7 +371,8 @@ const Pharmacies = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 max-w-6xl">
+      {/* Bottom padding: nothing hides behind the floating SOS button or the bottom nav */}
+      <div className="space-y-6 max-w-6xl pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight flex items-center gap-2">
@@ -374,16 +391,10 @@ const Pharmacies = () => {
           </Button>
         </div>
 
-        {locationStatus === "denied" && mode === "gps" && (
-          <div className="bg-amber-500/10 border-2 border-amber-500/30 rounded-2xl p-4 sm:p-5 flex items-start gap-3">
-            <ShieldAlert className="w-6 h-6 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-            <div>
-              <p className="font-bold text-amber-800 dark:text-amber-200 text-sm sm:text-base">{t("pharm.permissionDenied")}</p>
-              {locationMessage && (
-                <p className="text-xs sm:text-sm font-medium text-amber-800 dark:text-amber-200 mt-0.5">{t(locationMessage)}</p>
-              )}
-              <p className="text-xs sm:text-sm text-amber-700/90 dark:text-amber-300/90 mt-0.5">{t("pharm.enterCityHelp")}</p>
-            </div>
+        {locError && mode === "gps" && (
+          <div className="space-y-2">
+            <LocationNotice reason={locError} lastKnownAt={lastKnownAt} onRetry={() => void refresh()} />
+            <p className="px-1 text-sm text-muted-foreground">{t("pharm.enterCityHelp")}</p>
           </div>
         )}
 
@@ -439,6 +450,8 @@ const Pharmacies = () => {
 
           {/* List */}
           <div className="lg:col-span-6 space-y-4">
+            {/* No "Found 0" when the request failed: the error card says what happened. */}
+            {all && (
             <div className="flex items-center justify-between gap-2 px-1">
               <p className="font-bold text-base" data-load-ms={loadMs ?? undefined} data-count={visible.length} id="pharm-count">
                 {firstLoad ? t("pharm.searching") : t("pharm.foundCount", { count: visible.length, km: radiusKm })}
@@ -453,6 +466,23 @@ const Pharmacies = () => {
                 )}
               </span>
             </div>
+            )}
+
+            {partial && status === "ok" && (
+              <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-amber-900 dark:text-amber-100" role="status">
+                <p className="flex items-start gap-2.5 text-sm font-semibold">
+                  <AlertCircle className="w-5 h-5 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <span className="min-w-0">{t("pharm.partialResults")}</span>
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={() => origin && void load(origin, true)}
+                  className="mt-3 w-full min-h-[48px] rounded-xl border-amber-500/50 bg-card text-base font-bold"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" /> {t("pharm.retry")}
+                </Button>
+              </div>
+            )}
 
             {staleAt && status === "ok" && (
               <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200" role="status">
@@ -472,15 +502,18 @@ const Pharmacies = () => {
             )}
 
             {status === "error" && (
-              <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200" role="alert">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
-                <p className="flex-1 min-w-0 text-xs font-semibold">{t("pharm.loadError")}</p>
-                <button
+              <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-amber-900 dark:text-amber-100" role="alert">
+                <p className="flex items-start gap-2.5 text-base font-semibold">
+                  <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                  <span className="min-w-0">{t("pharm.loadError")}</span>
+                </p>
+                <Button
+                  variant="outline"
                   onClick={() => origin && void load(origin, true)}
-                  className="shrink-0 text-xs font-bold text-amber-700 dark:text-amber-300 hover:underline"
+                  className="mt-3 w-full min-h-[48px] rounded-xl border-amber-500/50 bg-card text-base font-bold"
                 >
-                  {t("pharm.retry")}
-                </button>
+                  <RefreshCw className="w-4 h-4 mr-2" /> {t("pharm.retry")}
+                </Button>
               </div>
             )}
 
@@ -512,8 +545,8 @@ const Pharmacies = () => {
                   </div>
                 )}
               </div>
-            ) : (
-              <div className="space-y-3 max-h-[540px] overflow-y-auto pr-1" id="pharm-list">
+            ) : !all ? null : (
+              <div className="space-y-3 max-h-[540px] overflow-y-auto pr-1 pb-2" id="pharm-list">
                 {visible.slice(0, shown).map((p) => {
                   const isSelected = selectedId === p.id;
                   return (

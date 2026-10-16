@@ -63,6 +63,7 @@ import { useMedicineAlarmSync } from "@/hooks/useMedicineAlarmSync";
 import { useHealthAutoSync } from "@/hooks/useHealthAutoSync";
 import { useNativeSplash } from "@/lib/startFlow";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import LocationRationaleHost from "@/components/LocationRationaleHost";
 
 const queryClient = new QueryClient();
 
@@ -152,6 +153,8 @@ const App = () => (
         <AuthProvider>
           {/* After login: the theme saved in the profile (website <-> app) */}
           <ThemeProfileSync />
+          {/* "Why we need your location", shown right before the Android popup */}
+          <LocationRationaleHost />
           <Toaster />
           <Sonner />
           <HashRouter>

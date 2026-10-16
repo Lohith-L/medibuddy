@@ -84,6 +84,10 @@ export interface MedicineAlarmPlugin {
   openBatteryOptimizationSettings(): Promise<void>;
   openAutostartSettings(): Promise<void>;
   openAppSettings(): Promise<void>;
+  /** The phone's Location settings page (location turned off). */
+  openLocationSettings(): Promise<void>;
+  /** The phone's Location switch (the geolocation plugin only times out when it is off). */
+  isLocationEnabled(): Promise<{ enabled: boolean }>;
 
   /** Beep (siren for SOS) and voice; at least one is always on. */
   getSettings(): Promise<{ voiceEnabled: boolean; beepEnabled: boolean }>;

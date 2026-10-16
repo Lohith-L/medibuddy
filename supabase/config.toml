@@ -18,3 +18,7 @@ verify_jwt = false
 # Needs the signed-in user's JWT (main account).
 [functions.merge-accounts]
 verify_jwt = true
+
+[functions.nearby-pharmacies]
+# Overpass proxy for the website (sets a User-Agent, caches 10 min). Signed-in users only.
+verify_jwt = true

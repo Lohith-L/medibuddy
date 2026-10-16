@@ -3,8 +3,7 @@
 // Patient: raiseSos() -> every active caregiver gets a caregiver_alerts row.
 // Caregiver: listens to its caregiver_alerts rows (Realtime), acknowledges.
 // The database enforces "1 SOS per 2 minutes" and who may see / change what.
-import { Capacitor } from "@capacitor/core";
-import { Geolocation } from "@capacitor/geolocation";
+import { getLocation, type LocationError } from "@/lib/location";
 import { supabase } from "@/integrations/supabase/client";
 
 // The generated Supabase types don't know the new tables / functions yet.
@@ -56,8 +55,8 @@ export interface RaiseSosResult {
 export const SOS_ACTIVE_HOURS = 24;
 /** Caregivers' phones ring for an unanswered SOS younger than this. */
 export const SOS_RING_MINUTES = 60;
-/** The patient's phone keeps trying to add the location for this long. */
-const LOCATION_WAIT_MS = 10_000;
+/** The patient's phone keeps trying to add the location for this long (indoor GPS takes 10-15 s). */
+const LOCATION_WAIT_MS = 30_000;
 
 const SOS_COLUMNS =
   "id, patient_id, created_at, option_used, latitude, longitude, location_accuracy_m, status, resolved_reason, resolved_at, acknowledged_by, acknowledged_by_name, acknowledged_at";
@@ -148,35 +147,17 @@ export async function fetchSosEvent(id: string): Promise<SosEvent | null> {
 }
 
 /**
- * The phone's position for an SOS, without ever blocking the alert.
- * Uses a permission already given; asks only if `ask` is true (the patient
- * tapped "Alert my caregivers", so a prompt is expected).
+ * The phone's live position for an SOS (shared location service: high
+ * accuracy, then network accuracy). Asks for permission only if `ask` is true
+ * (the patient tapped "Alert my caregivers"). Never a stale "last known" spot.
  */
 export async function sosLocation(ask: boolean): Promise<{ lat: number; lng: number; accuracy: number } | null> {
   try {
-    if (Capacitor.isNativePlatform()) {
-      let perm = await Geolocation.checkPermissions();
-      if (perm.location !== "granted" && perm.coarseLocation !== "granted") {
-        if (!ask) return null;
-        perm = await Geolocation.requestPermissions();
-        if (perm.location !== "granted" && perm.coarseLocation !== "granted") return null;
-      }
-      const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: LOCATION_WAIT_MS - 500, maximumAge: 60_000 });
-      return { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
-    }
-    if (!navigator.geolocation) return null;
-    if (!ask && navigator.permissions) {
-      const status = await navigator.permissions.query({ name: "geolocation" as PermissionName });
-      if (status.state !== "granted") return null;
-    }
-    return await new Promise((resolve) => {
-      navigator.geolocation.getCurrentPosition(
-        (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy }),
-        () => resolve(null),
-        { enableHighAccuracy: true, timeout: LOCATION_WAIT_MS - 500, maximumAge: 60_000 },
-      );
-    });
-  } catch {
+    const loc = await getLocation({ prompt: ask, maxAgeMs: 60_000, allowLastKnown: false });
+    return { lat: loc.lat, lng: loc.lng, accuracy: loc.accuracy ?? 0 };
+  } catch (e) {
+    const err = e as LocationError;
+    console.warn("[sos] no location for the SOS:", err.reason, err.code);
     return null;
   }
 }
