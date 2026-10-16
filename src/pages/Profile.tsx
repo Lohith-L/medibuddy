@@ -13,6 +13,7 @@ import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { languageOptions, normalizeLanguageCode } from "@/lib/language";
 import LinkedLogins from "@/components/LinkedLogins";
+import AppearanceSettings from "@/components/AppearanceSettings";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -168,7 +169,7 @@ const Profile = () => {
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
           <div className="flex justify-center">
             <div className="w-20 h-20 rounded-2xl gradient-warm flex items-center justify-center shadow-card">
-              <User className="w-10 h-10 text-primary-foreground" />
+              <User className="w-10 h-10 text-white" />
             </div>
           </div>
 
@@ -273,6 +274,9 @@ const Profile = () => {
               </Button>
             </div>
           )}
+
+          {/* Appearance: Light / Dark / System */}
+          <AppearanceSettings />
 
           {/* Account info */}
           <div className="bg-card rounded-2xl border p-8 shadow-card space-y-3">

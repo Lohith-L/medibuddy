@@ -65,6 +65,7 @@ const sosAlert = {
   "sosAlert.yourPatient": "உங்கள் நோயாளி",
   "sosAlert.yourPatients": "உங்கள் நோயாளிகள்",
   "sosAlert.patientNoPhone": "தொலைபேசி எண் சேமிக்கப்படவில்லை",
+  "sosAlert.cancelledRecently": "2 நிமிடங்களுக்குள் நீங்கள் அலர்ட்டை ரத்து செய்தீர்கள், அதனால் புதியதை இன்னும் அனுப்ப முடியவில்லை. கீழே உங்கள் பராமரிப்பாளரை அழைக்கவும், அல்லது சிறிது நேரத்தில் மீண்டும் முயலவும்.",
 };
 
 export default sosAlert;

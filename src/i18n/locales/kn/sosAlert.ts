@@ -65,6 +65,7 @@ const sosAlert = {
   "sosAlert.yourPatient": "ನಿಮ್ಮ ರೋಗಿ",
   "sosAlert.yourPatients": "ನಿಮ್ಮ ರೋಗಿಗಳು",
   "sosAlert.patientNoPhone": "ಫೋನ್ ಸಂಖ್ಯೆ ಉಳಿಸಿಲ್ಲ",
+  "sosAlert.cancelledRecently": "ನೀವು 2 ನಿಮಿಷದೊಳಗೆ ಅಲರ್ಟ್ ರದ್ದು ಮಾಡಿದ್ದೀರಿ, ಆದ್ದರಿಂದ ಹೊಸದನ್ನು ಇನ್ನೂ ಕಳುಹಿಸಲಾಗಲಿಲ್ಲ. ದಯವಿಟ್ಟು ಕೆಳಗೆ ನಿಮ್ಮ ಆರೈಕೆದಾರರಿಗೆ ಕರೆ ಮಾಡಿ, ಅಥವಾ ಸ್ವಲ್ಪ ಸಮಯದ ನಂತರ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
 };
 
 export default sosAlert;

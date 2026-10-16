@@ -3,6 +3,7 @@ import { ArrowLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useLanguage } from "@/contexts/LanguageContext";
+import BrandLogo from "@/components/BrandLogo";
 
 /** Start screen: "Patient login", "Caregiver login", "New here? Sign up". */
 const AuthStart = () => {
@@ -37,10 +38,10 @@ const AuthStart = () => {
           <LanguageSwitcher />
         </div>
         <div className="text-center">
-          <p className="text-3xl font-extrabold">
-            <span className="gradient-text">MEDDI</span>BUDDY
-          </p>
-          <p className="text-muted-foreground text-sm mt-1">{t("login.startSubtitle")}</p>
+          <div className="flex justify-center">
+            <BrandLogo variant="full" className="h-36" />
+          </div>
+          <p className="text-muted-foreground text-sm mt-2">{t("login.startSubtitle")}</p>
         </div>
         <Choice emoji="🧑" title={t("login.patientLogin")} desc={t("login.patientLoginDesc")} to={`/login/patient${suffix}`} />
         <Choice emoji="👨‍👩‍👧" title={t("login.caregiverLogin")} desc={t("login.caregiverLoginDesc")} to={`/login/caregiver${suffix}`} />

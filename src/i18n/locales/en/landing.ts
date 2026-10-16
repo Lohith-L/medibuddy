@@ -76,7 +76,7 @@ const landing = {
 
   "landing.langEyebrow": "Multilingual",
   "landing.langTitle": "Speaks your language",
-  "landing.langDesc": "MEDDIBUDDY sends reminders in 8 Indian languages. Your parents feel right at home.",
+  "landing.langDesc": "MediBuddy sends reminders in 8 Indian languages. Your parents feel right at home.",
   "landing.langName.en": "English",
   "landing.langName.hi": "Hindi",
   "landing.langName.te": "Telugu",
@@ -88,14 +88,14 @@ const landing = {
 
   "landing.faqEyebrow": "FAQ",
   "landing.faqTitle": "Questions? Answers.",
-  "landing.faq.1.q": "Is MEDDIBUDDY really free?",
-  "landing.faq.1.a": "Yes! MEDDIBUDDY has a generous free plan with unlimited prescriptions, reminders in 8 languages and family alerts. We believe every family deserves proper medicine management.",
+  "landing.faq.1.q": "Is MediBuddy really free?",
+  "landing.faq.1.a": "Yes! MediBuddy has a generous free plan with unlimited prescriptions, reminders in 8 languages and family alerts. We believe every family deserves proper medicine management.",
   "landing.faq.2.q": "How does the AI prescription scanner work?",
   "landing.faq.2.a": "Upload a photo of any prescription, even a handwritten one. Our AI (powered by Gemini) reads the image and finds the medicine names, dosages and timing within seconds.",
   "landing.faq.3.q": "Can family members see my health data?",
   "landing.faq.3.a": "Only people you invite can see your medicine schedule and adherence. You decide exactly who sees what. Your data is never shared without your consent.",
   "landing.faq.4.q": "What if my parents don't use smartphones?",
-  "landing.faq.4.a": "MEDDIBUDDY sends reminders by email, so they can check them on any device with email. Family members get SMS/email alerts when doses are missed.",
+  "landing.faq.4.a": "MediBuddy sends reminders by email, so they can check them on any device with email. Family members get SMS/email alerts when doses are missed.",
   "landing.faq.5.q": "Is my health data secure?",
   "landing.faq.5.a": "Absolutely. We use bank-grade encryption (AES-256) and are HIPAA-compliant. Your health data is encrypted at rest and in transit. We never sell your data.",
 
@@ -118,7 +118,7 @@ const landing = {
   "landing.footer.terms": "Terms of service",
   "landing.footer.cookies": "Cookie policy",
   "landing.footer.gdpr": "GDPR",
-  "landing.copyright": "© 2026 MEDDIBUDDY. Made with ❤️ for healthier Indian families.",
+  "landing.copyright": "© 2026 MediBuddy. Made with ❤️ for healthier Indian families.",
 };
 
 export default landing;

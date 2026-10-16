@@ -19,6 +19,8 @@ import account from "./account";
 import alarmVoice from "./alarmVoice";
 import care from "./care";
 import sosAlert from "./sosAlert";
+import start from "./start";
+import theme from "./theme";
 
 const en = {
   ...common,
@@ -41,6 +43,8 @@ const en = {
   ...alarmVoice,
   ...care,
   ...sosAlert,
+  ...start,
+  ...theme,
 };
 
 export default en;

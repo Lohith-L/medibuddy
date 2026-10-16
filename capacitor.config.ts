@@ -14,9 +14,10 @@ const config: CapacitorConfig = {
 
   plugins: {
     SplashScreen: {
-      launchShowDuration: 2000,
-      launchAutoHide: true,
-      backgroundColor: '#0f172a',   // matches app dark bg
+      // Hidden by the app as soon as the session has loaded (src/lib/startFlow.ts,
+      // max ~2 s); no fixed delay.
+      launchAutoHide: false,
+      backgroundColor: '#ffffff',   // white, like the logo background
       androidSplashResourceName: 'splash',
       showSpinner: false,
     },
@@ -25,16 +26,17 @@ const config: CapacitorConfig = {
     // injects --safe-area-inset-* variables, used in index.css.
     SystemBars: {
       insetsHandling: 'css',
-      style: 'LIGHT',               // dark icons on the white header
+      // Follows the phone's light/dark setting until the app applies the
+      // user's theme choice (ThemeContext).
+      style: 'DEFAULT',
       initialViewportFitValueHint: 'cover',
     },
     StatusBar: {
-      style: 'LIGHT',               // dark icons on the white header
-      backgroundColor: '#ffffff',   // only applies below Android 15
+      style: 'DEFAULT',             // set per theme at runtime (ThemeContext)
     },
     LocalNotifications: {
-      smallIcon: 'ic_stat_icon_config_sample',
-      iconColor: '#6366f1',         // indigo brand colour
+      smallIcon: 'ic_stat_medibuddy', // white MediBuddy silhouette (res/drawable-*dpi)
+      iconColor: '#0077CE',         // logo blue
       sound: 'beep.wav',
     },
   },

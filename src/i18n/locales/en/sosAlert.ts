@@ -65,6 +65,7 @@ const sosAlert = {
   "sosAlert.yourPatient": "Your patient",
   "sosAlert.yourPatients": "Your patients",
   "sosAlert.patientNoPhone": "No phone number saved",
+  "sosAlert.cancelledRecently": "You cancelled an alert less than 2 minutes ago, so a new one couldn't be sent yet. Please call your caregiver below, or try again in a moment.",
 };
 
 export default sosAlert;

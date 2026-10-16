@@ -24,7 +24,7 @@ const report = {
   "report.improving": "Improving",
   "report.declining": "Declining",
   "report.stable": "Stable",
-  "report.poweredBy": "MEDDIBUDDY - Your Medicine Companion",
+  "report.poweredBy": "MediBuddy - Your Medicine Companion",
 };
 
 export default report;

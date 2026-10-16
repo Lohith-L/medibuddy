@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import {
-  Home, Pill, Camera, Users, BarChart3, Settings, LogOut, Heart, Menu, X, Bell, Globe, Check, AlertTriangle, Clock, CheckCircle2, XCircle, Mail, Activity, Store,
+  Home, Pill, Camera, Users, BarChart3, Settings, LogOut, Menu, X, Bell, Globe, Check, AlertTriangle, Clock, CheckCircle2, XCircle, Mail, Activity, Store,
   HeartHandshake, ClipboardList, BellRing, Siren,
 } from "lucide-react";
 import { useCare } from "@/contexts/CareContext";
@@ -17,6 +17,9 @@ import { languageLabelByCode, languageOptions } from "@/lib/language";
 import BottomNav from "@/components/BottomNav";
 import { useLanguage } from "@/contexts/LanguageContext";
 import SOSButton, { SOSProvider } from "@/components/SOSButton";
+import BrandLogo from "@/components/BrandLogo";
+import { signedOutPath } from "@/lib/startFlow";
+import ThemeToggle from "@/components/ThemeToggle";
 
 interface AlertItem {
   id: string;
@@ -119,11 +122,11 @@ const DashboardLayout = ({ children }: Props) => {
 
   useEffect(() => {
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) navigate("/auth");
+      if (!session) navigate(signedOutPath());
       else { setUser(session.user); setLoading(false); }
     });
     supabase.auth.getSession().then(({ data }) => {
-      if (!data.session) navigate("/auth");
+      if (!data.session) navigate(signedOutPath());
       else { setUser(data.session.user); setLoading(false); }
     });
     return () => listener.subscription.unsubscribe();
@@ -208,14 +211,7 @@ const DashboardLayout = ({ children }: Props) => {
     <>
       {/* Logo */}
       <div className="p-6 pb-4">
-        <div className="flex items-center gap-2.5">
-          <div className="w-10 h-10 rounded-xl gradient-warm flex items-center justify-center">
-            <Heart className="w-5 h-5 text-primary-foreground" />
-          </div>
-          <span className="text-xl font-extrabold tracking-tight">
-            <span className="gradient-text">Med</span>Buddy
-          </span>
-        </div>
+        <BrandLogo variant="horizontal" className="h-10" />
       </div>
 
       {/* Nav */}
@@ -292,6 +288,7 @@ const DashboardLayout = ({ children }: Props) => {
             </div>
             <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
               <SOSButton variant="header" />
+              <ThemeToggle className="max-[340px]:hidden" />
               <div className="relative" ref={langRef}>
                 <button
                   onClick={() => setLangDropdownOpen(!langDropdownOpen)}

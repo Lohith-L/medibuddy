@@ -65,6 +65,7 @@ const sosAlert = {
   "sosAlert.yourPatient": "તમારા દર્દી",
   "sosAlert.yourPatients": "તમારા દર્દીઓ",
   "sosAlert.patientNoPhone": "કોઈ ફોન નંબર સાચવેલ નથી",
+  "sosAlert.cancelledRecently": "તમે 2 મિનિટ પહેલાં જ એલર્ટ રદ કર્યો, તેથી નવો હજી મોકલી શકાયો નહીં. કૃપા કરીને નીચે તમારા સંભાળ રાખનારને કૉલ કરો, અથવા થોડી વાર પછી ફરી પ્રયાસ કરો.",
 };
 
 export default sosAlert;

@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -8,6 +7,9 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
+        <!-- Push notifications (Firebase): white MediBuddy icon in the status bar -->
+        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_stat_medibuddy" />
+        <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/brand_blue" />
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"
@@ -57,23 +59,21 @@
             android:showWhenLocked="true"
             android:turnScreenOn="true"
             android:screenOrientation="portrait"
-            android:theme="@style/AlarmTheme" />
+            android:theme="@style/AlarmTheme"
+        />
 
         <!-- Plays the alarm sound on the alarm stream until the user answers -->
         <service
             android:name=".alarm.AlarmService"
             android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
+            android:foregroundServiceType="mediaPlayback"
+        />
 
         <!-- Fired by AlarmManager at reminder / snooze time -->
-        <receiver
-            android:name=".alarm.AlarmReceiver"
-            android:exported="false" />
+        <receiver android:name=".alarm.AlarmReceiver" android:exported="false" />
 
         <!-- Rebuild alarms after reboot, app update, clock or timezone change -->
-        <receiver
-            android:name=".alarm.BootReceiver"
-            android:exported="true">
+        <receiver android:name=".alarm.BootReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
@@ -86,9 +86,7 @@
         <!-- ── Step counter fallback (see java/com/medibuddy/app/health) ───────
              Reads the phone's step counter at midnight, hourly, after a reboot
              and at shutdown so daily step totals stay correct. -->
-        <receiver
-            android:name=".health.StepReceiver"
-            android:exported="true">
+        <receiver android:name=".health.StepReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />

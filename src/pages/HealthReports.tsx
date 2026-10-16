@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { startOfWeek, endOfWeek, subWeeks, format, startOfDay } from "date-fns";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useChartTheme } from "@/lib/chartTheme";
 
 interface WeekData {
   weekLabel: string;
@@ -29,6 +30,7 @@ const COLORS = {
 
 const HealthReports = () => {
   const { t, language, locale } = useLanguage();
+  const chart = useChartTheme();
   /** "2026-10-05" → "5 Oct" / "5 अक्टू॰" in the current language. */
   const fmtWeek = (iso: string) =>
     new Date(`${iso}T00:00:00`).toLocaleDateString(locale, { month: "short", day: "numeric" });
@@ -390,9 +392,10 @@ const HealthReports = () => {
                     <div className="h-64">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={weeklyData} barGap={4}>
-                          <XAxis dataKey="weekLabel" tick={{ fontSize: 12 }} tickFormatter={fmtWeek} />
-                          <YAxis tick={{ fontSize: 12 }} />
+                          <XAxis dataKey="weekLabel" {...chart.axisProps} tickFormatter={fmtWeek} />
+                          <YAxis {...chart.axisProps} />
                           <Tooltip
+                            cursor={chart.tooltip.cursor}
                             content={({ active, payload, label }) => {
                               if (!active || !payload?.length) return null;
                               return (

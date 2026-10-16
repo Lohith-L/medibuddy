@@ -3,6 +3,8 @@ import { ArrowLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useLanguage } from "@/contexts/LanguageContext";
+import BrandLogo from "@/components/BrandLogo";
+import { Capacitor } from "@capacitor/core";
 
 /** Step 1 of sign-up: "Create your account as: Patient / Caregiver". */
 const SignupRole = () => {
@@ -31,10 +33,13 @@ const SignupRole = () => {
     <div className="min-h-screen gradient-hero flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-md space-y-5">
         <div className="flex items-center justify-between gap-2">
-          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => navigate("/auth")}>
+          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => navigate(Capacitor.isNativePlatform() ? "/welcome" : "/auth")}>
             <ArrowLeft className="w-4 h-4 mr-2" /> {t("signup.back")}
           </Button>
           <LanguageSwitcher />
+        </div>
+        <div className="flex justify-center">
+          <BrandLogo variant="full" className="h-32" />
         </div>
         <h1 className="text-2xl font-extrabold text-center">{t("signup.title")}</h1>
         <Card emoji="🧑" title={t("signup.patientTitle")} desc={t("signup.patientDesc")} to={`/signup/patient${suffix}`} />

@@ -12,7 +12,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useCare } from "@/contexts/CareContext";
 import { dialable } from "@/lib/phone";
 import {
-  attachLocationLater, cancelSos, fetchMyActiveSos, raiseSos, timeAgo, type SosEvent, type SosOption,
+  attachLocationLater, cancelSos, fetchMyActiveSos, fetchSosEvent, raiseSos, timeAgo, type SosEvent, type SosOption,
 } from "@/lib/sos";
 
 interface SOSButtonProps {
@@ -33,7 +33,7 @@ type SendState =
   | { state: "idle" }
   | { state: "sending" }
   | { state: "sent"; caregivers: number; rateLimited: boolean }
-  | { state: "error" };
+  | { state: "error"; reason?: "cancelledRecently" };
 
 interface SOSContextType {
   open: boolean;
@@ -190,7 +190,18 @@ export const SOSProvider = ({ children }: { children: ReactNode }) => {
       try {
         // Send first, location afterwards: the alert never waits for GPS.
         const res = await raiseSos(option, null);
-        setSend({ state: "sent", caregivers: res.caregivers, rateLimited: res.rateLimited });
+        // Read it back: the alert must really be active. (A database without
+        // migration 20261014100000 returns an SOS cancelled < 2 min ago as
+        // "rate limited" and alerts nobody: say so instead of failing silently.)
+        const sos = await fetchSosEvent(res.sosId);
+        if (!sos || sos.status !== "active") {
+          setSend({ state: "error", reason: "cancelledRecently" });
+          toast.error(tRef.current("sosAlert.cancelledRecently"), { duration: 8000 });
+          void refresh();
+          return;
+        }
+        setActiveSos(sos);
+        setSend({ state: "sent", caregivers: res.caregivers, rateLimited: res.rateLimited && !res.reactivated });
         void refresh();
         // The alert button may ask for location permission; a call option never
         // interrupts the dialer with a permission popup.
@@ -207,14 +218,20 @@ export const SOSProvider = ({ children }: { children: ReactNode }) => {
 
   const cancelActive = useCallback(async () => {
     if (!activeSos) return;
+    const id = activeSos.id;
+    // The alert button is usable again at once (no waiting for the server).
+    setActiveSos(null);
+    setSend({ state: "idle" });
+    lastAckRef.current = null;
     try {
-      await cancelSos(activeSos.id);
-      setSend({ state: "idle" });
+      // false = it was already resolved (e.g. cancelled on another device): fine.
+      await cancelSos(id);
       toast.success(tRef.current("sosAlert.cancelledToast"));
     } catch (e) {
       console.warn("[SOS] cancel failed:", e);
       toast.error(tRef.current("sosAlert.cancelFailed"));
     }
+    // The real state from the server (shows the SOS again if cancelling failed).
     await refresh();
   }, [activeSos, refresh]);
 
@@ -607,7 +624,7 @@ const CaregiverAlertBox = ({
             variant="outline"
             onClick={onCancel}
             disabled={cancelling}
-            className="min-h-[52px] rounded-2xl border-2 border-emerald-600 text-base font-bold text-emerald-800 hover:bg-emerald-100 dark:text-emerald-200"
+            className="min-h-[52px] rounded-2xl border-2 border-emerald-600 text-base font-bold text-emerald-800 hover:bg-emerald-100 dark:text-emerald-200 dark:hover:bg-emerald-950"
           >
             {cancelling ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <ShieldCheck className="mr-2 h-5 w-5" />}
             {t("sosAlert.imSafe")}
@@ -638,7 +655,8 @@ const CaregiverAlertBox = ({
       </button>
       {send.state === "error" && (
         <p className="mt-2 flex items-start gap-2 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800 dark:bg-red-950/40 dark:text-red-200" role="alert">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> {t("sosAlert.sendFailed")}
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{" "}
+          {send.reason === "cancelledRecently" ? t("sosAlert.cancelledRecently") : t("sosAlert.sendFailed")}
         </p>
       )}
     </div>

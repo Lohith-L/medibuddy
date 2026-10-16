@@ -65,6 +65,7 @@ const sosAlert = {
   "sosAlert.yourPatient": "మీ రోగి",
   "sosAlert.yourPatients": "మీ రోగులు",
   "sosAlert.patientNoPhone": "ఫోన్ నంబర్ సేవ్ చేయలేదు",
+  "sosAlert.cancelledRecently": "మీరు 2 నిమిషాల లోపే అలర్ట్ రద్దు చేశారు, కాబట్టి కొత్తది ఇంకా పంపలేకపోయాం. దయచేసి కింద మీ సంరక్షకుడికి కాల్ చేయండి, లేదా కాసేపటి తర్వాత మళ్లీ ప్రయత్నించండి.",
 };
 
 export default sosAlert;

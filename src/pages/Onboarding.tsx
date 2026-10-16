@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { translate } from "@/i18n";
-import { ArrowRight, Check, Globe } from "lucide-react";
+import { ArrowRight, Check } from "lucide-react";
 import { motion } from "framer-motion";
+import BrandLogo from "@/components/BrandLogo";
 
 const languageOptions = [
   { code: "en", name: "English", native: "English", emoji: "🇬🇧" },
@@ -56,8 +57,8 @@ const Onboarding = () => {
           transition={{ duration: 0.5 }}
           className="text-center mb-10"
         >
-          <div className="w-16 h-16 rounded-2xl gradient-warm flex items-center justify-center mx-auto mb-6 shadow-card">
-            <Globe className="w-8 h-8 text-primary-foreground" />
+          <div className="flex justify-center mb-6">
+            <BrandLogo variant="full" className="h-36" />
           </div>
           <h1 className="text-3xl font-extrabold mb-3">{t("onboarding.title")}</h1>
           <p className="text-muted-foreground text-lg">
@@ -81,7 +82,7 @@ const Onboarding = () => {
             >
               {selected === lang.code && (
                 <div className="absolute top-3 right-3 w-6 h-6 rounded-full gradient-warm flex items-center justify-center">
-                  <Check className="w-4 h-4 text-primary-foreground" />
+                  <Check className="w-4 h-4 text-white" />
                 </div>
               )}
               <span className="text-2xl mb-2 block">{lang.emoji}</span>

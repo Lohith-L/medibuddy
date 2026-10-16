@@ -29,6 +29,7 @@ dist-ssr
 
 # AI Tooling
 .lovable/
+.claude/
 
 # Secrets: never commit signing keys or service credentials
 *.jks

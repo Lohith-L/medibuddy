@@ -65,6 +65,7 @@ const sosAlert = {
   "sosAlert.yourPatient": "तुमचे रुग्ण",
   "sosAlert.yourPatients": "तुमचे रुग्ण",
   "sosAlert.patientNoPhone": "फोन नंबर सेव्ह केलेला नाही",
+  "sosAlert.cancelledRecently": "तुम्ही 2 मिनिटांपूर्वीच अलर्ट रद्द केला, त्यामुळे नवीन अलर्ट अजून पाठवता आला नाही. कृपया खाली तुमच्या काळजीवाहकाला कॉल करा, किंवा थोड्या वेळाने पुन्हा प्रयत्न करा.",
 };
 
 export default sosAlert;

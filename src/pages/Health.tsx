@@ -31,6 +31,8 @@ import {
 } from "@/lib/healthService";
 import { HEALTH_SYNCED_EVENT } from "@/hooks/useHealthAutoSync";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { signedOutPath } from "@/lib/startFlow";
+import { useChartTheme } from "@/lib/chartTheme";
 
 const fadeIn = (i: number) => ({
   initial: { opacity: 0, y: 16 },
@@ -47,6 +49,7 @@ const NO_SENSOR: StepSensorStatus = { available: false, permission: "denied" };
 const Health = () => {
   const navigate = useNavigate();
   const { t, locale } = useLanguage();
+  const chart = useChartTheme();
   // Me, or the patient I'm viewing as a caregiver. Phone (Health Connect) features
   // only apply to my own data: a caregiver sees the patient's synced data.
   const { active, loading: careLoading } = useActivePatient();
@@ -131,7 +134,7 @@ const Health = () => {
     (async () => {
       if (careLoading) return;
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { navigate("/auth"); return; }
+      if (!session) { navigate(signedOutPath()); return; }
       setLoading(true);
       if (viewingOther && active) {
         setPatientId(active.patientId);
@@ -570,11 +573,11 @@ const Health = () => {
                 <div className="h-52">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                      <XAxis dataKey="day" tick={{ fontSize: 11 }} interval={0} />
-                      <YAxis tick={{ fontSize: 11 }} width={40} tickFormatter={(v: number) => v.toLocaleString(locale)} />
-                      <Tooltip formatter={(v: number) => [v.toLocaleString(locale), t("health.chartSteps")]} />
-                      <Bar dataKey="steps" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                      <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+                      <XAxis dataKey="day" {...chart.axisProps} interval={0} />
+                      <YAxis {...chart.axisProps} width={40} tickFormatter={(v: number) => v.toLocaleString(locale)} />
+                      <Tooltip {...chart.tooltip} formatter={(v: number) => [v.toLocaleString(locale), t("health.chartSteps")]} />
+                      <Bar dataKey="steps" fill={chart.primary} radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -599,11 +602,11 @@ const Health = () => {
                 <div className="h-52">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                      <XAxis dataKey="day" tick={{ fontSize: 11 }} interval={0} />
-                      <YAxis tick={{ fontSize: 11 }} width={40} unit={t("health.hoursShort")} />
-                      <Tooltip formatter={(v: number) => [`${v.toLocaleString(locale)}${t("health.hoursShort")}`, t("health.chartSleep")]} />
-                      <Bar dataKey="sleep" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                      <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+                      <XAxis dataKey="day" {...chart.axisProps} interval={0} />
+                      <YAxis {...chart.axisProps} width={40} unit={t("health.hoursShort")} />
+                      <Tooltip {...chart.tooltip} formatter={(v: number) => [`${v.toLocaleString(locale)}${t("health.hoursShort")}`, t("health.chartSleep")]} />
+                      <Bar dataKey="sleep" fill={chart.sleep} radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>

@@ -76,7 +76,7 @@ const AlarmSetupBanner = () => {
         </Button>
       </div>
       {state === "battery" && (
-        <button onClick={dismiss} aria-label={t("misc.dismiss")} className="text-amber-700/70 hover:text-amber-900 p-1">
+        <button onClick={dismiss} aria-label={t("misc.dismiss")} className="text-amber-700/70 hover:text-amber-900 dark:text-amber-300/80 dark:hover:text-amber-100 p-1">
           <X className="w-4 h-4" />
         </button>
       )}

@@ -7,6 +7,8 @@ import { Spotlight } from "@/components/ui/spotlight";
 import { Capacitor } from "@capacitor/core";
 import { useLanguage } from "@/contexts/LanguageContext";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
+import BrandLogo from "@/components/BrandLogo";
+import ThemeToggle from "@/components/ThemeToggle";
 import {
   Clock, Heart, Shield, Users, Smartphone, ArrowRight,
   Menu, X, Upload, Bell, BarChart3, Globe, Check,
@@ -173,9 +175,7 @@ const Landing = () => {
             whileHover={{ scale: 1.02 }}
             onClick={() => navigate("/")}
           >
-            <span className="text-2xl font-extrabold tracking-tight">
-              <span className="gradient-text">MEDDI</span>BUDDY
-            </span>
+            <BrandLogo variant="horizontal" className="h-9 md:h-11" />
           </motion.div>
 
           <div className="hidden md:flex items-center gap-8">
@@ -193,6 +193,7 @@ const Landing = () => {
           </div>
 
           <div className="hidden md:flex items-center gap-3">
+            <ThemeToggle />
             <LanguageSwitcher />
             <Button variant="ghost" size="sm" onClick={() => navigate("/auth")}>
               {t("landing.signIn")}
@@ -203,6 +204,7 @@ const Landing = () => {
             </Button>
           </div>
 
+          <ThemeToggle className="md:hidden ml-auto mr-1" />
           <button
             className="md:hidden p-2.5 rounded-xl hover:bg-muted transition-colors"
             onClick={() => setMenuOpen(!menuOpen)}
@@ -672,8 +674,8 @@ const Landing = () => {
             viewport={{ once: true }}
             className="max-w-3xl mx-auto text-center"
           >
-            <motion.div variants={scaleIn} className="w-24 h-24 rounded-3xl gradient-warm flex items-center justify-center mx-auto mb-8 shadow-float">
-              <Heart className="w-12 h-12 text-primary-foreground" />
+            <motion.div variants={scaleIn} className="w-28 h-28 rounded-3xl bg-white flex items-center justify-center mx-auto mb-8 shadow-float p-3">
+              <BrandLogo variant="symbol" className="h-full" />
             </motion.div>
 
             <motion.h2 variants={fadeInUp} className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-primary-foreground mb-6 tracking-tight">
@@ -717,9 +719,7 @@ const Landing = () => {
           <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-8 lg:gap-12 mb-12">
             <div className="lg:col-span-2">
               <div className="flex items-center gap-2 mb-4">
-                <span className="text-2xl font-extrabold tracking-tight">
-                  <span className="gradient-text">MEDDI</span>BUDDY
-                </span>
+                <BrandLogo variant="horizontal" className="h-11" />
               </div>
               <p className="text-muted-foreground mb-6 max-w-sm leading-relaxed">
                 {t("landing.footerTagline")}

@@ -34,10 +34,10 @@ const profile = {
   "profile.passwordUpdated": "Password updated",
   "profile.passwordUpdateFailed": "Couldn't update the password",
 
-  "onboarding.title": "Welcome to MEDDIBUDDY! 🤗",
+  "onboarding.title": "Welcome to MediBuddy! 🤗",
   "onboarding.subtitle": "Choose your preferred language for the app and medicine reminders",
   "onboarding.continue": "Continue",
-  "onboarding.saved": "Language saved! Welcome to MEDDIBUDDY 🎉",
+  "onboarding.saved": "Language saved! Welcome to MediBuddy 🎉",
   "onboarding.saveFailed": "Couldn't save the language",
 
   "notFound.title": "Oops! Page not found",

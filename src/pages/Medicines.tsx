@@ -349,7 +349,7 @@ const Medicines = () => {
                     ) : (
                       <div className="w-full h-full gradient-warm flex items-center justify-center group-hover:opacity-80 transition-opacity">
                         {uploadingId === med.id ? (
-                          <Loader2 className="w-5 h-5 text-primary-foreground animate-spin" />
+                          <Loader2 className="w-5 h-5 text-white animate-spin" />
                         ) : (
                           <Pill className="w-6 h-6 text-primary-foreground" />
                         )}

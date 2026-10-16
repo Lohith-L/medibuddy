@@ -65,6 +65,7 @@ const sosAlert = {
   "sosAlert.yourPatient": "আপনার রোগী",
   "sosAlert.yourPatients": "আপনার রোগীরা",
   "sosAlert.patientNoPhone": "কোনো ফোন নম্বর সেভ করা নেই",
+  "sosAlert.cancelledRecently": "আপনি ২ মিনিটের মধ্যে অ্যালার্ট বাতিল করেছেন, তাই নতুনটি এখনও পাঠানো যায়নি। নিচে আপনার পরিচর্যাকারীকে কল করুন, অথবা একটু পরে আবার চেষ্টা করুন।",
 };
 
 export default sosAlert;

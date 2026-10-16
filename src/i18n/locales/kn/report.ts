@@ -24,7 +24,7 @@ const report = {
   "report.improving": "ಸುಧಾರಿಸುತ್ತಿದೆ",
   "report.declining": "ಕುಸಿಯುತ್ತಿದೆ",
   "report.stable": "ಸ್ಥಿರ",
-  "report.poweredBy": "MEDDIBUDDY - ನಿಮ್ಮ ಔಷಧ ಸಂಗಾತಿ",
+  "report.poweredBy": "MediBuddy - ನಿಮ್ಮ ಔಷಧ ಸಂಗಾತಿ",
 };
 
 export default report;

@@ -2,6 +2,7 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { signedOutPath } from "@/lib/startFlow";
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -23,7 +24,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   }
 
   if (!session) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to={signedOutPath()} replace />;
   }
 
   return <>{children}</>;

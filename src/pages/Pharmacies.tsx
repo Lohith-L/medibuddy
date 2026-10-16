@@ -10,6 +10,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { L, clusterIcon, pharmacyPinIcon, pharmacyPopupHtml, userDotIcon } from "@/lib/pharmacyMap";
 import { getQuickLocation, LocationError } from "@/lib/location";
+import { useAppTheme } from "@/contexts/ThemeContext";
 import {
   MAX_RADIUS_KM, REFETCH_DISTANCE_KM, fetchPharmacies, cachedPharmacies, haversineKm, readLastLocation, saveLastLocation,
   withinRadius, type Pharmacy, type PharmacyWithDistance,
@@ -28,6 +29,7 @@ const round1 = (km: number) => Math.round(km * 10) / 10;
 
 const Pharmacies = () => {
   const { t, locale } = useLanguage();
+  const { resolved: themeMode } = useAppTheme();
 
   /** The blue dot and where distances are measured from (my position, or the searched place). */
   const [origin, setOrigin] = useState<Coords | null>(readLastLocation);
@@ -61,6 +63,7 @@ const Pharmacies = () => {
   const [mapEl, setMapEl] = useState<HTMLDivElement | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const mapRef = useRef<L.Map | null>(null);
+  const tilesRef = useRef<L.TileLayer | null>(null);
   const userLayerRef = useRef<L.LayerGroup | null>(null);
   const circleRef = useRef<L.Circle | null>(null);
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null);
@@ -197,17 +200,33 @@ const Pharmacies = () => {
 
   useEffect(() => setShown(PAGE), [radiusKm, origin]);
 
+  // ── Map tiles: OpenStreetMap in light mode, CARTO dark in dark mode ───
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    tilesRef.current?.remove();
+    const osm = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+    tilesRef.current = (
+      themeMode === "dark"
+        ? L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+            attribution: `${osm} &copy; <a href="https://carto.com/attributions">CARTO</a>`,
+            subdomains: "abcd",
+            maxZoom: 20,
+          })
+        : L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: osm, maxZoom: 19 })
+    ).addTo(map);
+    tilesRef.current.bringToBack();
+  }, [mapReady, themeMode]);
+
   // ── Map: created once, as soon as its container exists ───────────────
 
   useEffect(() => {
     if (!mapEl || mapRef.current) return;
     const start = origin ?? DEFAULT_COORDS;
-    const map = L.map(mapEl, { zoomControl: true }).setView([start.lat, start.lng], 13);
+    // maxZoom on the map itself: the cluster layer needs it before any tile layer exists.
+    const map = L.map(mapEl, { zoomControl: true, maxZoom: 19 }).setView([start.lat, start.lng], 13);
     mapRef.current = map;
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      maxZoom: 19,
-    }).addTo(map);
     userLayerRef.current = L.layerGroup().addTo(map);
     clusterRef.current = L.markerClusterGroup({
       showCoverageOnHover: false,
@@ -219,11 +238,13 @@ const Pharmacies = () => {
     setMapReady(true);
     return () => {
       setMapReady(false);
+      map.stop(); // a running zoom animation would fail on the removed map (_leaflet_pos)
       map.remove();
       mapRef.current = null;
       clusterRef.current = null;
       userLayerRef.current = null;
       circleRef.current = null;
+      tilesRef.current = null;
       pinsRef.current.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -246,7 +267,8 @@ const Pharmacies = () => {
     L.marker([origin.lat, origin.lng], { icon: userDotIcon(), zIndexOffset: 1000, keyboard: false })
       .addTo(layer)
       .bindPopup(`<b>📍 ${t("weather.yourLocation")}</b><br/>${t(placeName).replace(/</g, "&lt;")}`);
-    map.fitBounds(circleRef.current.getBounds(), { padding: [12, 12], animate: true });
+    // No animation: an animated fit racing the cluster / tile updates throws in Leaflet.
+    map.fitBounds(circleRef.current.getBounds(), { padding: [12, 12], animate: false });
   }, [mapReady, origin, radiusKm, placeName, t]);
 
   // Pins: only the pharmacies inside the circle, clustered.

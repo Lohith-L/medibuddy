@@ -7,6 +7,7 @@ import { useCare } from "@/contexts/CareContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { evaluateLogin, peekPendingInvite, takeLoginIntent, writeHomeMode } from "@/lib/care";
+import { signedOutPath } from "@/lib/startFlow";
 
 /**
  * "/home": runs after every login (email, phone, Google) and on app start.
@@ -86,7 +87,7 @@ const HomeRedirect = () => {
     );
   }
 
-  if (!authLoading && !session) return <Navigate to="/auth" replace />;
+  if (!authLoading && !session) return <Navigate to={signedOutPath()} replace />;
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="w-10 h-10 rounded-full border-4 border-primary border-t-transparent animate-spin" />

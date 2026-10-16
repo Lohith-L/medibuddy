@@ -12,7 +12,7 @@ const auth = {
   "auth.mobileLoginOk": "Logged in with your mobile! 🎉",
   "auth.backHome": "Back to home",
   "auth.welcomeBack": "Welcome back! We missed you.",
-  "auth.joinFamily": "Join the MEDDIBUDDY family 🤗",
+  "auth.joinFamily": "Join the MediBuddy family 🤗",
   "auth.login": "Login",
   "auth.signUp": "Sign up",
   "auth.emailPassword": "Email & password",

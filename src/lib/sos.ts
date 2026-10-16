@@ -48,6 +48,8 @@ export interface RaiseSosResult {
   caregivers: number;
   /** An SOS was already sent less than 2 minutes ago: that one is returned. */
   rateLimited: boolean;
+  /** The patient had cancelled it moments ago: it was switched back on (caregivers ring again). */
+  reactivated: boolean;
 }
 
 /** An SOS older than this no longer counts as "active" in the apps. */
@@ -99,7 +101,13 @@ export async function raiseSos(option: SosOption, coords?: { lat: number; lng: n
     p_accuracy: coords?.accuracy ?? null,
   });
   if (error) throw error;
-  return { sosId: data.sos_id, createdAt: data.created_at, caregivers: data.caregivers ?? 0, rateLimited: !!data.rate_limited };
+  return {
+    sosId: data.sos_id,
+    createdAt: data.created_at,
+    caregivers: data.caregivers ?? 0,
+    rateLimited: !!data.rate_limited,
+    reactivated: !!data.reactivated,
+  };
 }
 
 export async function updateSosLocation(sosId: string, lat: number, lng: number, accuracy?: number | null): Promise<boolean> {

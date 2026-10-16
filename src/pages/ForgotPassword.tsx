@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { ArrowLeft, Mail, Lock, CheckCircle2, MailCheck } from "lucide-react";
+import BrandLogo from "@/components/BrandLogo";
 
 const ForgotPassword = () => {
   const navigate = useNavigate();
@@ -105,9 +106,9 @@ const ForgotPassword = () => {
 
         {/* Header */}
         <div className="text-center mb-8">
-          <p className="text-3xl font-extrabold mb-2">
-            <span className="gradient-text">Med</span>Buddy 💊
-          </p>
+          <div className="flex justify-center mb-3">
+            <BrandLogo variant="horizontal" className="h-11" />
+          </div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
             {step === "newPassword" ? t("forgot.createTitle") : t("forgot.resetTitle")}
           </h1>

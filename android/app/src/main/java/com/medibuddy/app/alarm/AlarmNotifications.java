@@ -39,7 +39,7 @@ public final class AlarmNotifications {
     private static final int REMINDER_BASE = 200000;
     private static final int MISSED_BASE = 400000;
 
-    private static final int COLOR = 0xFF3B82F6;
+    private static final int COLOR = 0xFF0077CE; // logo blue (the cross)
 
     private AlarmNotifications() {}
 
@@ -146,7 +146,7 @@ public final class AlarmNotifications {
         if (waiting > 0) text += " · " + AlarmTexts.get(lang, "more", "n", String.valueOf(waiting));
 
         NotificationCompat.Builder b = new NotificationCompat.Builder(ctx, alarmChannelId(ctx))
-            .setSmallIcon(R.drawable.ic_stat_alarm)
+            .setSmallIcon(R.drawable.ic_stat_medibuddy)
             .setColor(COLOR)
             .setContentTitle(title)
             .setContentText(text)
@@ -175,7 +175,7 @@ public final class AlarmNotifications {
         int id = REMINDER_BASE + Math.abs(p.id % 100000);
         String lang = AlarmTexts.langFor(ctx, p);
         Notification n = new NotificationCompat.Builder(ctx, CHANNEL_REMINDER)
-            .setSmallIcon(R.drawable.ic_stat_alarm)
+            .setSmallIcon(R.drawable.ic_stat_medibuddy)
             .setColor(COLOR)
             .setContentTitle("💊 " + AlarmTexts.get(lang, "timeFor", "name", p.medicineName))
             .setContentText((p.dose == null || p.dose.isEmpty() ? "" : p.dose + " · ") + p.displayTime())
@@ -213,7 +213,7 @@ public final class AlarmNotifications {
         int id = MISSED_BASE + Math.abs(p.id % 100000);
         String lang = AlarmTexts.langFor(ctx, p);
         Notification n = new NotificationCompat.Builder(ctx, CHANNEL_MISSED)
-            .setSmallIcon(R.drawable.ic_stat_alarm)
+            .setSmallIcon(R.drawable.ic_stat_medibuddy)
             .setColor(COLOR)
             .setContentTitle(AlarmTexts.get(lang, "missedTitle", "name", p.medicineName))
             .setContentText(AlarmTexts.get(lang, "missedText", "time", p.displayTime()))

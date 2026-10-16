@@ -12,7 +12,8 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { normalizePhone } from "@/lib/phone";
 import { rememberSignupRole, savePendingInvite, setLoginIntent, takeLoginIntent, type HomeMode, type Role } from "@/lib/care";
-import { ArrowLeft, Mail, Lock, User, Phone, KeyRound, HeartHandshake, LogIn } from "lucide-react";
+import { ArrowLeft, Mail, Lock, User, Phone, KeyRound, HeartHandshake } from "lucide-react";
+import BrandLogo from "@/components/BrandLogo";
 
 /**
  * Login (/auth) and the second sign-up step (/signup/patient, /signup/caregiver).
@@ -240,15 +241,12 @@ const Auth = ({ signupRole, loginMode }: { signupRole?: Role; loginMode?: HomeMo
         </div>
 
         {/* Card */}
-        <div className="w-full bg-gradient-to-b from-sky-50/50 to-white rounded-3xl shadow-xl border border-blue-100 p-8 native:p-5 text-foreground">
+        <div className="w-full bg-card rounded-3xl shadow-xl border p-8 native:p-5 text-card-foreground">
           {/* Centered Icon Badge & Header */}
           <div className="flex flex-col items-center text-center mb-6">
-            <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-white mb-4 shadow-lg shadow-blue-500/5 border border-blue-100/60">
-              <LogIn className="w-7 h-7 text-primary" />
+            <div className="mb-3">
+              <BrandLogo variant="full" className="h-32 native:h-28" />
             </div>
-            <p className="text-3xl font-extrabold mb-1.5">
-              <span className="gradient-text">MEDDI</span>BUDDY
-            </p>
             <p className="text-muted-foreground text-sm">
               {loginMode === "caregiver" ? `👨‍👩‍👧 ${t("login.caregiverLogin")}` : loginMode === "patient" ? `🧑 ${t("login.patientLogin")}` : t("auth.joinFamily")}
             </p>
@@ -267,12 +265,12 @@ const Auth = ({ signupRole, loginMode }: { signupRole?: Role; loginMode?: HomeMo
           )}
 
           {/* Tabs */}
-          <div className="flex bg-gray-100/80 rounded-xl p-1 mb-6 border border-gray-200/60">
+          <div className="flex bg-muted rounded-xl p-1 mb-6 border">
             <button
               type="button"
               onClick={() => navigate(`/login/${pageRole}${codeQs}`)}
               className={`flex-1 py-2.5 rounded-lg font-semibold text-sm transition-all ${
-                tab === "login" ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                tab === "login" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {t("auth.login")}
@@ -281,7 +279,7 @@ const Auth = ({ signupRole, loginMode }: { signupRole?: Role; loginMode?: HomeMo
               type="button"
               onClick={() => navigate(`/signup/${pageRole}${codeQs}`)}
               className={`flex-1 py-2.5 rounded-lg font-semibold text-sm transition-all ${
-                tab === "signup" ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                tab === "signup" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {t("auth.signUp")}
@@ -309,12 +307,12 @@ const Auth = ({ signupRole, loginMode }: { signupRole?: Role; loginMode?: HomeMo
 
           {/* Method Selector: Email vs Phone (phone OTP signs in to existing accounts only) */}
           {tab === "login" && (
-          <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100/70 rounded-xl mb-6 text-sm font-medium border border-gray-200/50">
+          <div className="grid grid-cols-2 gap-2 p-1 bg-muted rounded-xl mb-6 text-sm font-medium border">
             <button
               type="button"
               onClick={() => setAuthMethod("email")}
               className={`py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 native:text-[13px] native:whitespace-nowrap ${
-                authMethod === "email" ? "bg-white shadow-sm text-foreground font-semibold" : "text-muted-foreground hover:text-foreground"
+                authMethod === "email" ? "bg-card shadow-sm text-foreground font-semibold" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               <Mail className="w-4 h-4" /> {t("auth.emailPassword")}
@@ -323,7 +321,7 @@ const Auth = ({ signupRole, loginMode }: { signupRole?: Role; loginMode?: HomeMo
               type="button"
               onClick={() => setAuthMethod("phone")}
               className={`py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                authMethod === "phone" ? "bg-white shadow-sm text-foreground font-semibold" : "text-muted-foreground hover:text-foreground"
+                authMethod === "phone" ? "bg-card shadow-sm text-foreground font-semibold" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               <Phone className="w-4 h-4" /> {t("auth.mobileOtp")}
@@ -336,7 +334,7 @@ const Auth = ({ signupRole, loginMode }: { signupRole?: Role; loginMode?: HomeMo
             <>
               <Button
                 variant="outline"
-                className="w-full mb-6 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-foreground font-medium shadow-sm transition-all flex items-center justify-center gap-2 py-2.5"
+                className="w-full mb-6 rounded-xl border border-input bg-card hover:bg-muted text-foreground font-medium shadow-sm transition-all flex items-center justify-center gap-2 py-2.5"
                 size="lg"
                 onClick={handleGoogleLogin}
               >
@@ -350,9 +348,9 @@ const Auth = ({ signupRole, loginMode }: { signupRole?: Role; loginMode?: HomeMo
               </Button>
 
               <div className="flex items-center gap-4 mb-6">
-                <div className="flex-1 border-t border-dashed border-gray-300" />
+                <div className="flex-1 border-t border-dashed border-border" />
                 <span className="text-xs uppercase tracking-wider text-muted-foreground font-medium">{t("or")}</span>
-                <div className="flex-1 border-t border-dashed border-gray-300" />
+                <div className="flex-1 border-t border-dashed border-border" />
               </div>
             </>
           )}
@@ -366,14 +364,14 @@ const Auth = ({ signupRole, loginMode }: { signupRole?: Role; loginMode?: HomeMo
                     {t("auth.mobile")}
                   </Label>
                   <div className="relative">
-                    <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
                       type="tel"
                       required
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       placeholder="+91 98765 43210"
-                      className="pl-10 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
+                      className="pl-10 rounded-xl border border-input bg-muted/50 focus:bg-card focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
                     />
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">{t("auth.countryCodeHelp")}</p>
@@ -396,14 +394,14 @@ const Auth = ({ signupRole, loginMode }: { signupRole?: Role; loginMode?: HomeMo
                     {t("auth.enterOtpLabel")}
                   </Label>
                   <div className="relative">
-                    <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
                       type="text"
                       required
                       value={phoneOtp}
                       onChange={(e) => setPhoneOtp(e.target.value)}
                       placeholder="123456"
-                      className="pl-10 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn tracking-widest text-center"
+                      className="pl-10 rounded-xl border border-input bg-muted/50 focus:bg-card focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn tracking-widest text-center"
                       maxLength={6}
                     />
                   </div>
@@ -440,13 +438,13 @@ const Auth = ({ signupRole, loginMode }: { signupRole?: Role; loginMode?: HomeMo
                       {t("family.fullName")}
                     </Label>
                     <div className="relative">
-                      <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
                         required
                         value={form.name}
                         onChange={(e) => update("name", e.target.value)}
                         placeholder={t("auth.yourNamePlaceholder")}
-                        className="pl-10 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
+                        className="pl-10 rounded-xl border border-input bg-muted/50 focus:bg-card focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
                       />
                     </div>
                   </div>
@@ -455,14 +453,14 @@ const Auth = ({ signupRole, loginMode }: { signupRole?: Role; loginMode?: HomeMo
                       {isCaregiverSignup ? t("signup.phoneOptional") : t("auth.phoneRequired")}
                     </Label>
                     <div className="relative">
-                      <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
                         type="tel"
                         required={!isCaregiverSignup}
                         value={form.phone}
                         onChange={(e) => update("phone", e.target.value)}
                         placeholder="+91 98765 43210"
-                        className="pl-10 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
+                        className="pl-10 rounded-xl border border-input bg-muted/50 focus:bg-card focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
                       />
                     </div>
                   </div>
@@ -474,14 +472,14 @@ const Auth = ({ signupRole, loginMode }: { signupRole?: Role; loginMode?: HomeMo
                   {t("family.email")}
                 </Label>
                 <div className="relative">
-                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     type="email"
                     required
                     value={form.email}
                     onChange={(e) => update("email", e.target.value)}
                     placeholder="you@example.com"
-                    className="pl-10 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
+                    className="pl-10 rounded-xl border border-input bg-muted/50 focus:bg-card focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
                   />
                 </div>
               </div>
@@ -491,14 +489,14 @@ const Auth = ({ signupRole, loginMode }: { signupRole?: Role; loginMode?: HomeMo
                   {t("auth.password")}
                 </Label>
                 <div className="relative">
-                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     type="password"
                     required
                     value={form.password}
                     onChange={(e) => update("password", e.target.value)}
                     placeholder={tab === "signup" ? t("forgot.minChars") : t("auth.passwordPlaceholder")}
-                    className="pl-10 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
+                    className="pl-10 rounded-xl border border-input bg-muted/50 focus:bg-card focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
                   />
                 </div>
               </div>
@@ -510,14 +508,14 @@ const Auth = ({ signupRole, loginMode }: { signupRole?: Role; loginMode?: HomeMo
                       {t("auth.confirmPassword")}
                     </Label>
                     <div className="relative">
-                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
                         type="password"
                         required
                         value={form.confirmPassword}
                         onChange={(e) => update("confirmPassword", e.target.value)}
                         placeholder={t("auth.reenterPassword")}
-                        className="pl-10 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
+                        className="pl-10 rounded-xl border border-input bg-muted/50 focus:bg-card focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
                       />
                     </div>
                   </div>
@@ -528,7 +526,7 @@ const Auth = ({ signupRole, loginMode }: { signupRole?: Role; loginMode?: HomeMo
                       {t("signup.inviteCodeOptional")}
                     </Label>
                     <div className="relative">
-                      <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
                         id="signup-invite"
                         value={inviteCode}
@@ -536,7 +534,7 @@ const Auth = ({ signupRole, loginMode }: { signupRole?: Role; loginMode?: HomeMo
                         placeholder="MB-K7Q4XP"
                         autoCapitalize="characters"
                         autoComplete="off"
-                        className="pl-10 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn font-mono tracking-wider uppercase"
+                        className="pl-10 rounded-xl border border-input bg-muted/50 focus:bg-card focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn font-mono tracking-wider uppercase"
                       />
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">{t("signup.inviteCodeLater")}</p>
@@ -547,13 +545,13 @@ const Auth = ({ signupRole, loginMode }: { signupRole?: Role; loginMode?: HomeMo
                       {t("auth.caregiverOptional")}
                     </Label>
                     <div className="relative">
-                      <HeartHandshake className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <HeartHandshake className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
                         type="email"
                         value={form.caregiverEmail}
                         onChange={(e) => update("caregiverEmail", e.target.value)}
                         placeholder="caregiver@example.com"
-                        className="pl-10 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
+                        className="pl-10 rounded-xl border border-input bg-muted/50 focus:bg-card focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-base min-h-btn"
                       />
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
