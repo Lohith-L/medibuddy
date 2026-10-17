@@ -44,7 +44,8 @@ interface MediHealthPlugin {
   setStepSensorEnabled(opts: { enabled: boolean }): Promise<void>;
   readSensorSteps(opts: { days: number }): Promise<{ ok: boolean; days: { date: string; steps: number }[]; lastReadAt: number }>;
   revokeHealthConnect(): Promise<void>;
-  totalCaloriesByDay(opts: { days: number }): Promise<{ days: { date: string; kcal: number }[] }>;
+  /** origins: apps whose records were used; empty = Health Connect's BMR estimate only. */
+  totalCaloriesByDay(opts: { days: number }): Promise<{ days: { date: string; kcal: number; origins?: string[] }[] }>;
 }
 
 const MediHealth = registerPlugin<MediHealthPlugin>("MediHealth");
@@ -271,12 +272,32 @@ const dailySums = async (dataType: HealthDataType, from: Date, to: Date): Promis
   return out;
 };
 
-/** Total calories per local date, aggregated natively (the plugin can't sum this type). */
-const totalCaloriesByDay = async (): Promise<Map<string, number>> => {
+/**
+ * Total calories per local date, aggregated natively (the plugin can't sum this type).
+ * Health Connect adds an estimated resting (BMR) burn even when no app recorded
+ * anything; such days are skipped, so the card never shows an estimate as data.
+ */
+const totalCaloriesByDay = async (from: Date, to: Date): Promise<Map<string, number>> => {
   const out = new Map<string, number>();
   try {
+    // Days with at least one real calorie record (total or active). The aggregate's
+    // data origins can't tell: an app that only stored weight / BMR shows up there too.
+    const tracked = new Set<string>();
+    const { Health: h } = await healthModule();
+    for (const dataType of ["totalCalories", "calories"] as HealthDataType[]) {
+      const raw = await h.readSamples({ dataType, startDate: iso(from), endDate: iso(to), limit: 2000 });
+      // A record ending exactly at midnight (e.g. Google Fit's last one of the day)
+      // belongs to the day before, so step back 1 ms from its end.
+      for (const r of raw.samples) tracked.add(localDateKey(new Date(new Date(r.endDate).getTime() - 1)));
+    }
     const res = await MediHealth.totalCaloriesByDay({ days: 7 });
-    for (const d of res.days) out.set(d.date, d.kcal);
+    for (const d of res.days) {
+      if (!tracked.has(d.date)) {
+        console.info(`[health] ${d.date}: ${Math.round(d.kcal)} kcal is Health Connect's resting (BMR) estimate only, no calorie records: not shown`);
+        continue;
+      }
+      out.set(d.date, d.kcal);
+    }
   } catch (e) {
     readFailed("total calories", e);
   }
@@ -393,7 +414,7 @@ export const readDeviceHealth = async (granted: HealthDataType[]): Promise<Devic
   const [steps, active, total, sleep, hr, srcName] = await Promise.all([
     has("steps") ? dailySums("steps", from, now) : none(),
     has("calories") ? dailySums("calories", from, now) : none(),
-    has("totalCalories") ? totalCaloriesByDay() : none(),
+    has("totalCalories") ? totalCaloriesByDay(from, now) : none(),
     has("sleep") ? sleepByDay(from, now) : none(),
     has("heartRate") ? heartRateToday(todayStart, now) : Promise.resolve({ latest: null, avg: null }),
     has("steps") ? stepsSourceToday(todayStart, now) : Promise.resolve(null),
@@ -447,6 +468,57 @@ export const readDeviceHealth = async (granted: HealthDataType[]): Promise<Devic
   return { days: list, usedHealthConnect, usedSensor, hasAnyData, failed: readErrors > 0 && !hasAnyData };
 };
 
+// ── Debug: which app writes what (temporary) ──────────────────────────────
+
+export interface DebugRecord {
+  type: "heartRate" | "steps" | "sleep";
+  start: string;
+  end: string;
+  value: number;
+  unit: string;
+  /** dataOrigin package, e.g. "com.crrepa.band.dafit" */
+  origin: string;
+  app: string | null;
+  device: string | null;
+}
+
+/**
+ * Every HeartRate / Steps / SleepSession record of the last `hours` hours, with
+ * its dataOrigin: proves which app (if any) writes each type. Also logged with
+ * console.table (chrome://inspect → Console, filter "[health-debug]").
+ */
+export const debugHealthRecords = async (hours = 24): Promise<{ records: DebugRecord[]; errors: string[] }> => {
+  const { Health: h } = await healthModule();
+  const end = new Date();
+  const start = new Date(end.getTime() - hours * 3600_000);
+  const records: DebugRecord[] = [];
+  const errors: string[] = [];
+  for (const type of ["heartRate", "steps", "sleep"] as const) {
+    try {
+      // readSamples follows Health Connect's pageToken internally up to `limit`.
+      const res = await h.readSamples({ dataType: type, startDate: iso(start), endDate: iso(end), limit: 2000, ascending: false });
+      for (const r of res.samples) {
+        const origin = r.sourceId || r.sourceName || "?";
+        records.push({
+          type,
+          start: r.startDate,
+          end: r.endDate,
+          value: r.value,
+          unit: r.unit,
+          origin,
+          app: appName(origin),
+          device: (r as { sourceName?: string }).sourceName ?? null,
+        });
+      }
+    } catch (e) {
+      errors.push(`${type}: ${(e as Error)?.message ?? e}`);
+    }
+  }
+  console.info(`[health-debug] ${records.length} records in the last ${hours} h`, errors.length ? errors : "");
+  console.table(records.map((r) => ({ type: r.type, start: r.start, value: r.value, unit: r.unit, origin: r.origin })));
+  return { records, errors };
+};
+
 // ── Supabase sync ─────────────────────────────────────────────────────────
 
 /** Real data sources; anything else (e.g. old "demo" rows) is ignored. */
@@ -480,6 +552,19 @@ export const syncHealthToBackend = async (patientId: string, days: HealthSummary
     steps_source_name: d.stepsSourceName,
     updated_at: syncedAt,
   }));
+  // Days read now without calories: clear calorie values synced earlier (older
+  // builds stored Health Connect's BMR estimate as if it were tracked data).
+  const noCalories = days.filter((d) => d.caloriesActive == null && d.caloriesTotal == null).map((d) => d.date);
+  if (noCalories.length) {
+    const clear = await supabase
+      .from("health_data")
+      .update({ calories: 0, calories_active: null, calories_total: null } as never)
+      .eq("patient_id", patientId)
+      .in("date", noCalories);
+    if (clear.error && isMissingColumn(clear.error)) {
+      await supabase.from("health_data").update({ calories: 0 } as never).eq("patient_id", patientId).in("date", noCalories);
+    }
+  }
   if (!rows.length) return syncedAt;
 
   const upsert = (r: Row[]) =>
@@ -579,8 +664,9 @@ export const generateMockHealthData = (date: string): HealthSummary => {
     sleepMinutes: 300 + ((dayHash * 43) % 180),
     heartRateAvg: 62 + ((dayHash * 7) % 20),
     heartRateLatest: 64 + ((dayHash * 5) % 18),
-    caloriesActive: 250 + ((dayHash * 31) % 300),
-    caloriesTotal: 1200 + ((dayHash * 89) % 800),
+    // No invented calories, even in the demo.
+    caloriesActive: null,
+    caloriesTotal: null,
     source: "demo",
   };
 };

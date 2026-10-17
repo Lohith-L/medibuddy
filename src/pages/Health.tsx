@@ -33,6 +33,7 @@ import { HEALTH_SYNCED_EVENT } from "@/hooks/useHealthAutoSync";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { signedOutPath } from "@/lib/startFlow";
 import { useChartTheme } from "@/lib/chartTheme";
+import HealthDebugPanel from "@/components/HealthDebugPanel";
 
 const fadeIn = (i: number) => ({
   initial: { opacity: 0, y: 16 },
@@ -480,7 +481,7 @@ const Health = () => {
           <motion.div {...fadeIn(1)}>
             <Card className="border-amber-500/40 bg-amber-500/5">
               <CardContent className="p-4 flex items-start gap-3">
-                <ShieldAlert className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+                <ShieldAlert className="w-5 h-5 text-warning mt-0.5 shrink-0" />
                 <div className="min-w-0 space-y-2">
                   <p className="text-sm font-medium">{t("health.deniedTitle")}</p>
                   <p className="text-xs text-muted-foreground">{t("health.deniedDesc")}</p>
@@ -556,6 +557,9 @@ const Health = () => {
             <p>{t("health.stepsTip")}</p>
           </div>
         </motion.div>
+
+        {/* TEMPORARY: which app writes which records (remove once syncing is sorted) */}
+        {native && <HealthDebugPanel />}
 
         {/* Weekly steps */}
         <motion.div {...fadeIn(4)}>

@@ -7,6 +7,7 @@ import android.util.Log;
 import androidx.health.connect.client.HealthConnectClient;
 import androidx.health.connect.client.aggregate.AggregationResultGroupedByPeriod;
 import androidx.health.connect.client.records.TotalCaloriesBurnedRecord;
+import androidx.health.connect.client.records.metadata.DataOrigin;
 import androidx.health.connect.client.request.AggregateGroupByPeriodRequest;
 import androidx.health.connect.client.time.TimeRangeFilter;
 import androidx.health.connect.client.units.Energy;
@@ -132,10 +133,14 @@ public class MediHealthPlugin extends Plugin {
     }
 
     /**
-     * totalCaloriesByDay({ days?: 7 }) → { days: [{ date, kcal }] }
+     * totalCaloriesByDay({ days?: 7 }) → { days: [{ date, kcal, origins: [package] }] }
      * @capgo/capacitor-health cannot aggregate total calories, and summing raw
      * records double-counts when several apps write them; Health Connect's own
      * aggregation de-duplicates by app priority.
+     *
+     * Health Connect also ADDS an estimated basal (BMR) burn to this total, even
+     * when no app wrote any calories. `origins` lists the apps whose records were
+     * used; empty = the number is only that estimate, not tracked data.
      */
     @PluginMethod
     public void totalCaloriesByDay(PluginCall call) {
@@ -162,6 +167,9 @@ public class MediHealthPlugin extends Plugin {
                     JSObject d = new JSObject();
                     d.put("date", g.getStartTime().toLocalDate().toString());
                     d.put("kcal", e.getKilocalories());
+                    JSArray origins = new JSArray();
+                    for (DataOrigin o : g.getResult().getDataOrigins()) origins.put(o.getPackageName());
+                    d.put("origins", origins);
                     arr.put(d);
                 }
                 JSObject ret = new JSObject();
