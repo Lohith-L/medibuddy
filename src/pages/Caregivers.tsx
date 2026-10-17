@@ -178,7 +178,7 @@ const Caregivers = () => {
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <Button variant="outline" className="flex-col h-auto py-3 gap-1" onClick={() => openExternal(`https://wa.me/?text=${encodeURIComponent(shareText(newInvite.code))}`)}>
-                  <MessageCircle className="w-5 h-5 text-emerald-600" /> <span className="text-xs">WhatsApp</span>
+                  <MessageCircle className="w-5 h-5 text-success" /> <span className="text-xs">WhatsApp</span>
                 </Button>
                 <Button variant="outline" className="flex-col h-auto py-3 gap-1" onClick={() => openExternal(`sms:?body=${encodeURIComponent(shareText(newInvite.code))}`)}>
                   <MessageSquare className="w-5 h-5 text-primary" /> <span className="text-xs">{t("care.sms")}</span>

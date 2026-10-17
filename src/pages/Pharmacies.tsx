@@ -486,7 +486,7 @@ const Pharmacies = () => {
 
             {staleAt && status === "ok" && (
               <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200" role="status">
-                <Clock className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                <Clock className="w-4 h-4 shrink-0 mt-0.5 text-warning" />
                 <p className="flex-1 min-w-0 text-xs font-semibold">
                   {t("pharm.staleResults", {
                     time: new Date(staleAt).toLocaleString(locale, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }),
@@ -566,7 +566,7 @@ const Pharmacies = () => {
                           </p>
                         </div>
                         {p.hours === "24/7" && (
-                          <span className="shrink-0 text-[11px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider bg-emerald-500/15 text-emerald-600">
+                          <span className="shrink-0 text-[11px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider bg-emerald-500/15 text-success">
                             {t("pharm.open24")}
                           </span>
                         )}

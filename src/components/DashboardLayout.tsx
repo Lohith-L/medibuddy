@@ -358,7 +358,7 @@ const DashboardLayout = ({ children }: Props) => {
                             cgAlerts.activeSos.some((a) => !a.sos?.acknowledgedAt) ? "bg-red-50 hover:bg-red-100 dark:bg-red-950/40" : "hover:bg-muted/50"
                           }`}
                         >
-                          {cgAlerts.activeSos.length > 0 ? <Siren className="w-4 h-4 text-red-600 shrink-0" /> : <BellRing className="w-4 h-4 text-primary shrink-0" />}
+                          {cgAlerts.activeSos.length > 0 ? <Siren className="w-4 h-4 text-destructive shrink-0" /> : <BellRing className="w-4 h-4 text-primary shrink-0" />}
                           <span className="flex-1 min-w-0 text-sm font-semibold truncate">
                             {cgAlerts.activeSos.length > 0
                               ? t("sosAlert.bellActive", { n: cgAlerts.activeSos.length })

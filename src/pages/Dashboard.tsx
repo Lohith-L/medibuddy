@@ -134,8 +134,8 @@ const Dashboard = () => {
   const getInitials = (name: string) => name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 
   const relColorMap: Record<string, string> = {
-    Spouse: "bg-accent", Son: "bg-success", Daughter: "bg-success",
-    Parent: "bg-warning", Doctor: "bg-primary",
+    Spouse: "bg-accent text-accent-foreground", Son: "bg-success text-success-foreground", Daughter: "bg-success text-success-foreground",
+    Parent: "bg-warning text-warning-foreground", Doctor: "bg-primary text-primary-foreground",
   };
 
   return (
@@ -158,8 +158,8 @@ const Dashboard = () => {
         <div className="grid md:grid-cols-2 gap-4">
           <motion.div {...fadeIn(0.2)} className="rounded-2xl gradient-dark p-5 flex flex-col justify-between gap-4">
             <div>
-              <p className="text-primary-foreground font-bold text-lg">{t("dash.uploadBannerTitle")}</p>
-              <p className="text-primary-foreground/70 text-sm mt-1">{t("dash.uploadBannerDesc")}</p>
+              <p className="text-on-dark font-bold text-lg">{t("dash.uploadBannerTitle")}</p>
+              <p className="text-on-dark/80 text-sm mt-1">{t("dash.uploadBannerDesc")}</p>
             </div>
             <Button variant="hero" size="default" className="w-full sm:w-auto self-start" onClick={() => navigate("/upload")}>
               <Upload className="w-4 h-4" /> {t("uploadPrescription")}
@@ -168,13 +168,13 @@ const Dashboard = () => {
 
           <motion.div {...fadeIn(0.3)} className="rounded-2xl bg-card border-2 border-emerald-500/30 p-5 flex flex-col justify-between gap-4 shadow-card">
             <div>
-              <div className="flex items-center gap-2 text-emerald-600 font-extrabold text-sm uppercase tracking-wider mb-1">
+              <div className="flex items-center gap-2 text-success font-extrabold text-sm uppercase tracking-wider mb-1">
                 <Store className="w-4 h-4" /> {t("dash.refills")}
               </div>
               <p className="font-extrabold text-lg text-foreground">{t("dash.pharmacyBannerTitle")}</p>
               <p className="text-muted-foreground text-sm mt-1">{t("dash.pharmacyBannerDesc")}</p>
             </div>
-            <Button variant="outline" size="default" className="w-full sm:w-auto self-start rounded-xl font-bold border-emerald-500/40 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30" onClick={() => navigate("/pharmacies")}>
+            <Button variant="outline" size="default" className="w-full sm:w-auto self-start rounded-xl font-bold border-emerald-500/40 text-success hover:bg-emerald-50 dark:hover:bg-emerald-950/30" onClick={() => navigate("/pharmacies")}>
               <MapPin className="w-4 h-4 mr-2" /> {t("dash.findPharmacies")}
             </Button>
           </motion.div>
@@ -226,7 +226,7 @@ const Dashboard = () => {
               <>
                 <div className="flex -space-x-2 mb-3">
                   {familyMembers.slice(0, 3).map((m) => (
-                    <div key={m.id} title={m.full_name} className={`w-11 h-11 rounded-full flex items-center justify-center text-xs font-bold text-primary-foreground border-2 border-card ${relColorMap[m.relationship] || "bg-muted"}`}>
+                    <div key={m.id} title={m.full_name} className={`w-11 h-11 rounded-full flex items-center justify-center text-xs font-bold border-2 border-card ${relColorMap[m.relationship] || "bg-muted text-foreground"}`}>
                       {getInitials(m.full_name)}
                     </div>
                   ))}
@@ -240,7 +240,7 @@ const Dashboard = () => {
                 <div className="space-y-2">
                   {familyMembers.slice(0, 3).map((m) => (
                     <div key={m.id} className="flex items-center gap-3 p-2.5 rounded-xl bg-muted/40">
-                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold text-primary-foreground ${relColorMap[m.relationship] || "bg-muted"}`}>
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold ${relColorMap[m.relationship] || "bg-muted text-foreground"}`}>
                         {getInitials(m.full_name)}
                       </div>
                       <div className="min-w-0">

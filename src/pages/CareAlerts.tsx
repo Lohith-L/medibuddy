@@ -68,7 +68,7 @@ const CareAlerts = () => {
         {/* Active SOS */}
         {alerts.activeSos.length > 0 && (
           <section aria-labelledby="active-sos" className="space-y-3">
-            <h2 id="active-sos" className="text-sm font-bold uppercase tracking-wider text-red-600">
+            <h2 id="active-sos" className="text-sm font-bold uppercase tracking-wider text-destructive">
               {t("sosAlert.activeTitle")}
             </h2>
             {alerts.activeSos.map((a) => (
@@ -124,7 +124,7 @@ const CareAlerts = () => {
                       {outcome && (
                         <p className="mt-1 flex items-start gap-1 text-sm">
                           {sos?.acknowledgedAt ? (
-                            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
                           ) : sos?.resolvedReason === "patient_safe" ? (
                             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
                           ) : null}

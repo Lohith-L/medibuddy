@@ -351,7 +351,7 @@ const Medicines = () => {
                         {uploadingId === med.id ? (
                           <Loader2 className="w-5 h-5 text-white animate-spin" />
                         ) : (
-                          <Pill className="w-6 h-6 text-primary-foreground" />
+                          <Pill className="w-6 h-6 text-on-dark" />
                         )}
                       </div>
                     )}

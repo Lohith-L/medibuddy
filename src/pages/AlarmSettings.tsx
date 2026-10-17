@@ -44,13 +44,13 @@ const StatusRow = ({
   onAction: () => void;
 }) => (
   <div className="flex items-start gap-3 py-3 border-b last:border-0">
-    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${ok ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600"}`}>
+    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${ok ? "bg-emerald-500/10 text-success" : "bg-amber-500/10 text-warning"}`}>
       <Icon className="w-5 h-5" />
     </div>
     <div className="flex-1 min-w-0">
       <p className="font-semibold text-sm flex items-center gap-1.5">
         {title}
-        {ok ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <AlertTriangle className="w-4 h-4 text-amber-600" />}
+        {ok ? <CheckCircle2 className="w-4 h-4 text-success" /> : <AlertTriangle className="w-4 h-4 text-warning" />}
       </p>
       <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
     </div>
@@ -207,7 +207,7 @@ const AlarmSettings = () => {
           <div className="flex items-center justify-between mb-1">
             <h3 className="font-bold text-base">{t("alarm.allowTitle")}</h3>
             {!perms && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
-            {allGood && <span className="text-xs font-semibold text-emerald-600">{t("alarm.allSet")}</span>}
+            {allGood && <span className="text-xs font-semibold text-success">{t("alarm.allSet")}</span>}
           </div>
           {perms && (
             <>

@@ -179,7 +179,7 @@ const ForgotPassword = () => {
           {/* Step 3: Enter New Password (After clicking email link) */}
           {step === "newPassword" && (
             <form onSubmit={handleUpdatePassword} className="space-y-5">
-              <div className="bg-emerald-500/10 text-emerald-600 p-3.5 rounded-xl flex items-center gap-2.5 text-sm font-medium mb-2">
+              <div className="bg-emerald-500/10 text-success p-3.5 rounded-xl flex items-center gap-2.5 text-sm font-medium mb-2">
                 <CheckCircle2 className="w-5 h-5 shrink-0" />
                 {t("forgot.linkVerified")}
               </div>

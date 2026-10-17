@@ -61,7 +61,7 @@ const AlarmSetupBanner = () => {
 
   return (
     <div className="flex items-start gap-3 rounded-2xl border-2 border-amber-500/30 bg-amber-500/10 p-4">
-      <AlarmClock className="w-6 h-6 text-amber-600 shrink-0 mt-0.5" />
+      <AlarmClock className="w-6 h-6 text-warning shrink-0 mt-0.5" />
       <div className="flex-1 min-w-0">
         <p className="font-bold text-sm text-amber-900 dark:text-amber-100">
           {state === "required" ? t("alarmBanner.requiredTitle") : t("alarmBanner.batteryTitle")}

@@ -493,7 +493,7 @@ const Landing = () => {
                   <div className={`w-20 h-20 rounded-3xl bg-gradient-to-br ${step.color} flex items-center justify-center mx-auto mb-6 shadow-lg`}>
                     <step.icon className="w-10 h-10 text-white" />
                   </div>
-                  <span className="inline-block text-sm font-bold text-primary/60 mb-2 tracking-wider">{t("landing.stepN", { n: step.step })}</span>
+                  <span className="inline-block text-sm font-bold text-primary mb-2 tracking-wider">{t("landing.stepN", { n: step.step })}</span>
                   <h3 className="text-xl font-bold mb-3">{t(step.title)}</h3>
                   <p className="text-muted-foreground text-sm leading-relaxed">{t(step.description)}</p>
                 </div>
@@ -678,11 +678,11 @@ const Landing = () => {
               <BrandLogo variant="symbol" className="h-full" />
             </motion.div>
 
-            <motion.h2 variants={fadeInUp} className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-primary-foreground mb-6 tracking-tight">
+            <motion.h2 variants={fadeInUp} className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-on-dark mb-6 tracking-tight">
               {t("landing.ctaTitle")}
             </motion.h2>
 
-            <motion.p variants={fadeInUp} className="text-xl text-primary-foreground/80 mb-10 max-w-xl mx-auto leading-relaxed">
+            <motion.p variants={fadeInUp} className="text-xl text-on-dark/80 mb-10 max-w-xl mx-auto leading-relaxed">
               {t("landing.ctaDesc")}
             </motion.p>
 
@@ -699,7 +699,7 @@ const Landing = () => {
               <Button
                 variant="outline"
                 size="xl"
-                className="text-lg bg-transparent hover:bg-primary-foreground/10 text-primary-foreground hover:text-primary-foreground border-primary-foreground/30 hover:border-primary-foreground/50"
+                className="text-lg bg-transparent hover:bg-on-dark/10 text-on-dark hover:text-on-dark border-on-dark/30 hover:border-on-dark/50"
                 onClick={() => {
                   document.getElementById("features")?.scrollIntoView({ behavior: "smooth" });
                 }}

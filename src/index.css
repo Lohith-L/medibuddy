@@ -110,7 +110,7 @@
     --secondary-foreground: 0 0% 100%;
 
     --muted: 210 20% 94%;
-    --muted-foreground: 220 15% 46%;
+    --muted-foreground: 220 15% 40%;
 
     --accent: 155 45% 55%;
     --accent-foreground: 0 0% 100%;
@@ -125,6 +125,10 @@
 
     --success: 158 75% 27%;
     --success-foreground: 0 0% 100%;
+
+    /* Text on surfaces that stay dark / saturated in both themes (gradient-dark,
+       gradient-warm). Not primary-foreground: that one is dark in dark mode. */
+    --on-dark: 0 0% 100%;
 
     --border: 210 20% 90%;
     --input: 210 20% 90%;
