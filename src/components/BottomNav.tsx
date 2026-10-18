@@ -10,6 +10,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pushBackHandler } from "@/lib/backHandlers";
+import { forgetPushToken } from "@/lib/pushToken";
 
 /**
  * Mobile bottom navigation (hidden on desktop, where the sidebar is used):
@@ -80,6 +81,7 @@ const BottomNav = () => {
 
   const handleLogout = async () => {
     setMoreOpen(false);
+    await forgetPushToken(); // before signing out (RLS)
     await supabase.auth.signOut();
     toast.success(t("layout.loggedOut"));
     navigate("/");

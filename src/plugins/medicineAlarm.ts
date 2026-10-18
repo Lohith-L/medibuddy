@@ -84,6 +84,9 @@ export interface MedicineAlarmPlugin {
   openBatteryOptimizationSettings(): Promise<void>;
   openAutostartSettings(): Promise<void>;
   openAppSettings(): Promise<void>;
+  /** Caregiver SOS watcher (backup for push): native service, runs with the app closed. */
+  startSosWatch(opts: { url: string; anonKey: string; watchKey: string }): Promise<void>;
+  stopSosWatch(): Promise<void>;
   /** The phone's Location settings page (location turned off). */
   openLocationSettings(): Promise<void>;
   /** The phone's Location switch (the geolocation plugin only times out when it is off). */

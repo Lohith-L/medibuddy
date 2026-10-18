@@ -1,7 +1,7 @@
 project_id = "baootqatwkhxnkpxeuht"
 
 [functions.extract-prescription]
-verify_jwt = false
+verify_jwt = true
 
 [functions.send-medicine-email]
 verify_jwt = false
@@ -13,7 +13,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.send-push-notification]
-verify_jwt = false
+verify_jwt = true
 
 # Needs the signed-in user's JWT (main account).
 [functions.merge-accounts]

@@ -11,6 +11,13 @@ if (Capacitor.isNativePlatform()) {
   document.documentElement.classList.add("native-app");
 }
 
+// If visiting a non-root route directly on the web without a hash (e.g. /dashboard from Vercel rewrite),
+// convert to hash route so HashRouter can match and route properly.
+if (!Capacitor.isNativePlatform() && window.location.pathname && window.location.pathname !== "/" && !window.location.hash) {
+  const target = window.location.pathname + window.location.search;
+  window.location.replace(`/#${target}`);
+}
+
 // On native (Android/iOS), pre-populate the Capacitor Preferences cache so
 // Supabase can restore the session synchronously before the first render.
 // On web this resolves immediately (no-op).

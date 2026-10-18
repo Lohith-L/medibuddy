@@ -27,6 +27,7 @@ import {
 } from "@/lib/sosAlarm";
 import SOSAlertOverlay, { type OverlayNotice } from "@/components/SOSAlertOverlay";
 import SoundUnlockBanner from "@/components/SoundUnlockBanner";
+import { useSosWatch } from "@/lib/sosWatch";
 
 /** Fire on window (e.g. from a push notification) to fetch new caregiver alerts now. */
 export const CAREGIVER_ALERT_EVENT = "medibuddy:caregiver-alert";
@@ -61,6 +62,8 @@ export const CaregiverAlertsProvider = ({ children }: { children: ReactNode }) =
   const care = useCare();
   const { t, language } = useLanguage();
   const enabled = !!user && care.linked.length > 0;
+  // Android: native SOS watcher, so SOS rings with the app closed (backup for push).
+  useSosWatch(enabled);
 
   const [activeSos, setActiveSos] = useState<CaregiverAlert[]>([]);
   const [unseen, setUnseen] = useState(0);

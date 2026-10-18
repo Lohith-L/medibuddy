@@ -34,6 +34,10 @@ public final class AlarmNotifications {
     static final String CHANNEL_REMINDER = "medicine_reminder";
     /** "Missed dose" after the alarm rang for 2 minutes without an answer. */
     static final String CHANNEL_MISSED = "medicine_missed";
+    /** FCM: SOS from a patient (fallback notification if the alarm can't start). */
+    public static final String CHANNEL_SOS = "sos_alerts";
+    /** FCM: missed-dose alerts for caregivers (normal priority). */
+    public static final String CHANNEL_CAREGIVER = "caregiver_alerts";
 
     static final int ALARM_NOTIFICATION_ID = 7001;
     private static final int REMINDER_BASE = 200000;
@@ -77,6 +81,25 @@ public final class AlarmNotifications {
         );
         missed.setDescription("Tells you when a medicine alarm was not answered");
         nm.createNotificationChannel(missed);
+
+        // Caregiver pushes. SOS: loud alarm sound, vibration, over Do Not Disturb when
+        // allowed, full content on the lock screen.
+        NotificationChannel sos = new NotificationChannel(CHANNEL_SOS, "SOS alerts", NotificationManager.IMPORTANCE_HIGH);
+        sos.setDescription("Emergency alerts from the people you look after");
+        sos.setSound(
+            RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM),
+            new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).build()
+        );
+        sos.enableVibration(true);
+        sos.setVibrationPattern(new long[] { 0, 800, 400, 800, 400, 800 });
+        sos.setBypassDnd(true); // honoured when MediBuddy has Do Not Disturb access
+        sos.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+        nm.createNotificationChannel(sos);
+
+        NotificationChannel care = new NotificationChannel(CHANNEL_CAREGIVER, "Caregiver alerts", NotificationManager.IMPORTANCE_DEFAULT);
+        care.setDescription("Missed doses of the people you look after");
+        care.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+        nm.createNotificationChannel(care);
     }
 
     private static NotificationChannel alarmChannel(String id, String name) {

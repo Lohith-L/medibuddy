@@ -17,5 +17,6 @@ public class BootReceiver extends BroadcastReceiver {
         Log.i("MedicineAlarm", "Rescheduling alarms after " + action);
         AlarmAudioGuard.restoreIfLeftOver(context);
         AlarmScheduler.rescheduleAll(context);
+        SosWatchService.startIfConfigured(context); // caregiver SOS watcher
     }
 }

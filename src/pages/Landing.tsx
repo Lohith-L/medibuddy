@@ -40,9 +40,9 @@ const scaleIn = {
 
 // Data
 const navLinks = [
-  { label: "landing.nav.features", href: "#features" },
-  { label: "landing.nav.how", href: "#how-it-works" },
-  { label: "landing.nav.languages", href: "#languages" },
+  { label: "landing.nav.features", id: "features" },
+  { label: "landing.nav.how", id: "how-it-works" },
+  { label: "landing.nav.languages", id: "languages" },
 ];
 
 const features = [
@@ -160,6 +160,25 @@ const Landing = () => {
   const springOption = { stiffness: 100, damping: 30 };
   const heroY = useSpring(useTransform(scrollYProgress, [0, 0.3], [0, -50]), springOption);
 
+  useEffect(() => {
+    if (!isNative && window.location.pathname !== "/") {
+      window.history.replaceState(null, "", "/#/");
+    }
+  }, []);
+
+  const scrollToSection = (id: string) => {
+    setMenuOpen(false);
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth" });
+    } else {
+      navigate("/");
+      setTimeout(() => {
+        document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
+    }
+  };
+
   return (
     <div className="min-h-screen overflow-x-hidden bg-background text-foreground">
       {/* Navbar */}
@@ -180,15 +199,16 @@ const Landing = () => {
 
           <div className="hidden md:flex items-center gap-8">
             {navLinks.map((link) => (
-              <motion.a
+              <motion.button
                 key={t(link.label)}
-                href={link.href}
-                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors relative group"
+                type="button"
+                onClick={() => scrollToSection(link.id)}
+                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors relative group cursor-pointer"
                 whileHover={{ y: -2 }}
               >
                 {t(link.label)}
                 <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary group-hover:w-full transition-all duration-300" />
-              </motion.a>
+              </motion.button>
             ))}
           </div>
 
@@ -234,14 +254,14 @@ const Landing = () => {
             >
               <div className="container py-6 space-y-4">
                 {navLinks.map((link) => (
-                  <a
+                  <button
                     key={t(link.label)}
-                    href={link.href}
-                    className="block py-3 text-lg font-medium text-muted-foreground hover:text-foreground transition-colors"
-                    onClick={() => setMenuOpen(false)}
+                    type="button"
+                    onClick={() => scrollToSection(link.id)}
+                    className="block w-full text-left py-3 text-lg font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                   >
                     {t(link.label)}
-                  </a>
+                  </button>
                 ))}
                 <div className="pt-4 flex flex-col gap-3">
                   <LanguageSwitcher className="self-start" />

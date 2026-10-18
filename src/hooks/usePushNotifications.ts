@@ -1,121 +1,94 @@
 /**
  * usePushNotifications.ts
  *
- * Registers the device with Firebase Cloud Messaging (FCM) and saves the token
- * to the Supabase `device_tokens` table so edge functions can push to this device.
+ * Registers the device with Firebase Cloud Messaging (FCM) and keeps its token
+ * in Supabase `device_tokens`, so the server (send-push-notification, called by
+ * a database trigger) can reach this phone when MediBuddy is closed.
  *
- * Prerequisites (manual steps — see README):
- *   1. Create a Firebase project at https://console.firebase.google.com
- *   2. Add an Android app with package name com.medibuddy.app
- *   3. Download google-services.json → place in android/app/
- *   4. Run the device_tokens SQL migration in Supabase SQL Editor
+ * - Runs for every signed-in user (patients and caregivers), on app start and
+ *   again whenever someone logs in; tokens are saved on start and on refresh,
+ *   and removed before logout (lib/pushToken).
+ * - SOS pushes are data-only + high priority. Android hands them to our native
+ *   MediBuddyMessagingService, which rings the full-screen caregiver alarm even
+ *   when the app is swiped away. While the app is open they also arrive here;
+ *   CaregiverAlertsContext rings by sos_event_id, so Realtime + push never ring twice.
  *
- * On web this hook is a complete no-op. It is also a no-op when the app was
- * built without google-services.json: registering would throw
- * "Default FirebaseApp is not initialized" on a native thread and crash the
- * app. Local notifications do not depend on Firebase and keep working.
+ * Prerequisites: android/app/google-services.json (see MOBILE_README.md). Without
+ * it this hook is a no-op: registering would crash with "Default FirebaseApp is
+ * not initialized". On web it is always a no-op.
  */
 
 import { useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications, Token, PushNotificationActionPerformed } from '@capacitor/push-notifications';
 import { CAREGIVER_ALERT_EVENT } from '@/contexts/CaregiverAlertsContext';
-import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { savePushToken } from '@/lib/pushToken';
 import { useNavigate } from 'react-router-dom';
+
+const CARE_TYPES = new Set(['sos', 'sos_stop', 'missed_dose']);
 
 export function usePushNotifications() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
 
+  // Listeners: once.
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
-    if (!__FIREBASE_CONFIGURED__) {
-      console.warn('[Push] Firebase not configured (no google-services.json) — push disabled');
-      return;
-    }
+    if (!Capacitor.isNativePlatform() || !__FIREBASE_CONFIGURED__) return;
 
-    const setup = async () => {
-      // ── 1. Request permission ──────────────────────────────────────────
-      const perm = await PushNotifications.requestPermissions();
-      if (perm.receive !== 'granted') {
-        console.warn('[Push] permission not granted:', perm.receive);
+    const tokenListener = PushNotifications.addListener('registration', (token: Token) => {
+      console.info('[Push] FCM token received:', token.value.slice(0, 16) + '…');
+      void savePushToken(token.value);
+    });
+
+    const errorListener = PushNotifications.addListener('registrationError', (err) => {
+      console.error('[Push] registration error:', JSON.stringify(err));
+    });
+
+    // App open: refresh caregiver alerts at once (shows the SOS screen + alarm).
+    const receivedListener = PushNotifications.addListener('pushNotificationReceived', (n) => {
+      console.info('[Push] received in foreground:', n.data?.type, n.title ?? '');
+      if (CARE_TYPES.has(n.data?.type)) window.dispatchEvent(new Event(CAREGIVER_ALERT_EVENT));
+    });
+
+    // Notification tapped: caregiver alerts open the Alerts page.
+    const actionListener = PushNotifications.addListener('pushNotificationActionPerformed', (action: PushNotificationActionPerformed) => {
+      const data = action.notification.data ?? {};
+      if (CARE_TYPES.has(data.type)) {
+        window.dispatchEvent(new Event(CAREGIVER_ALERT_EVENT));
+        navigate(data.sos_event_id ? `/care/alerts?sos=${encodeURIComponent(data.sos_event_id)}` : '/care/alerts');
         return;
       }
+      navigate(data.route ?? '/dashboard');
+    });
 
-      // ── 2. Register with FCM ───────────────────────────────────────────
-      await PushNotifications.register();
-    };
-
-    setup().catch((err) => console.error('[Push] setup failed:', err));
-
-    // ── 3. Save token to Supabase when FCM gives us one ───────────────
-    const tokenListener = PushNotifications.addListener(
-      'registration',
-      async (token: Token) => {
-        console.log('[Push] FCM token received:', token.value.substring(0, 20) + '...');
-
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        // Upsert so re-installs or token rotations update the row.
-        const { error } = await supabase
-          .from('device_tokens' as any)
-          .upsert(
-            {
-              user_id: user.id,
-              token: token.value,
-              platform: Capacitor.getPlatform() as 'android' | 'ios',
-            },
-            { onConflict: 'user_id,token' }
-          );
-
-        if (error) {
-          console.error('[Push] failed to save token:', error.message);
-        } else {
-          console.log('[Push] token saved to Supabase');
-        }
-      }
-    );
-
-    // ── 4. Handle registration errors ─────────────────────────────────
-    const errorListener = PushNotifications.addListener(
-      'registrationError',
-      (err) => {
-        console.error('[Push] registration error:', err.error);
-      }
-    );
-
-    // ── 5. Handle notification received while app is open ─────────────
-    const receivedListener = PushNotifications.addListener(
-      'pushNotificationReceived',
-      (notification) => {
-        console.log('[Push] notification received in foreground:', notification.title);
-        // The notification will appear as a heads-up banner on Android.
-        // Caregiver alerts (SOS / missed dose): fetch them now, which shows the
-        // full-screen SOS and starts the alarm (CaregiverAlertsContext).
-        if (notification.data?.type === 'sos' || notification.data?.type === 'missed_dose') {
-          window.dispatchEvent(new Event(CAREGIVER_ALERT_EVENT));
-        }
-      }
-    );
-
-    // ── 6. Handle notification tap ────────────────────────────────────
-    const actionListener = PushNotifications.addListener(
-      'pushNotificationActionPerformed',
-      (action: PushNotificationActionPerformed) => {
-        const data = action.notification.data;
-        if (data?.type === 'sos' || data?.type === 'missed_dose') window.dispatchEvent(new Event(CAREGIVER_ALERT_EVENT));
-        const route = data?.route ?? '/dashboard';
-        navigate(route, { replace: false });
-      }
-    );
-
-    // Cleanup
     return () => {
-      tokenListener.then((l) => l.remove());
-      errorListener.then((l) => l.remove());
-      receivedListener.then((l) => l.remove());
-      actionListener.then((l) => l.remove());
+      void tokenListener.then((l) => l.remove());
+      void errorListener.then((l) => l.remove());
+      void receivedListener.then((l) => l.remove());
+      void actionListener.then((l) => l.remove());
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Register on app start and on every login (FCM returns the current token,
+  // which 'registration' then saves for the signed-in account).
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    if (!__FIREBASE_CONFIGURED__) {
+      console.warn('[Push] Firebase not configured (no google-services.json): push disabled');
+      return;
+    }
+    if (!userId) return;
+    (async () => {
+      let perm = await PushNotifications.checkPermissions();
+      if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') perm = await PushNotifications.requestPermissions();
+      if (perm.receive !== 'granted') {
+        console.warn('[Push] notification permission not granted:', perm.receive);
+        return;
+      }
+      await PushNotifications.register();
+    })().catch((err) => console.error('[Push] setup failed:', err));
+  }, [userId]);
 }

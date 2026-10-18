@@ -39,3 +39,6 @@ google-services.json
 GoogleService-Info.plist
 *service-account*.json
 *serviceAccount*.json
+*firebase-adminsdk*.json
+*service_account*.json
+supabase/.temp/

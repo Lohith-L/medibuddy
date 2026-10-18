@@ -22,6 +22,7 @@ import { signedOutPath } from "@/lib/startFlow";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
+import { forgetPushToken } from "@/lib/pushToken";
 
 interface AlertItem {
   id: string;
@@ -197,6 +198,7 @@ const DashboardLayout = ({ children }: Props) => {
   };
 
   const handleLogout = async () => {
+    await forgetPushToken(); // before signing out (RLS)
     await supabase.auth.signOut();
     toast.success(t("layout.loggedOut"));
     navigate("/");

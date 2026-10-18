@@ -35,9 +35,9 @@ export async function markIntroDone(): Promise<void> {
   }
 }
 
-/** Where a signed-out user goes: the welcome screen in the app, the login choice on the website. */
+/** Where a signed-out user goes: the welcome screen in the app, the landing page on the website. */
 export function signedOutPath(): string {
-  return Capacitor.isNativePlatform() ? "/welcome" : "/auth";
+  return Capacitor.isNativePlatform() ? "/welcome" : "/";
 }
 
 /**

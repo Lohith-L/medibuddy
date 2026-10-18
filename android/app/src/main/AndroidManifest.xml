@@ -63,6 +63,33 @@
         />
 
         <!-- Plays the alarm sound on the alarm stream until the user answers -->
+        <!-- FCM: our service replaces the push plugin's, so SOS pushes ring the
+             full-screen caregiver alarm even when the app is closed -->
+        <service
+            android:name="com.capacitorjs.plugins.pushnotifications.MessagingService"
+            tools:node="remove" />
+        <service
+            android:name=".push.MediBuddyMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <!-- Default channel for pushes without one -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="caregiver_alerts" />
+
+        <!-- Caregiver SOS watcher (backup for push): checks for active SOS while the app is closed -->
+        <service
+            android:name=".alarm.SosWatchService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Caregiver emergency (SOS) alerts: rings when a linked patient needs help" />
+        </service>
+
         <service
             android:name=".alarm.AlarmService"
             android:exported="false"
@@ -124,6 +151,7 @@
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />

@@ -15,7 +15,7 @@
 | **Google OAuth deep link** | `com.medibuddy.app://login-callback` intercepts the redirect |
 | **Realtime sync** | `medicines` + `reminder_events` tables subscribe to postgres_changes |
 | **Native notifications** | `@capacitor/local-notifications` schedules daily medicine alarms |
-| **FCM push notifications** | `@capacitor/push-notifications` + `send-push-notification` edge fn |
+| **FCM push notifications** | `@capacitor/push-notifications` + `MediBuddyMessagingService` + `send-push-notification` (FCM HTTP v1, called by a DB trigger) |
 | **Mobile polish** | Status bar, splash screen (2s dark), back button, safe-area CSS |
 | **App icon & splash** | Generated from `resources/icon.png` at all Android densities |
 
@@ -137,28 +137,64 @@ supabase/migrations/20261011000000_device_tokens.sql
 
 ### Required for FCM Push (after Firebase setup)
 
-#### 4. Add FCM_SERVER_KEY secret
-**Edge Functions → Secrets** — add:
-```
-FCM_SERVER_KEY = <your Firebase Server Key>
-```
-
-#### 5. Deploy the new edge function
-```bash
-npx supabase functions deploy send-push-notification
-```
+See **Firebase Setup** below: the service account secret, the Vault secret,
+the function deploy and the trigger migration.
 
 ---
 
-## Firebase Setup (for FCM Push Notifications)
+## Firebase Setup (FCM push: SOS rings with the app closed)
 
-1. Go to https://console.firebase.google.com → **New Project**
-2. Add an **Android app** with package name: `com.medibuddy.app`
-3. Download `google-services.json`
-4. Place it at: `android/app/google-services.json`
-5. In Android Studio: Gradle sync will detect it automatically
-6. Copy your **Server Key** from Firebase Console → Project Settings → Cloud Messaging
-7. Add it as `FCM_SERVER_KEY` in Supabase Edge Function secrets (step 4 above)
+Caregiver phones get SOS alerts by push, so they ring even when MediBuddy is
+swiped away or the phone is locked. Flow: `raise_sos` inserts `caregiver_alerts`
+-> database trigger (`20261017000000_caregiver_alert_push.sql`, pg_net) ->
+`send-push-notification` (FCM HTTP v1) -> `MediBuddyMessagingService` on the
+phone -> full-screen caregiver alarm. Realtime still serves an open app; both
+paths ring the same alarm id (sos_event_id), so it never rings twice.
+
+1. **Firebase project + Android app**: https://console.firebase.google.com ->
+   add an Android app with package name `com.medibuddy.app`.
+2. **`google-services.json`**: download it and place it at
+   `android/app/google-services.json`. It is git-ignored; never commit it.
+   The Gradle plugin is applied only when this file exists
+   (`android/app/build.gradle`); without it push is disabled (no crash).
+3. **Service account for sending** (the legacy FCM server key API is shut
+   down): Firebase Console -> Project settings -> Service accounts ->
+   **Generate new private key**. Keep the downloaded JSON out of the repo
+   (`*service-account*.json` / `*firebase-adminsdk*.json` are git-ignored).
+4. **Edge function secret** (whole JSON file as the value):
+   ```bash
+   npx supabase secrets set FCM_SERVICE_ACCOUNT="$(cat path/to/medibuddy-firebase-adminsdk.json)"
+   ```
+   (or Dashboard -> Edge Functions -> Secrets -> `FCM_SERVICE_ACCOUNT`).
+   `FCM_SERVER_KEY` is no longer used and can be deleted.
+5. **Deploy the function** (JWT verification stays on, see `supabase/config.toml`):
+   ```bash
+   npx supabase functions deploy send-push-notification
+   ```
+6. **Vault secret for the trigger** (SQL editor, once; the key stays out of migrations):
+   ```sql
+   select vault.create_secret('<SERVICE_ROLE_KEY>', 'medibuddy_service_role_key');
+   ```
+   Service-role key: Dashboard -> Project settings -> API.
+7. **Apply the trigger migration**: run
+   `supabase/migrations/20261017000000_caregiver_alert_push.sql` in the SQL
+   editor (or `npx supabase db push`).
+8. **Rebuild and reinstall on every phone** (patient and caregiver):
+   ```bash
+   npm run build:mobile
+   npx cap sync android
+   npx cap run android
+   ```
+   After logging in, `device_tokens` should get a row per phone.
+
+**Checking it works**
+- `select user_id, platform, updated_at from device_tokens;`: one row per logged-in phone.
+- Edge function logs (`send-push-notification`): `sent 1, failed 0` per alert.
+- `select * from net._http_response order by created desc limit 5;`: trigger calls (status 200).
+- On the caregiver phone, `adb logcat -s MediBuddyPush CaregiverPush` shows
+  `push received: type=sos` and `Ringing SOS ...`.
+- On the caregiver phone, allow notifications, alarms & reminders, full-screen
+  alerts and battery "Unrestricted" (MediBuddy -> Alarm settings checks these).
 
 ---
 

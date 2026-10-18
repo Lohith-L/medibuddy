@@ -1,8 +1,8 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useActivePatient } from "@/contexts/CareContext";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Upload as UploadIcon, FileImage, Loader2, Check, Pencil, Trash2, Plus, Clock, X, Camera, ImagePlus, ImageOff, Pill } from "lucide-react";
+import { Upload as UploadIcon, FileImage, Loader2, Check, Pencil, Trash2, Plus, Clock, X, Camera, ImagePlus, ImageOff, Pill, AlertTriangle, RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
@@ -12,6 +12,7 @@ import { notifyMedicinesChanged } from "@/plugins/medicineAlarm";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { generateUUID } from "@/lib/uuid";
+import { prepareForUpload } from "@/lib/prescriptionImage";
 import {
   validateImageFile,
   createSafePreviewUrl,
@@ -24,8 +25,12 @@ interface ExtractedMedicine {
   dosage: string;
   frequency: string;
   instructions: string;
-  duration_days: number;
+  /** Only when written on the prescription; never a default. */
+  duration_days: number | null;
   reminder_times: string[];
+  /** From the AI: how sure it is, and which fields it couldn't read. */
+  confidence?: "high" | "medium" | "low";
+  unclear_fields?: string[];
   photoFile?: File;
   photoPreview?: string;
   medicine_photo_url?: string;
@@ -65,6 +70,24 @@ const UploadPrescription = () => {
   const [medicines, setMedicines] = useState<ExtractedMedicine[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [saving, setSaving] = useState(false);
+  /** Extraction progress: preparing the photo, uploading, the AI reading it. */
+  const [stage, setStage] = useState<"idle" | "preparing" | "uploading" | "reading">("idle");
+  const [elapsed, setElapsed] = useState(0);
+  const abortRef = useRef<AbortController | null>(null);
+  /** Why the last extraction gave nothing (shown with Try again / Enter manually). */
+  const [failure, setFailure] = useState<null | "timeout" | "unreadable" | "not_prescription" | "offline" | "error">(null);
+  /** AI-read medicines must be checked against the prescription before saving. */
+  const [fromAi, setFromAi] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
+
+  // Seconds counter while extracting.
+  useEffect(() => {
+    if (!loading) return;
+    const start = Date.now();
+    setElapsed(0);
+    const id = window.setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000);
+    return () => window.clearInterval(id);
+  }, [loading]);
 
   const handleFile = useCallback((f: File) => {
     if (!f.type.startsWith("image/") && f.type !== "application/pdf") {
@@ -77,6 +100,8 @@ const UploadPrescription = () => {
     }
     setFile(f);
     setMedicines([]);
+    setFailure(null);
+    setFromAi(false);
     if (f.type.startsWith("image/")) {
       const reader = new FileReader();
       reader.onload = (e) => setPreview(e.target?.result as string);
@@ -107,41 +132,85 @@ const UploadPrescription = () => {
       reader.readAsDataURL(file);
     });
 
+  const EXTRACT_TIMEOUT_MS = 45_000;
+
   const handleExtract = async () => {
     if (!file) return;
+    // Offline: say so at once instead of preparing and uploading first.
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      setFailure("offline");
+      return;
+    }
     setLoading(true);
+    setFailure(null);
+    const ctl = new AbortController();
+    abortRef.current = ctl;
+    const timeout = window.setTimeout(() => ctl.abort("timeout"), EXTRACT_TIMEOUT_MS);
+    let readingTimer: number | undefined;
+    const t0 = performance.now();
     try {
-      const base64 = await fileToBase64(file);
+      setStage("preparing");
+      const img = await prepareForUpload(file);
+      console.info(`[extract] photo ${Math.round(img.originalBytes / 1024)} KB -> ${Math.round(img.bytes / 1024)} KB in ${img.ms} ms`);
+      if (ctl.signal.aborted) throw new DOMException("Aborted", "AbortError");
+
+      setStage("uploading");
+      // The request is one call; after the upload time the AI is reading.
+      readingTimer = window.setTimeout(() => setStage("reading"), Math.min(4000, 800 + img.bytes / 200));
       const { data, error } = await supabase.functions.invoke("extract-prescription", {
-        body: { imageBase64: base64, mimeType: file.type },
+        body: { imageBase64: img.base64, mimeType: img.mimeType },
+        signal: ctl.signal,
       });
-
+      console.info(`[extract] total ${Math.round(performance.now() - t0)} ms, server timings`, data?.timings ?? error);
+      if (ctl.signal.aborted) throw new DOMException("Aborted", "AbortError");
       if (error) throw error;
-      if (data?.error) { toast.error(data.error); return; }
+      if (data?.error) throw new Error(data.error);
 
-      const extracted = (data?.medicines || []).map((m: any) => {
-        const count = getTimeSlotCount(m.frequency || "Once daily");
+      const extracted = (data?.medicines || []).map((m: Partial<ExtractedMedicine>) => {
+        const count = getTimeSlotCount(m.frequency || "");
         return {
-          ...m,
-          frequency: m.frequency || "Once daily",
-          reminder_times: getDefaultTimes(count),
+          name: m.name ?? "",
+          dosage: m.dosage ?? "",
+          frequency: m.frequency ?? "",
+          instructions: m.instructions ?? "",
+          duration_days: m.duration_days ?? null,
+          confidence: m.confidence ?? "low",
+          unclear_fields: m.unclear_fields ?? [],
+          // Unknown frequency: no reminder times until the user picks one.
+          reminder_times: m.frequency ? getDefaultTimes(count) : [],
         };
       }) as ExtractedMedicine[];
 
       if (extracted.length === 0) {
-        toast.error(t("upload.noneFound"));
+        setFailure(data?.reason === "not_prescription" ? "not_prescription" : "unreadable");
         return;
       }
-
       setMedicines(extracted);
+      setFromAi(true);
+      setConfirmed(false);
       toast.success(t("upload.extracted", { count: extracted.length }));
-    } catch (err: any) {
-      console.error("Extraction error:", err);
-      toast.error(err.message || t("upload.extractFailed"));
+    } catch (err: unknown) {
+      const reason = ctl.signal.reason;
+      if (reason === "user") {
+        toast(t("upload.cancelled"));
+      } else if (reason === "timeout" || (err as { context?: Response })?.context?.status === 504) {
+        setFailure("timeout");
+      } else if (!navigator.onLine || /fetch|network|Failed to send/i.test(String((err as Error)?.message))) {
+        setFailure("offline");
+      } else {
+        console.error("Extraction error:", err);
+        setFailure("error");
+      }
     } finally {
+      window.clearTimeout(timeout);
+      if (readingTimer) window.clearTimeout(readingTimer);
+      abortRef.current = null;
+      setStage("idle");
       setLoading(false);
     }
   };
+
+  const cancelExtract = () => abortRef.current?.abort("user");
 
   const updateMedicine = (index: number, field: keyof ExtractedMedicine, value: any) => {
     setMedicines((prev) => prev.map((m, i) => (i === index ? { ...m, [field]: value } : m)));
@@ -192,7 +261,7 @@ const UploadPrescription = () => {
   const addMedicine = () => {
     setMedicines((prev) => [
       ...prev,
-      { name: "", dosage: "", frequency: "Once daily", instructions: "", duration_days: 30, reminder_times: ["08:00"] },
+      { name: "", dosage: "", frequency: "Once daily", instructions: "", duration_days: null, reminder_times: ["08:00"] },
     ]);
   };
 
@@ -233,6 +302,15 @@ const UploadPrescription = () => {
   }, [medicines]);
 
   const handleSave = async () => {
+    if (fromAi && !confirmed) {
+      toast.error(t("upload.confirmFirst"));
+      return;
+    }
+    const noFreq = medicines.find((m) => !FREQUENCY_OPTIONS.some((o) => o.value === m.frequency));
+    if (noFreq) {
+      toast.error(t("upload.chooseFrequencyFor", { name: noFreq.name || t("upload.medicineName") }));
+      return;
+    }
     if (medicines.length === 0) return;
     const invalid = medicines.some((m) => !m.name.trim() || !m.dosage.trim());
     if (invalid) {
@@ -458,17 +536,50 @@ const UploadPrescription = () => {
               )}
             </div>
 
-            {file && (
-              <Button className="w-full" variant="hero" size="lg" onClick={handleExtract} disabled={loading}>
-                {loading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    {t("upload.reading")}
-                  </>
-                ) : (
-                  t("upload.extract")
-                )}
+            {file && !loading && (
+              <Button className="w-full" variant="hero" size="lg" onClick={handleExtract}>
+                {t("upload.extract")}
               </Button>
+            )}
+            {loading && (
+              <div className="rounded-2xl border bg-muted/40 p-4 space-y-3" role="status" aria-live="polite">
+                <div className="flex items-center gap-3">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary shrink-0" />
+                  <p className="flex-1 font-semibold">
+                    {stage === "reading" ? t("upload.stageReading") : stage === "uploading" ? t("upload.stageUploading") : t("upload.stagePreparing")}
+                  </p>
+                  <span className="text-sm tabular-nums text-muted-foreground">{t("upload.elapsed", { s: elapsed })}</span>
+                </div>
+                <Button variant="outline" className="w-full min-h-[48px]" onClick={cancelExtract}>
+                  <X className="w-4 h-4 mr-1.5" /> {t("upload.cancel")}
+                </Button>
+              </div>
+            )}
+            {failure && !loading && (
+              <div role="alert" className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 space-y-3 text-amber-950 dark:text-amber-50">
+                <p className="flex items-start gap-2 font-semibold">
+                  <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-warning" />
+                  <span>
+                    {failure === "timeout"
+                      ? t("upload.failTimeout")
+                      : failure === "offline"
+                        ? t("upload.failOffline")
+                        : failure === "not_prescription"
+                          ? t("upload.failNotPrescription")
+                          : failure === "unreadable"
+                            ? t("upload.failUnreadable")
+                            : t("upload.extractFailed")}
+                  </span>
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Button variant="outline" className="min-h-[48px] bg-card" onClick={handleExtract}>
+                    <RefreshCw className="w-4 h-4 mr-1.5" /> {t("upload.tryAgain")}
+                  </Button>
+                  <Button variant="outline" className="min-h-[48px] bg-card" onClick={() => { setFailure(null); addMedicine(); }}>
+                    <Pencil className="w-4 h-4 mr-1.5" /> {t("upload.enterManually")}
+                  </Button>
+                </div>
+              </div>
             )}
 
             <div className="text-center pt-2">
@@ -497,6 +608,9 @@ const UploadPrescription = () => {
 
             {medicines.map((med, i) => {
               const timeSlotCount = getTimeSlotCount(med.frequency);
+              const unclear = new Set(med.unclear_fields ?? []);
+              const needsCheck = med.confidence === "low" || med.confidence === "medium" || unclear.size > 0;
+              const fieldCls = (f: string) => (unclear.has(f) ? " border-amber-500 ring-2 ring-amber-500/30" : "");
 
               return (
                 <motion.div
@@ -504,8 +618,14 @@ const UploadPrescription = () => {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.1 }}
-                  className="bg-card rounded-2xl border p-4 sm:p-6 shadow-card space-y-4 relative overflow-hidden"
+                  className={`bg-card rounded-2xl border p-4 sm:p-6 shadow-card space-y-4 relative overflow-hidden${needsCheck ? " border-2 border-amber-500" : ""}`}
                 >
+                  {needsCheck && (
+                    <p className="flex items-start gap-2 rounded-xl bg-amber-500/10 px-3 py-2 text-sm font-semibold text-amber-950 dark:text-amber-50">
+                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-warning" />
+                      {t("upload.checkPrescription")}
+                    </p>
+                  )}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-muted-foreground text-sm">
                       <Pencil className="w-4 h-4" /> {t("upload.tapToEdit")}
@@ -518,19 +638,20 @@ const UploadPrescription = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div>
                       <Label className="text-base font-semibold">{t("upload.medicineName")}</Label>
-                      <Input value={med.name} onChange={(e) => updateMedicine(i, "name", e.target.value)} className="mt-1.5 min-h-btn text-base rounded-xl" placeholder={t("upload.namePlaceholder")} />
+                      <Input value={med.name} onChange={(e) => updateMedicine(i, "name", e.target.value)} className={"mt-1.5 min-h-btn text-base rounded-xl" + (med.confidence === "low" ? " border-amber-500 ring-2 ring-amber-500/30" : fieldCls("name"))} placeholder={t("upload.namePlaceholder")} />
                     </div>
                     <div>
                       <Label className="text-base font-semibold">{t("meds.dosageRequiredLabel")}</Label>
-                      <Input value={med.dosage} onChange={(e) => updateMedicine(i, "dosage", e.target.value)} className="mt-1.5 min-h-btn text-base rounded-xl" placeholder={t("upload.dosagePlaceholder")} />
+                      <Input value={med.dosage} onChange={(e) => updateMedicine(i, "dosage", e.target.value)} className={"mt-1.5 min-h-btn text-base rounded-xl" + fieldCls("dosage")} placeholder={t("upload.dosagePlaceholder")} />
                     </div>
                     <div>
                       <Label className="text-base font-semibold">{t("meds.frequency")}</Label>
                       <select
                         value={FREQUENCY_OPTIONS.find(o => o.value === med.frequency) ? med.frequency : ""}
                         onChange={(e) => handleFrequencyChange(i, e.target.value)}
-                        className="mt-1.5 w-full min-h-btn text-base rounded-xl border bg-background px-3 py-2"
+                        className={"mt-1.5 w-full min-h-btn text-base rounded-xl border bg-background px-3 py-2" + fieldCls("frequency")}
                       >
+                        {!FREQUENCY_OPTIONS.find((o) => o.value === med.frequency) && <option value="">{t("upload.chooseFrequency")}</option>}
                         {FREQUENCY_OPTIONS.map((opt) => (
                           <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
                         ))}
@@ -538,7 +659,7 @@ const UploadPrescription = () => {
                     </div>
                     <div>
                       <Label className="text-base font-semibold">{t("meds.instructions")}</Label>
-                      <Input value={med.instructions} onChange={(e) => updateMedicine(i, "instructions", e.target.value)} className="mt-1.5 min-h-btn text-base rounded-xl" placeholder={t("meds.instructionsPlaceholder")} />
+                      <Input value={med.instructions} onChange={(e) => updateMedicine(i, "instructions", e.target.value)} className={"mt-1.5 min-h-btn text-base rounded-xl" + fieldCls("instructions")} placeholder={t("meds.instructionsPlaceholder")} />
                     </div>
                   </div>
 
@@ -640,12 +761,25 @@ const UploadPrescription = () => {
               );
             })}
 
+            {fromAi && (
+              <label className="flex items-start gap-3 rounded-2xl border-2 border-primary/30 bg-primary/5 p-4 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={confirmed}
+                  onChange={(e) => setConfirmed(e.target.checked)}
+                  className="mt-1 h-5 w-5 shrink-0 accent-primary"
+                />
+                <span className="text-base font-semibold">{t("upload.confirmChecked")}</span>
+              </label>
+            )}
+
             <div className="flex flex-col sm:flex-row gap-3">
               <Button
                 variant="outline"
                 className="flex-1"
                 size="lg"
                 onClick={() => {
+                  setFromAi(false);
                   medicines.forEach((m) => revokeSafePreviewUrl(m.photoPreview));
                   setMedicines([]);
                   setFile(null);
@@ -654,7 +788,7 @@ const UploadPrescription = () => {
               >
                 {t("upload.another")}
               </Button>
-              <Button variant="hero" className="flex-1" size="lg" onClick={handleSave} disabled={saving}>
+              <Button variant="hero" className="flex-1" size="lg" onClick={handleSave} disabled={saving || (fromAi && !confirmed)}>
                 {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : t("upload.confirmSave")}
               </Button>
             </div>

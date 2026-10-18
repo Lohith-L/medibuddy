@@ -8,6 +8,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { evaluateLogin, peekPendingInvite, takeLoginIntent, writeHomeMode } from "@/lib/care";
 import { signedOutPath } from "@/lib/startFlow";
+import { forgetPushToken } from "@/lib/pushToken";
 
 /**
  * "/home": runs after every login (email, phone, Google) and on app start.
@@ -33,6 +34,7 @@ const HomeRedirect = () => {
         const outcome = await evaluateLogin(session.user.id, intent);
         if (outcome === "notPatient") {
           setBlocked("notPatient"); // shown even after signing out
+          await forgetPushToken(); // before signing out (RLS)
           await supabase.auth.signOut();
           return;
         }

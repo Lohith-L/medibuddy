@@ -9,6 +9,7 @@ import { useCare } from "@/contexts/CareContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { peekPendingInvite, saveRoles, type Role } from "@/lib/care";
+import { forgetPushToken } from "@/lib/pushToken";
 
 /**
  * Signed in, but no account was ever created (first Google sign-in on a login
@@ -41,6 +42,7 @@ const ChooseRole = () => {
   };
 
   const cancel = async () => {
+    await forgetPushToken(); // before signing out (RLS)
     await supabase.auth.signOut();
     navigate("/auth", { replace: true });
   };

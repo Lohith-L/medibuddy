@@ -69,7 +69,7 @@ public class MedicineAlarmPlugin extends Plugin {
     }
 
     /** Alarm id for a caregiver alert: stable per SOS id, clear of medicine and test ids. */
-    static int caregiverAlarmId(String refId) {
+    public static int caregiverAlarmId(String refId) {
         int h = 0x811c9dc5; // FNV-1a
         for (int i = 0; i < refId.length(); i++) {
             h ^= refId.charAt(i);
@@ -299,6 +299,25 @@ public class MedicineAlarmPlugin extends Plugin {
             pi.cancel();
         }
         if (AlarmService.current() != null) AlarmService.send(getContext(), AlarmService.ACTION_REMOVE, p);
+        call.resolve();
+    }
+
+    /** startSosWatch({ url, anonKey, watchKey }): caregiver SOS watcher (backup for push). */
+    @PluginMethod
+    public void startSosWatch(PluginCall call) {
+        String url = call.getString("url"), anon = call.getString("anonKey"), key = call.getString("watchKey");
+        if (url == null || anon == null || key == null) {
+            call.reject("url, anonKey and watchKey are required");
+            return;
+        }
+        SosWatchService.start(getContext(), url, anon, key);
+        call.resolve();
+    }
+
+    /** stopSosWatch(): logout / no longer a caregiver. */
+    @PluginMethod
+    public void stopSosWatch(PluginCall call) {
+        SosWatchService.stop(getContext());
         call.resolve();
     }
 

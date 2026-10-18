@@ -14,6 +14,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { languageOptions, normalizeLanguageCode } from "@/lib/language";
 import LinkedLogins from "@/components/LinkedLogins";
 import AppearanceSettings from "@/components/AppearanceSettings";
+import { forgetPushToken } from "@/lib/pushToken";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -155,6 +156,7 @@ const Profile = () => {
   };
 
   const handleLogout = async () => {
+    await forgetPushToken(); // before signing out (RLS)
     await supabase.auth.signOut();
     toast.success(t("layout.loggedOut"));
     navigate("/");
