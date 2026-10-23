@@ -299,10 +299,37 @@ export interface FetchStats {
  * Last resort when Overpass is down: OpenStreetMap's search (Nominatim) for
  * "pharmacy" in a ~2.2 km box. At most 50 results, but they are the nearby ones.
  */
-async function fromNominatim(lat: number, lng: number, signal: AbortSignal): Promise<Pharmacy[]> {
-  const d = 0.02;
+/**
+ * OpenStreetMap search for pharmacies in a ~11 km box around the point: "pharmacy",
+ * then "medicals" (how many Indian chemists are named), 1 s apart as the
+ * Nominatim usage policy asks. `onEach` gets the merged list after each search.
+ */
+async function fromNominatim(
+  lat: number,
+  lng: number,
+  signal: AbortSignal,
+  onEach?: (items: Pharmacy[]) => void,
+): Promise<Pharmacy[]> {
+  const merged = new Map<string, Pharmacy>();
+  const errors: string[] = [];
+  for (const [i, term] of ["pharmacy", "medicals"].entries()) {
+    if (i > 0) await sleep(1100, signal);
+    try {
+      for (const p of await nominatimSearch(lat, lng, term, signal)) merged.set(p.id, p);
+      onEach?.([...merged.values()]);
+    } catch (e) {
+      if ((e as Error).name === "AbortError" || signal.aborted) throw abortError();
+      errors.push((e as Error).message);
+    }
+  }
+  if (!merged.size && errors.length) throw new Error(errors.join("; "));
+  return [...merged.values()];
+}
+
+async function nominatimSearch(lat: number, lng: number, term: string, signal: AbortSignal): Promise<Pharmacy[]> {
+  const d = 0.05;
   const url =
-    "https://nominatim.openstreetmap.org/search?format=jsonv2&q=pharmacy&limit=50&bounded=1&extratags=1" +
+    `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(term)}&limit=50&bounded=1&extratags=1` +
     `&viewbox=${lng - d},${lat + d},${lng + d},${lat - d}`;
   let rows: unknown;
   if (Capacitor.isNativePlatform()) {
@@ -354,55 +381,106 @@ const sleep = (ms: number, signal?: AbortSignal) =>
  * unless `force`. Rejects with an AbortError if `signal` aborts, or an Error
  * (with every server's status) if all sources failed twice and nothing is saved.
  */
+/** First promise to resolve wins; rejects with every error if all fail (Promise.any, ES2020-safe). */
+function firstSuccess<T>(promises: Promise<T>[]): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const errors: unknown[] = [];
+    let pending = promises.length;
+    promises.forEach((p, i) =>
+      p.then(resolve, (e) => {
+        errors[i] = e;
+        if (--pending === 0) reject(errors);
+      }),
+    );
+  });
+}
+
+/** The full directory gets this long in total; then quick / saved results stand. */
+const FULL_BUDGET_MS = 25_000;
+
+/**
+ * All pharmacies within MAX_RADIUS_KM of the point. Uses the 10-minute cache
+ * unless `force`.
+ *
+ * Public Overpass servers are often slow or down, so nobody waits for them:
+ * - OpenStreetMap search (Nominatim) answers in ~1 s with the nearest ~50
+ *   pharmacies; they are handed to `onQuick` at once;
+ * - meanwhile every Overpass server AND the edge-function proxy are asked at
+ *   the same time (first good answer wins), for at most FULL_BUDGET_MS;
+ * - if they all fail: saved results for this place, else the quick results
+ *   (stats.partial), else an Error. Rejects with an AbortError if `signal` aborts.
+ */
 export async function fetchPharmacies(
   lat: number,
   lng: number,
-  opts: { signal?: AbortSignal; force?: boolean } = {},
+  opts: { signal?: AbortSignal; force?: boolean; onQuick?: (items: Pharmacy[], savedAt?: number) => void } = {},
 ): Promise<{ items: Pharmacy[]; stats: FetchStats }> {
   const t0 = performance.now();
+  const elapsed = () => Math.round(performance.now() - t0);
   if (!opts.force) {
     const hit = cachedPharmacies(lat, lng);
-    if (hit) return { items: hit.items, stats: { ms: Math.round(performance.now() - t0), mirror: "cache", fromCache: true } };
+    if (hit) return { items: hit.items, stats: { ms: elapsed(), mirror: "cache", fromCache: true } };
   }
-  const signal = opts.signal ?? new AbortController().signal;
-  const sources = Capacitor.isNativePlatform()
-    ? [() => fromMirrors(lat, lng, signal), () => fromProxy(lat, lng, signal)]
-    : [() => fromProxy(lat, lng, signal), () => fromMirrors(lat, lng, signal)];
+  const outer = opts.signal ?? new AbortController().signal;
+  // Stops the slower full-directory requests once one wins or the budget runs out.
+  const fullCtl = new AbortController();
+  const stopFull = () => fullCtl.abort();
+  outer.addEventListener("abort", stopFull, { once: true });
+
+  let fullDone = false;
+  // Saved full results for this place (up to 7 days old): show them at once.
+  const saved = cachedPharmacies(lat, lng, STALE_MAX_MS);
+  if (saved) {
+    console.info(`[pharmacies] showing ${saved.items.length} saved results while refreshing`);
+    opts.onQuick?.(saved.items, saved.at);
+  }
+  const quickP = (saved ? Promise.resolve([] as Pharmacy[]) : fromNominatim(lat, lng, outer, (items) => {
+    console.info(`[pharmacies] quick results: ${items.length} in ${elapsed()} ms (nominatim)`);
+    if (!fullDone && items.length) opts.onQuick?.(items);
+  }))
+    .catch((e: Error) => {
+      if (e.name !== "AbortError") console.warn("[pharmacies] quick results failed:", e.message);
+      return [] as Pharmacy[];
+    });
 
   const errors: string[] = [];
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    for (const source of sources) {
+  const budget = setTimeout(() => fullCtl.abort(), FULL_BUDGET_MS);
+  try {
+    for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        const { elements, source: from } = await source();
+        // Every source at once; the first good answer wins.
+        const { elements, source } = await firstSuccess([
+          fromMirrors(lat, lng, fullCtl.signal),
+          fromProxy(lat, lng, fullCtl.signal),
+        ]);
+        fullDone = true;
         const items = toPharmacies(elements);
         saveToCache(lat, lng, items);
-        return { items, stats: { ms: Math.round(performance.now() - t0), mirror: from, fromCache: false } };
+        return { items, stats: { ms: elapsed(), mirror: source, fromCache: false } };
       } catch (e) {
-        if ((e as Error).name === "AbortError" || signal.aborted) throw abortError();
-        errors.push((e as Error).message);
+        if (outer.aborted) throw abortError();
+        const list = Array.isArray(e) ? e : [e];
+        errors.push(...list.map((x) => (x as Error)?.message ?? String(x)));
+        // One retry, only after a quick failure (not after timeouts).
+        if (attempt === 2 || fullCtl.signal.aborted || elapsed() > 8000) break;
+        await sleep(RETRY_DELAY_MS, outer);
       }
     }
-    if (attempt === 1) await sleep(RETRY_DELAY_MS, signal); // one automatic retry
+  } finally {
+    clearTimeout(budget);
+    fullCtl.abort();
+    outer.removeEventListener("abort", stopFull);
   }
+  fullDone = true;
+  console.warn(`[pharmacies] full directory unavailable after ${elapsed()} ms:`, errors.join(" | "));
 
-  console.warn("[pharmacies] every source failed:", errors.join(" | "));
-  // Every server failed: older saved results for this place beat an empty page.
+  // Saved full results for this place beat a partial list.
   const old = cachedPharmacies(lat, lng, STALE_MAX_MS);
   if (old) {
-    return {
-      items: old.items,
-      stats: { ms: Math.round(performance.now() - t0), mirror: "saved", fromCache: true, stale: true, savedAt: old.at },
-    };
+    return { items: old.items, stats: { ms: elapsed(), mirror: "saved", fromCache: true, stale: true, savedAt: old.at } };
   }
-  // Then the nearest ones from OpenStreetMap search (not cached: Retry tries the full list again).
-  try {
-    const items = await fromNominatim(lat, lng, signal);
-    if (items.length > 0) {
-      return { items, stats: { ms: Math.round(performance.now() - t0), mirror: "nominatim", fromCache: false, partial: true } };
-    }
-  } catch (e) {
-    if ((e as Error).name === "AbortError" || signal.aborted) throw abortError();
-    errors.push((e as Error).message);
-  }
-  throw new Error(errors.join(" | "));
+  const quick = await quickP;
+  if (outer.aborted) throw abortError();
+  if (quick.length) return { items: quick, stats: { ms: elapsed(), mirror: "nominatim", fromCache: false, partial: true } };
+  throw new Error(errors.join(" | ") || "no pharmacy source answered");
 }
