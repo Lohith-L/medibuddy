@@ -58,6 +58,8 @@ const app = {
   // pharmacies
   "pharm.subtitle": "ನಿಮ್ಮ ಹತ್ತಿರದ 24/7 ಕೆಮಿಸ್ಟ್‌ಗಳು, ಮೆಡಿಕಲ್ ಅಂಗಡಿಗಳು, ಔಷಧಿ ಮರುಪೂರಣ ಹುಡುಕಿ",
   "pharm.refreshLocation": "ಸ್ಥಳ ರಿಫ್ರೆಶ್ ಮಾಡಿ",
+  "pharm.near": "ಹತ್ತಿರ: {place}",
+  "pharm.useMyLocation": "ನನ್ನ ಪ್ರಸ್ತುತ ಸ್ಥಳ ಬಳಸಿ",
   "pharm.currentLocation": "ನಿಮ್ಮ ಈಗಿನ ಸ್ಥಳ",
   "pharm.geoUnsupported": "ನಿಮ್ಮ ಬ್ರೌಸರ್ ಸ್ಥಳವನ್ನು ಬೆಂಬಲಿಸುವುದಿಲ್ಲ",
   "pharm.permissionDenied": "ಸ್ಥಳದ ಅನುಮತಿ ನಿರಾಕರಿಸಲಾಗಿದೆ",
@@ -250,6 +252,8 @@ const app = {
   "upload.prescriptionAlt": "ಪ್ರಿಸ್ಕ್ರಿಪ್ಷನ್",
   "upload.dragDrop": "ಅಥವಾ ನಿಮ್ಮ ಪ್ರಿಸ್ಕ್ರಿಪ್ಷನ್ ಅನ್ನು ಇಲ್ಲಿ ಎಳೆದು ಬಿಡಿ",
   "upload.reading": "🤖 AI ನಿಮ್ಮ ಪ್ರಿಸ್ಕ್ರಿಪ್ಷನ್ ಓದುತ್ತಿದೆ...",
+  "upload.partlyRead": "AI ಇವನ್ನು ಭಾಗಶಃ ಮಾತ್ರ ಓದಲು ಸಾಧ್ಯವಾಯಿತು - ದಯವಿಟ್ಟು ನಿಮ್ಮ ಪ್ರಿಸ್ಕ್ರಿಪ್ಷನ್‌ನೊಂದಿಗೆ ಪರಿಶೀಲಿಸಿ",
+  "upload.failSomethingWrong": "ಏನೋ ತಪ್ಪಾಗಿದೆ - ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ",
   "upload.unreadableLines": "ಪ್ರಿಸ್ಕ್ರಿಪ್ಷನ್‌ನಲ್ಲಿ ಇನ್ನೂ {count} ಔಷಧಿ ಸಾಲು(ಗಳು) ಓದಲಾಗಲಿಲ್ಲ. ದಯವಿಟ್ಟು ಅವನ್ನು \"+ ಸೇರಿಸಿ\" ಮೂಲಕ ಸೇರಿಸಿ.",
   "upload.stagePreparing": "ಫೋಟೋ ಸಿದ್ಧವಾಗುತ್ತಿದೆ…",
   "upload.stageUploading": "ಅಪ್‌ಲೋಡ್ ಆಗುತ್ತಿದೆ…",

@@ -58,6 +58,8 @@ const app = {
   // pharmacies
   "pharm.subtitle": "अपने पास 24/7 केमिस्ट, मेडिकल स्टोर और दवा रीफ़िल ढूंढें",
   "pharm.refreshLocation": "स्थान रिफ़्रेश करें",
+  "pharm.near": "पास में: {place}",
+  "pharm.useMyLocation": "मेरी वर्तमान लोकेशन इस्तेमाल करें",
   "pharm.currentLocation": "आपका मौजूदा स्थान",
   "pharm.geoUnsupported": "आपका ब्राउज़र लोकेशन सपोर्ट नहीं करता",
   "pharm.permissionDenied": "लोकेशन की अनुमति नहीं मिली",
@@ -250,6 +252,8 @@ const app = {
   "upload.prescriptionAlt": "प्रिस्क्रिप्शन",
   "upload.dragDrop": "या अपना प्रिस्क्रिप्शन यहां खींचकर छोड़ें",
   "upload.reading": "🤖 AI आपका प्रिस्क्रिप्शन पढ़ रहा है...",
+  "upload.partlyRead": "AI इन्हें केवल आंशिक रूप से पढ़ सका - कृपया अपने पर्चे से मिलान करें",
+  "upload.failSomethingWrong": "कुछ गड़बड़ हो गई - फिर से कोशिश करें",
   "upload.unreadableLines": "पर्चे की {count} और दवा पंक्ति(याँ) पढ़ी नहीं जा सकीं। कृपया उन्हें \"+ जोड़ें\" से जोड़ें।",
   "upload.stagePreparing": "फ़ोटो तैयार हो रही है…",
   "upload.stageUploading": "अपलोड हो रहा है…",

@@ -72,6 +72,8 @@ const app = {
   // pharmacies
   "pharm.subtitle": "మీ దగ్గర 24/7 కెమిస్ట్‌లు, మెడికల్ షాపులు, మందుల రీఫిల్‌లు కనుగొనండి",
   "pharm.refreshLocation": "ప్రదేశం రిఫ్రెష్ చేయండి",
+  "pharm.near": "సమీపంలో: {place}",
+  "pharm.useMyLocation": "నా ప్రస్తుత లొకేషన్ ఉపయోగించండి",
   "pharm.currentLocation": "మీ ప్రస్తుత ప్రదేశం",
   "pharm.geoUnsupported": "మీ బ్రౌజర్ లొకేషన్‌కు సపోర్ట్ చేయదు",
   "pharm.permissionDenied": "లొకేషన్ అనుమతి ఇవ్వలేదు",
@@ -264,6 +266,8 @@ const app = {
   "upload.prescriptionAlt": "ప్రిస్క్రిప్షన్",
   "upload.dragDrop": "లేదా మీ ప్రిస్క్రిప్షన్‌ను ఇక్కడ లాగి వదలండి",
   "upload.reading": "🤖 AI మీ ప్రిస్క్రిప్షన్ చదువుతోంది...",
+  "upload.partlyRead": "AI వీటిని పాక్షికంగా మాత్రమే చదవగలిగింది - దయచేసి మీ ప్రిస్క్రిప్షన్‌తో సరిచూసుకోండి",
+  "upload.failSomethingWrong": "ఏదో తప్పు జరిగింది - మళ్లీ ప్రయత్నించండి",
   "upload.unreadableLines": "ప్రిస్క్రిప్షన్‌లోని మరో {count} మందుల పంక్తి(లు) చదవలేకపోయాం. దయచేసి వాటిని \"+ జోడించు\"తో జోడించండి.",
   "upload.stagePreparing": "ఫోటో సిద్ధం చేస్తున్నాం…",
   "upload.stageUploading": "అప్‌లోడ్ అవుతోంది…",

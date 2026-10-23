@@ -13,7 +13,7 @@ import { getLocation, placeName as lookupPlaceName, type LocationError, type Loc
 import LocationNotice from "@/components/LocationNotice";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import {
-  MAX_RADIUS_KM, REFETCH_DISTANCE_KM, fetchPharmacies, cachedPharmacies, haversineKm, readLastLocation, saveLastLocation,
+  MAX_RADIUS_KM, fetchPharmacies, cachedPharmacies, geocodePlace, haversineKm, readLastLocation,
   withinRadius, type Pharmacy, type PharmacyWithDistance,
 } from "@/lib/pharmacies";
 
@@ -24,6 +24,32 @@ const DEFAULT_COORDS: Coords = { lat: 17.385, lng: 78.4867 }; // Hyderabad
 const RADII = [2, 5, 10, 15] as const;
 /** Cards shown at first; "Show more" adds this many. */
 const PAGE = 20;
+
+/** Saved results this old are still shown at once (with a "last updated" note) while refreshing. */
+const SAVED_MAX_MS = 7 * 24 * 3600_000;
+/** A new place this far away is a different area: its old results are cleared. */
+const AREA_CHANGE_KM = 3;
+
+/**
+ * Dev / debug counters: prove each step runs once per real change.
+ * On a device: localStorage.setItem("medibuddy.debug", "1") and reopen the page.
+ */
+const DEBUG = (() => {
+  try {
+    return import.meta.env.DEV || localStorage.getItem("medibuddy.debug") === "1";
+  } catch {
+    return import.meta.env.DEV;
+  }
+})();
+const dbgCounts = new Map<string, number>();
+const dbg = (label: string) => {
+  if (!DEBUG) return;
+  // console.count isn't forwarded to the Android log by Capacitor: count here.
+  const n = (dbgCounts.get(label) ?? 0) + 1;
+  dbgCounts.set(label, n);
+  console.info(`[pharmacies] count ${label}: ${n}`);
+  (window as unknown as { __pharmCounts?: Record<string, number> }).__pharmCounts = Object.fromEntries(dbgCounts);
+};
 
 const directionsUrl = (p: Pharmacy) => `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}`;
 const round1 = (km: number) => Math.round(km * 10) / 10;
@@ -44,14 +70,16 @@ const Pharmacies = () => {
   const [lastKnownAt, setLastKnownAt] = useState<number | null>(null);
   const [locating, setLocating] = useState(false);
 
-  const [all, setAll] = useState<Pharmacy[] | null>(() => {
+  /** Saved results for the last place (up to 7 days): on screen instantly when the page opens. */
+  const [initialSaved] = useState(() => {
     const last = readLastLocation();
-    return last ? cachedPharmacies(last.lat, last.lng)?.items ?? null : null;
+    return last ? cachedPharmacies(last.lat, last.lng, SAVED_MAX_MS) : null;
   });
+  const [all, setAll] = useState<Pharmacy[] | null>(initialSaved?.items ?? null);
   const [status, setStatus] = useState<"loading" | "ok" | "error">("loading");
   const [loadMs, setLoadMs] = useState<number | null>(null);
   /** Every server failed: showing results saved at this time. */
-  const [staleAt, setStaleAt] = useState<number | null>(null);
+  const [staleAt, setStaleAt] = useState<number | null>(initialSaved && Date.now() - initialSaved.at > 10 * 60_000 ? initialSaved.at : null);
   /** Every Overpass server failed: only the nearest ~50 pharmacies are shown. */
   const [partial, setPartial] = useState(false);
 
@@ -60,6 +88,7 @@ const Pharmacies = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [manualQuery, setManualQuery] = useState("");
   const [searching, setSearching] = useState(false);
+  const searchAbortRef = useRef<AbortController | null>(null);
 
   /** Where the current results were fetched (re-fetch only after moving > 500 m). */
   const fetchedAtRef = useRef<Coords | null>(null);
@@ -74,6 +103,7 @@ const Pharmacies = () => {
   const tilesRef = useRef<L.TileLayer | null>(null);
   const userLayerRef = useRef<L.LayerGroup | null>(null);
   const circleRef = useRef<L.Circle | null>(null);
+  const dotRef = useRef<L.Marker | null>(null);
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null);
   const pinsRef = useRef<Map<string, L.Marker>>(new Map());
 
@@ -81,13 +111,18 @@ const Pharmacies = () => {
 
   /** Everything within 15 km of `c` (cache first). Aborts any request still running. */
   const load = useCallback(async (c: Coords, force = false) => {
+    dbg("load()");
     abortRef.current?.abort();
     const ctl = new AbortController();
     abortRef.current = ctl;
-    // A different place: never show the previous place's pharmacies (wrong area,
-    // wrong counts) while loading or if this request fails.
-    const prev = fetchedAtRef.current;
-    if (prev && haversineKm(prev.lat, prev.lng, c.lat, c.lng) > REFETCH_DISTANCE_KM) setAll(null);
+    // A different area (searched city, far away): never show the previous area's
+    // pharmacies. A small GPS correction keeps the list on screen while refreshing.
+    const prev = fetchedAtRef.current ?? readLastLocation();
+    if (prev && haversineKm(prev.lat, prev.lng, c.lat, c.lng) > AREA_CHANGE_KM) {
+      setAll(null);
+      setStaleAt(null);
+      setPartial(false);
+    }
     fetchedAtRef.current = c;
     const t0 = performance.now();
     if (!force) {
@@ -103,6 +138,7 @@ const Pharmacies = () => {
     }
     setStatus("loading");
     try {
+      dbg("network request");
       const { items, stats } = await fetchPharmacies(c.lat, c.lng, {
         signal: ctl.signal,
         force,
@@ -117,7 +153,8 @@ const Pharmacies = () => {
         },
       });
       if (ctl.signal.aborted) return;
-      setAll(items);
+      // Same list as on screen (e.g. the saved one again): keep it, so pins aren't rebuilt.
+      setAll((cur) => (cur && cur.length === items.length && cur.every((p, i) => p.id === items[i].id) ? cur : items));
       setStatus("ok");
       setStaleAt(stats.stale ? stats.savedAt ?? null : null);
       setPartial(!!stats.partial);
@@ -155,33 +192,42 @@ const Pharmacies = () => {
     [language],
   );
 
-  // First visit: map + results for the last known place at once, then the real position.
+  // First visit: saved results for the last known place are already on screen
+  // (initial state); ONE request for the real position (cache first).
   useEffect(() => {
+    dbg("page open");
     const last = readLastLocation();
-    if (last) void load(last);
     void locate(false).then((c) => {
-      if (c) {
-        setOrigin(c);
-        const at = fetchedAtRef.current;
-        if (!at || haversineKm(at.lat, at.lng, c.lat, c.lng) > REFETCH_DISTANCE_KM) void load(c);
-      } else if (!last) {
+      const target = c ?? last;
+      if (!target) {
         // No location at all: no made-up city. The notice explains; Search area works.
         setStatus("ok");
+        return;
       }
+      if (c) setOrigin(c);
+      void load(target);
     });
-    return () => abortRef.current?.abort();
+    return () => {
+      abortRef.current?.abort();
+      searchAbortRef.current?.abort();
+    };
     // Runs once on open; later updates come from Refresh / Search.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /** "Refresh location": a fresh fix and fresh results. */
+  /** "Refresh location" / "Use my current location": a fresh fix; back to GPS mode. */
   const refresh = async () => {
-    const c = await locate(true);
-    if (!c) return;
+    searchAbortRef.current?.abort();
+    const wasSearch = modeRef.current === "search";
+    // GPS mode before locating, so the place name looked up for the fix is accepted.
+    modeRef.current = "gps";
     setMode("gps");
     setPlaceName("pharm.currentLocation");
+    const c = await locate(true);
+    if (!c) return;
     setOrigin(c);
-    void load(c, true);
+    // Coming back from a searched city: cached results for here are fine. Same place: refresh.
+    void load(c, !wasSearch);
   };
 
   const handleManualSearch = async (e?: React.FormEvent) => {
@@ -190,29 +236,31 @@ const Pharmacies = () => {
       toast.error(t("pharm.enterCity"));
       return;
     }
+    searchAbortRef.current?.abort();
+    const ctl = new AbortController();
+    searchAbortRef.current = ctl;
     setSearching(true);
     try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=in&q=${encodeURIComponent(manualQuery.trim())}`,
-      );
-      const data = await res.json();
-      if (data?.length) {
-        const c = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-        const place = data[0].display_name.split(",")[0] || manualQuery;
-        setMode("search");
-        setOrigin(c);
-        setPlaceName(place);
-        setLocError(null);
-        setLastKnownAt(null);
-        toast.success(t("pharm.foundLocation", { place }));
-        void load(c);
-      } else {
+      const found = await geocodePlace(manualQuery, ctl.signal);
+      if (ctl.signal.aborted) return;
+      if (!found) {
         toast.error(t("pharm.locationNotFound"));
+        return;
       }
-    } catch {
+      const c = { lat: found.lat, lng: found.lng };
+      setMode("search");
+      setOrigin(c);
+      setPlaceName(found.place);
+      setLocError(null);
+      setLastKnownAt(null);
+      toast.success(t("pharm.foundLocation", { place: found.place }));
+      void load(c);
+    } catch (err) {
+      if ((err as Error).name === "AbortError" || ctl.signal.aborted) return;
+      console.warn("[pharmacies] place search failed:", (err as Error).message);
       toast.error(t("pharm.geocodeFailed"));
     } finally {
-      setSearching(false);
+      if (searchAbortRef.current === ctl) setSearching(false);
     }
   };
 
@@ -271,38 +319,64 @@ const Pharmacies = () => {
       clusterRef.current = null;
       userLayerRef.current = null;
       circleRef.current = null;
+      dotRef.current = null;
       tilesRef.current = null;
       pinsRef.current.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapEl]);
 
-  // Blue dot + radius circle; the map fits the circle when the place or radius changes.
+  // Blue dot + radius circle: built when the map is created, then only moved /
+  // resized when the place or radius really changes (the map fits the circle).
+  const circleStyle = (dark: boolean) => ({
+    // Lighter blue on the dark map so the radius stays visible.
+    color: dark ? "#60a5fa" : "#2563eb",
+    weight: dark ? 2 : 1.5,
+    fillColor: dark ? "#60a5fa" : "#2563eb",
+    fillOpacity: dark ? 0.08 : 0.05,
+  });
+  const originKey = origin ? `${origin.lat.toFixed(5)},${origin.lng.toFixed(5)}` : "";
   useEffect(() => {
     const map = mapRef.current;
     const layer = userLayerRef.current;
     if (!map || !layer || !origin) return;
-    layer.clearLayers();
-    circleRef.current = L.circle([origin.lat, origin.lng], {
-      radius: radiusKm * 1000,
-      // Lighter blue on the dark map so the radius stays visible.
-      color: themeMode === "dark" ? "#60a5fa" : "#2563eb",
-      weight: themeMode === "dark" ? 2 : 1.5,
-      fillColor: themeMode === "dark" ? "#60a5fa" : "#2563eb",
-      fillOpacity: themeMode === "dark" ? 0.08 : 0.05,
-      interactive: false,
-    }).addTo(layer);
-    L.marker([origin.lat, origin.lng], { icon: userDotIcon(), zIndexOffset: 1000, keyboard: false })
-      .addTo(layer)
-      .bindPopup(`<b>📍 ${t("weather.yourLocation")}</b><br/>${t(placeName).replace(/</g, "&lt;")}`);
+    dbg("map: place/radius update");
+    if (!circleRef.current || !dotRef.current) {
+      circleRef.current = L.circle([origin.lat, origin.lng], {
+        radius: radiusKm * 1000,
+        interactive: false,
+        ...circleStyle(themeMode === "dark"),
+      }).addTo(layer);
+      dotRef.current = L.marker([origin.lat, origin.lng], { icon: userDotIcon(), zIndexOffset: 1000, keyboard: false })
+        .addTo(layer)
+        .bindPopup("");
+    } else {
+      circleRef.current.setLatLng([origin.lat, origin.lng]);
+      circleRef.current.setRadius(radiusKm * 1000);
+      dotRef.current.setLatLng([origin.lat, origin.lng]);
+    }
     // No animation: an animated fit racing the cluster / tile updates throws in Leaflet.
     map.fitBounds(circleRef.current.getBounds(), { padding: [12, 12], animate: false });
-  }, [mapGen, origin, radiusKm, placeName, t, themeMode]);
+    // Theme and popup text have their own effects below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapGen, originKey, radiusKm]);
+
+  // Theme: recolour the circle only.
+  useEffect(() => {
+    circleRef.current?.setStyle(circleStyle(themeMode === "dark"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [themeMode, mapGen]);
+
+  // Place name / language: only the dot's popup text.
+  useEffect(() => {
+    dotRef.current?.setPopupContent(`<b>📍 ${t("weather.yourLocation")}</b><br/>${t(placeName).replace(/</g, "&lt;")}`);
+  }, [placeName, t, mapGen]);
 
   // Pins: only the pharmacies inside the circle, clustered.
   useEffect(() => {
     const cluster = clusterRef.current;
     if (!cluster) return;
+    dbg("map: pins rebuilt");
     cluster.clearLayers();
     pinsRef.current.clear();
     const pins = visible.map((p) => {
@@ -399,7 +473,7 @@ const Pharmacies = () => {
             disabled={busy}
             className="self-start sm:self-auto rounded-xl flex items-center gap-2"
           >
-            <RefreshCw className={`w-4 h-4 ${locating ? "animate-spin" : ""}`} /> {t("pharm.refreshLocation")}
+            <RefreshCw className={`w-4 h-4 ${locating ? "animate-spin" : ""}`} /> {mode === "search" ? t("pharm.useMyLocation") : t("pharm.refreshLocation")}
           </Button>
         </div>
 
@@ -467,6 +541,9 @@ const Pharmacies = () => {
             <div className="flex items-center justify-between gap-2 px-1">
               <p className="font-bold text-base" data-load-ms={loadMs ?? undefined} data-count={visible.length} id="pharm-count">
                 {firstLoad ? t("pharm.searching") : t("pharm.foundCount", { count: visible.length, km: radiusKm })}
+                <span className="block text-sm font-medium text-muted-foreground" id="pharm-near">
+                  {t("pharm.near", { place: t(placeName) })}
+                </span>
               </p>
               <span className="text-xs text-muted-foreground font-medium flex items-center gap-1 shrink-0">
                 {status === "loading" && all ? (
