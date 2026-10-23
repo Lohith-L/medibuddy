@@ -79,6 +79,8 @@ const app = {
   // pharmacies
   "pharm.subtitle": "உங்கள் அருகில் 24/7 மருந்தகங்கள், மருந்துக் கடைகள், மருந்து மறு நிரப்பல் கண்டறியுங்கள்",
   "pharm.refreshLocation": "இருப்பிடத்தைப் புதுப்பி",
+  "pharm.near": "அருகில்: {place}",
+  "pharm.useMyLocation": "என் தற்போதைய இருப்பிடத்தைப் பயன்படுத்து",
   "pharm.currentLocation": "உங்கள் தற்போதைய இருப்பிடம்",
   "pharm.geoUnsupported": "உங்கள் உலாவி இருப்பிடத்தை ஆதரிக்கவில்லை",
   "pharm.permissionDenied": "இருப்பிட அனுமதி மறுக்கப்பட்டது",
@@ -271,6 +273,8 @@ const app = {
   "upload.prescriptionAlt": "மருந்துச் சீட்டு",
   "upload.dragDrop": "அல்லது உங்கள் மருந்துச் சீட்டை இங்கே இழுத்து விடுங்கள்",
   "upload.reading": "🤖 AI உங்கள் மருந்துச் சீட்டைப் படிக்கிறது...",
+  "upload.partlyRead": "AI இவற்றைப் பகுதியளவே படிக்க முடிந்தது - உங்கள் மருந்துச்சீட்டுடன் சரிபார்க்கவும்",
+  "upload.failSomethingWrong": "ஏதோ தவறு நடந்தது - மீண்டும் முயலவும்",
   "upload.unreadableLines": "மருந்துச்சீட்டில் மேலும் {count} மருந்து வரி(கள்) படிக்க முடியவில்லை. \"+ சேர்\" மூலம் அவற்றைச் சேர்க்கவும்.",
   "upload.stagePreparing": "புகைப்படம் தயாராகிறது…",
   "upload.stageUploading": "பதிவேற்றுகிறது…",

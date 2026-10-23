@@ -2,6 +2,8 @@
 const pharmacies = {
   "pharm.subtitle": "Find 24/7 chemists, medical stores and prescription refills near you",
   "pharm.refreshLocation": "Refresh location",
+  "pharm.near": "Near: {place}",
+  "pharm.useMyLocation": "Use my current location",
   "pharm.currentLocation": "Your current location",
   "pharm.geoUnsupported": "Location isn't supported by your browser",
   "pharm.permissionDenied": "Location permission denied",

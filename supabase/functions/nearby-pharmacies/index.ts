@@ -8,6 +8,9 @@
  * don't hit Overpass.
  *
  * Request:  POST { lat: number, lng: number }      (signed-in users; JWT verified)
+ *           POST { action: "geocode", q: string }  -> { found, lat, lng, place, display }
+ *             Place search (city, area, pincode) in India via Photon (Nominatim as a
+ *             backup; it blocks Supabase's servers), cached 24 h per query.
  * Response: { elements: OverpassElement[], mirror: string, cached: boolean }
  *           | { error, details } with status 502 when every server failed
  *
@@ -114,16 +117,86 @@ function race(body: string): Promise<{ elements: unknown[]; mirror: string }> {
   });
 }
 
+// ── Place search (geocode) ─────────────────────────────────────────────
+
+const GEO_TTL_MS = 24 * 3600_000;
+const geoCache = new Map<string, { at: number; result: Record<string, unknown> }>();
+
+/** India's bounding box (Photon has no country filter). */
+const INDIA_BBOX = "68.1,6.5,97.4,35.7";
+
+/**
+ * Photon (komoot's OpenStreetMap geocoder) first: Nominatim answers HTTP 403 to
+ * requests from Supabase's servers (shared cloud addresses). Nominatim stays as
+ * a backup in case Photon is down.
+ */
+async function geocodePhoton(q: string): Promise<Record<string, unknown>> {
+  const url = `https://photon.komoot.io/api/?limit=1&lang=en&bbox=${INDIA_BBOX}&q=${encodeURIComponent(q)}`;
+  const res = await fetch(url, { headers: { "User-Agent": USER_AGENT, Accept: "application/json" }, signal: AbortSignal.timeout(6000) });
+  if (!res.ok) throw new Error(`photon HTTP ${res.status}`);
+  const data = await res.json();
+  const f = data?.features?.[0];
+  if (!f || (f.properties?.country && f.properties.country !== "India")) return { found: false };
+  const p = f.properties ?? {};
+  const [lng, lat] = f.geometry?.coordinates ?? [];
+  const place = p.name || p.district || p.city || q;
+  const city = [p.city, p.county, p.state].find((x: string | undefined) => x && x !== place && !/taluk|mandal|tehsil/i.test(x)) ?? "";
+  return { found: true, lat, lng, place: city ? `${place}, ${city}` : place, display: [p.name, p.city, p.state].filter(Boolean).join(", ") };
+}
+
+async function geocodeNominatim(q: string): Promise<Record<string, unknown>> {
+  const url =
+    "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=in&addressdetails=1&accept-language=en&q=" +
+    encodeURIComponent(q);
+  const res = await fetch(url, { headers: { "User-Agent": USER_AGENT, Accept: "application/json" }, signal: AbortSignal.timeout(6000) });
+  if (!res.ok) throw new Error(`nominatim HTTP ${res.status}`);
+  const rows = await res.json();
+  const r = Array.isArray(rows) ? rows[0] : null;
+  if (!r) return { found: false };
+  const a = r.address ?? {};
+  const place = r.name || a.suburb || a.neighbourhood || a.city || a.town || a.village || String(r.display_name ?? "").split(",")[0];
+  const city = a.city || a.town || a.village || a.county || a.state_district || "";
+  return { found: true, lat: parseFloat(r.lat), lng: parseFloat(r.lon), place: city && city !== place ? `${place}, ${city}` : place, display: r.display_name };
+}
+
+async function geocode(q: string) {
+  const key = q.trim().toLowerCase().replace(/\s+/g, " ");
+  const hit = geoCache.get(key);
+  if (hit && Date.now() - hit.at < GEO_TTL_MS) return { ...hit.result, cached: true };
+  let result: Record<string, unknown>;
+  try {
+    result = { ...(await geocodePhoton(q.trim())), source: "photon" };
+  } catch (e) {
+    console.warn(`[geocode] photon failed (${(e as Error).message}), trying nominatim`);
+    result = { ...(await geocodeNominatim(q.trim())), source: "nominatim" };
+  }
+  geoCache.set(key, { at: Date.now(), result });
+  if (geoCache.size > 1000) geoCache.delete(geoCache.keys().next().value!);
+  return { ...result, cached: false };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-  let lat: number, lng: number;
+  let reqBody: { lat?: number; lng?: number; action?: string; q?: string };
   try {
-    ({ lat, lng } = await req.json());
+    reqBody = await req.json();
   } catch {
     return json({ error: "Invalid JSON" }, 400);
   }
+
+  if (reqBody.action === "geocode") {
+    const q = String(reqBody.q ?? "").slice(0, 120);
+    if (q.trim().length < 2) return json({ error: "q required" }, 400);
+    try {
+      return json(await geocode(q));
+    } catch (e) {
+      return json({ error: "Place search unavailable", details: (e as Error).message }, 502);
+    }
+  }
+
+  const { lat, lng } = reqBody as { lat: number; lng: number };
   if (typeof lat !== "number" || typeof lng !== "number" || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
     return json({ error: "lat / lng required" }, 400);
   }

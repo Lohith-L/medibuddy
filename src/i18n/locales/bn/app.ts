@@ -108,6 +108,8 @@ const app = {
   // pharmacies
   "pharm.subtitle": "আপনার কাছে 24/7 কেমিস্ট, ওষুধের দোকান ও প্রেসক্রিপশন রিফিল খুঁজুন",
   "pharm.refreshLocation": "অবস্থান রিফ্রেশ করুন",
+  "pharm.near": "কাছে: {place}",
+  "pharm.useMyLocation": "আমার বর্তমান লোকেশন ব্যবহার করুন",
   "pharm.currentLocation": "আপনার বর্তমান অবস্থান",
   "pharm.geoUnsupported": "আপনার ব্রাউজার লোকেশন সাপোর্ট করে না",
   "pharm.permissionDenied": "লোকেশনের অনুমতি দেওয়া হয়নি",
@@ -300,6 +302,8 @@ const app = {
   "upload.prescriptionAlt": "প্রেসক্রিপশন",
   "upload.dragDrop": "অথবা আপনার প্রেসক্রিপশন এখানে টেনে এনে ছাড়ুন",
   "upload.reading": "🤖 AI আপনার প্রেসক্রিপশন পড়ছে...",
+  "upload.partlyRead": "AI এগুলো আংশিক পড়তে পেরেছে - অনুগ্রহ করে আপনার প্রেসক্রিপশনের সঙ্গে মিলিয়ে নিন",
+  "upload.failSomethingWrong": "কিছু একটা ভুল হয়েছে - আবার চেষ্টা করুন",
   "upload.unreadableLines": "প্রেসক্রিপশনের আরও {count}টি ওষুধের লাইন পড়া যায়নি। অনুগ্রহ করে \"+ যোগ করুন\" দিয়ে যোগ করুন।",
   "upload.stagePreparing": "ছবি তৈরি হচ্ছে…",
   "upload.stageUploading": "আপলোড হচ্ছে…",

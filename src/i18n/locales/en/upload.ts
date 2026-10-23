@@ -20,6 +20,8 @@ const upload = {
   "upload.prescriptionAlt": "Prescription",
   "upload.dragDrop": "or drag & drop your prescription here",
   "upload.reading": "🤖 AI is reading your prescription...",
+  "upload.partlyRead": "AI could only partly read these - please check against your prescription",
+  "upload.failSomethingWrong": "Something went wrong - Try again",
   "upload.unreadableLines": "{count} more medicine line(s) on the prescription couldn't be read. Please add them with \"+ Add\".",
   "upload.stagePreparing": "Preparing the photo…",
   "upload.stageUploading": "Uploading…",

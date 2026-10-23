@@ -64,6 +64,7 @@ SAFETY RULES (a patient will take these medicines; a wrong medicine can harm the
 - "confidence": "high" if every written field is clearly legible, "medium" if some letters were uncertain, "low" if the name itself is uncertain.
 - Judge EACH medicine line on its own. Doctors' handwriting is often messy: return every line you can read (with confidence "medium"/"low" where unsure) even if other lines are illegible. Never give up on the whole prescription because one line is unreadable.
 - "unreadable_lines": how many medicine lines you could see but not read (0 if none). The patient will add those by hand.
+- "partial_lines": EVERY medicine line you can see, copied exactly as far as you can read it, with "?" for letters you cannot make out (e.g. "Tab Acepar.. 1-0-1", "Of?ox 3"). Fill it even when you are unsure of the names; it is shown to the patient as a suggestion to check. [] only if there are no medicine lines at all.
 - If the image is not a prescription, return medicines: [] and reason "not_prescription". Use reason "unreadable" ONLY if not a single medicine line can be read. Otherwise reason "ok".`;
 
 const SCHEMA = {
@@ -72,10 +73,11 @@ const SCHEMA = {
   schema: {
     type: "object",
     additionalProperties: false,
-    required: ["reason", "unreadable_lines", "medicines"],
+    required: ["reason", "unreadable_lines", "partial_lines", "medicines"],
     properties: {
       reason: { type: "string", enum: ["ok", "unreadable", "not_prescription"] },
       unreadable_lines: { type: "integer" },
+      partial_lines: { type: "array", items: { type: "string" } },
       medicines: {
         type: "array",
         items: {
@@ -141,14 +143,30 @@ async function callModel(apiKey: string, messages: unknown[], features: { schema
 }
 
 /** Parses the model's JSON (structured output, or a fenced JSON block as a fallback). */
-function parse(content: string): { reason: string; medicines: Medicine[]; unreadable_lines: number } {
+interface Parsed {
+  /** ok / unreadable / not_prescription, or parse_error when the model's output wasn't valid JSON. */
+  reason: string;
+  medicines: Medicine[];
+  unreadable_lines: number;
+  /** Every medicine line as far as it could be read ("Tab Acepar.. 1-0-1"). */
+  partial_lines: string[];
+}
+
+function parse(content: string): Parsed {
   const cleaned = content.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
   let obj: unknown;
   try {
     obj = JSON.parse(cleaned);
   } catch {
-    const m = cleaned.match(/\{[\s\S]*\}/) ?? cleaned.match(/\[[\s\S]*\]/);
-    obj = m ? JSON.parse(m[0]) : { reason: "unreadable", medicines: [] };
+    try {
+      const m = cleaned.match(/\{[\s\S]*\}/) ?? cleaned.match(/\[[\s\S]*\]/);
+      if (!m) throw new Error("no JSON in the output");
+      obj = JSON.parse(m[0]);
+    } catch (e) {
+      // Not "couldn't read the prescription": the model answered in a broken format.
+      console.warn(`[extract] parse_error (${(e as Error).message}); raw output: ${content.slice(0, 1000)}`);
+      return { reason: "parse_error", medicines: [], unreadable_lines: 0, partial_lines: [] };
+    }
   }
   const raw = Array.isArray(obj) ? { reason: "ok", medicines: obj } : (obj as { reason?: string; medicines?: unknown[]; unreadable_lines?: number });
   const medicines = (Array.isArray(raw.medicines) ? raw.medicines : [])
@@ -176,7 +194,12 @@ function parse(content: string): { reason: string; medicines: Medicine[]; unread
     .filter((m) => m.name.length > 0); // never return a medicine without a readable name
   const reason = medicines.length ? "ok" : raw.reason === "not_prescription" ? "not_prescription" : "unreadable";
   const unreadable = Math.max(0, Math.min(20, Math.round(Number((raw as { unreadable_lines?: number }).unreadable_lines) || 0)));
-  return { reason, medicines, unreadable_lines: unreadable };
+  const partialRaw = (raw as { partial_lines?: unknown }).partial_lines;
+  const partial = (Array.isArray(partialRaw) ? partialRaw : [])
+    .map((x) => String(x ?? "").trim())
+    .filter((x) => x.length > 1)
+    .slice(0, 15);
+  return { reason, medicines, unreadable_lines: unreadable, partial_lines: partial };
 }
 
 Deno.serve(async (req) => {
@@ -254,17 +277,22 @@ Deno.serve(async (req) => {
     if (first instanceof Response) return first;
     let content = first;
     let result = parse(content);
-    // Unsure about anything (a name, a dose) or nothing readable: read it again carefully.
+    // Careful re-read only when the fast read FAILED (broken answer, or nothing at all).
+    // Low-confidence names are normal for handwriting and come back as amber suggestions;
+    // re-reading them took 17-28 s and found the same medicines.
     const unsure =
-      result.medicines.length === 0 ||
-      result.unreadable_lines > 0 ||
-      result.medicines.some((m) => m.confidence !== "high" || m.unclear_fields.includes("name"));
+      result.reason === "parse_error" ||
+      (result.medicines.length === 0 && result.partial_lines.length === 0);
     if (unsure && result.reason !== "not_prescription" && features.lowThinking && performance.now() - t0 < CAREFUL_DEADLINE_MS) {
       const second = await read(CAREFUL_EFFORT);
       if (typeof second === "string") {
         const careful = parse(second);
-        // Keep the careful read unless it found fewer medicines than the fast one.
-        if (careful.medicines.length >= result.medicines.length) {
+        // Keep the careful read unless it found fewer medicines (or broke) where the fast one didn't.
+        const better =
+          (careful.reason !== "parse_error" || result.reason === "parse_error") &&
+          (careful.medicines.length > result.medicines.length ||
+            (careful.medicines.length === result.medicines.length && careful.partial_lines.length >= result.partial_lines.length));
+        if (better) {
           content = second;
           result = careful;
         }
@@ -272,10 +300,13 @@ Deno.serve(async (req) => {
     }
 
     timings.passes = pass;
+    // An empty read never hides visible lines: they are offered as suggestions to check.
+    if (!result.medicines.length && result.partial_lines.length && result.reason !== "not_prescription") result.reason = "partial";
     timings.total = Math.round(performance.now() - t0);
     console.log(
       `[extract] ${bytes} bytes, ${result.medicines.length} medicines, reason ${result.reason}, ` +
-        `schema ${features.schema}, lowThinking ${features.lowThinking}, timings ${JSON.stringify(timings)}`,
+        `unreadable_lines ${result.unreadable_lines}, partial_lines ${result.partial_lines.length}, ` +
+        `second pass ${pass > 1 ? "yes" : "no"}, schema ${features.schema}, thinking ${features.lowThinking}, timings ${JSON.stringify(timings)}`,
     );
     return json({ ...result, timings });
   } catch (e) {

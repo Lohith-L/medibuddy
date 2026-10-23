@@ -51,7 +51,7 @@ const MIRRORS = [
 /** When each mirror joins in (ms after the start). */
 const MIRROR_DELAYS = [0, 4000, 8000];
 /** Per-server limit. */
-const REQUEST_TIMEOUT_MS = 10_000;
+const REQUEST_TIMEOUT_MS = 8_000;
 /** Pause before the one automatic retry. */
 const RETRY_DELAY_MS = 2000;
 /** Overpass asks every client to identify itself (else 406 / 429). Native HTTP only. */
@@ -396,7 +396,7 @@ function firstSuccess<T>(promises: Promise<T>[]): Promise<T> {
 }
 
 /** The full directory gets this long in total; then quick / saved results stand. */
-const FULL_BUDGET_MS = 25_000;
+const FULL_BUDGET_MS = 20_000;
 
 /**
  * All pharmacies within MAX_RADIUS_KM of the point. Uses the 10-minute cache
@@ -438,9 +438,10 @@ export async function fetchPharmacies(
     console.info(`[pharmacies] quick results: ${items.length} in ${elapsed()} ms (nominatim)`);
     if (!fullDone && items.length) opts.onQuick?.(items);
   }))
-    .catch((e: Error) => {
+    // null = the search itself failed; [] = it answered "no pharmacies listed here".
+    .catch((e: Error): Pharmacy[] | null => {
       if (e.name !== "AbortError") console.warn("[pharmacies] quick results failed:", e.message);
-      return [] as Pharmacy[];
+      return null;
     });
 
   const errors: string[] = [];
@@ -479,8 +480,82 @@ export async function fetchPharmacies(
   if (old) {
     return { items: old.items, stats: { ms: elapsed(), mirror: "saved", fromCache: true, stale: true, savedAt: old.at } };
   }
-  const quick = await quickP;
+  const quick = saved ? null : await quickP;
   if (outer.aborted) throw abortError();
-  if (quick.length) return { items: quick, stats: { ms: elapsed(), mirror: "nominatim", fromCache: false, partial: true } };
+  // The search answered (even "none listed here", e.g. a small town): a real result, not an error.
+  if (quick) return { items: quick, stats: { ms: elapsed(), mirror: "nominatim", fromCache: false, partial: true } };
   throw new Error(errors.join(" | ") || "no pharmacy source answered");
+}
+
+// ── Place search ("Search area") ──────────────────────────────────────────
+
+export interface Place {
+  lat: number;
+  lng: number;
+  /** Short name for the page, e.g. "Mysuru" or "Rajajinagar, Bengaluru". */
+  place: string;
+}
+
+/**
+ * City / area / pincode in India -> coordinates. Through the nearby-pharmacies
+ * edge function (proper User-Agent, 24 h cache); if that is unreachable, asks
+ * OpenStreetMap directly (native HTTP with a User-Agent on Android).
+ * null = not found. Throws if no source answered.
+ */
+export async function geocodePlace(q: string, signal?: AbortSignal): Promise<Place | null> {
+  const query = q.trim();
+  try {
+    const { data, error } = await supabase.functions.invoke("nearby-pharmacies", { body: { action: "geocode", q: query }, signal });
+    if (error) throw error;
+    if (data?.found === false) return null;
+    if (typeof data?.lat === "number" && typeof data?.lng === "number") return { lat: data.lat, lng: data.lng, place: data.place || query };
+    throw new Error("bad geocode reply");
+  } catch (e) {
+    if ((e as Error).name === "AbortError" || signal?.aborted) throw abortError();
+    console.warn("[pharmacies] geocode via edge function failed, asking Photon directly:", (e as Error).message);
+  }
+  // Photon (OpenStreetMap geocoder, allows app use, CORS-enabled), then Nominatim.
+  try {
+    const url = `https://photon.komoot.io/api/?limit=1&lang=en&bbox=68.1,6.5,97.4,35.7&q=${encodeURIComponent(query)}`;
+    let data: { features?: { geometry?: { coordinates?: number[] }; properties?: Record<string, string> }[] };
+    if (Capacitor.isNativePlatform()) {
+      const res = await CapacitorHttp.get({ url, headers: { Accept: "application/json", "User-Agent": USER_AGENT }, connectTimeout: 6000, readTimeout: 6000 });
+      if (res.status < 200 || res.status >= 300) throw new Error(`photon: HTTP ${res.status}`);
+      data = typeof res.data === "string" ? JSON.parse(res.data) : res.data;
+    } else {
+      const res = await fetch(url, { headers: { Accept: "application/json" }, signal });
+      if (!res.ok) throw new Error(`photon: HTTP ${res.status}`);
+      data = await res.json();
+    }
+    const f = data?.features?.[0];
+    if (!f || (f.properties?.country && f.properties.country !== "India")) return null;
+    const p = f.properties ?? {};
+    const [lng, lat] = f.geometry?.coordinates ?? [];
+    const name = p.name || p.district || p.city || query;
+    const city = [p.city, p.county, p.state].find((x) => x && x !== name && !/taluk|mandal|tehsil/i.test(x)) ?? "";
+    return { lat, lng, place: city ? `${name}, ${city}` : name };
+  } catch (e) {
+    if ((e as Error).name === "AbortError" || signal?.aborted) throw abortError();
+    console.warn("[pharmacies] photon failed, asking Nominatim:", (e as Error).message);
+  }
+  const url =
+    "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=in&addressdetails=1&accept-language=en&q=" +
+    encodeURIComponent(query);
+  let rows: unknown;
+  if (Capacitor.isNativePlatform()) {
+    const res = await CapacitorHttp.get({ url, headers: { Accept: "application/json", "User-Agent": USER_AGENT }, connectTimeout: 8000, readTimeout: 8000 });
+    if (res.status < 200 || res.status >= 300) throw new Error(`nominatim: HTTP ${res.status}`);
+    rows = typeof res.data === "string" ? JSON.parse(res.data) : res.data;
+  } else {
+    const res = await fetch(url, { headers: { Accept: "application/json" }, signal });
+    if (!res.ok) throw new Error(`nominatim: HTTP ${res.status}`);
+    rows = await res.json();
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const r = Array.isArray(rows) ? (rows[0] as any) : null;
+  if (!r) return null;
+  const a = r.address ?? {};
+  const name = r.name || a.suburb || a.city || a.town || a.village || String(r.display_name ?? "").split(",")[0] || query;
+  const city = a.city || a.town || a.village || a.county || "";
+  return { lat: parseFloat(r.lat), lng: parseFloat(r.lon), place: city && city !== name ? `${name}, ${city}` : name };
 }
