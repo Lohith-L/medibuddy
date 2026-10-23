@@ -103,7 +103,19 @@ const Pharmacies = () => {
     }
     setStatus("loading");
     try {
-      const { items, stats } = await fetchPharmacies(c.lat, c.lng, { signal: ctl.signal, force });
+      const { items, stats } = await fetchPharmacies(c.lat, c.lng, {
+        signal: ctl.signal,
+        force,
+        // Nearest pharmacies in ~1 s while the full directory is still loading.
+        onQuick: (quick, savedAt) => {
+          if (ctl.signal.aborted) return;
+          setAll((cur) => (cur && cur.length >= quick.length ? cur : quick));
+          // Saved full list: "last updated" note; search results: "only the nearest".
+          if (savedAt) setStaleAt(savedAt);
+          else setPartial(true);
+          setLoadMs(Math.round(performance.now() - t0));
+        },
+      });
       if (ctl.signal.aborted) return;
       setAll(items);
       setStatus("ok");
