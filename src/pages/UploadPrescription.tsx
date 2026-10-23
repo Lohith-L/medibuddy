@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useActivePatient } from "@/contexts/CareContext";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,8 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { generateUUID } from "@/lib/uuid";
 import { prepareForUpload } from "@/lib/prescriptionImage";
+import { describeMedicine, findDuplicates, localToday, type ExistingMedicine } from "@/lib/medicineMatch";
+import DuplicateMedicinesDialog, { type DuplicateChoice, type DuplicateItem } from "@/components/DuplicateMedicinesDialog";
 import {
   validateImageFile,
   createSafePreviewUrl,
@@ -78,6 +80,16 @@ function timingFor(m: { timing?: string[]; instructions?: string; raw_text?: str
   return DAY_ORDER.filter((d) => out.has(d));
 }
 
+/** "1) Tab Acepar.. 1-0-1 x 3d" -> "Acepar": a starting point the user corrects. */
+function guessName(line: string): string {
+  const noNum = line.replace(/^[\s\-–—.)(\d]+/, "");
+  const name = cleanName(noNum)
+    .split(/\s+(?=[\d½]|x\s*\d|od\b|bd\b|tds\b|hs\b)/i)[0]
+    .replace(/[?.]+$/g, "")
+    .trim();
+  return name || noNum.trim();
+}
+
 /** "Tab Dolo" -> "Dolo" (the alarm speaks the name). */
 const cleanName = (n: string) => n.trim().replace(/^(tab|tabs|tablet|cap|caps|capsule|syp|syr|syrup|inj|oint|susp)\.?\s+/i, "");
 
@@ -91,13 +103,34 @@ function getDefaultTimes(count: number): string[] {
 const UploadPrescription = () => {
   const { active } = useActivePatient();
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
+
+  /** Me, or the patient I manage as a caregiver (no auto-create here). */
+  const resolvePatientId = useCallback(async (): Promise<string | null> => {
+    if (active && active.canManage) return active.patientId;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    const { data: own } = await supabase.from("patients").select("id").eq("user_id", user.id).maybeSingle();
+    return own?.id ?? null;
+  }, [active]);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [medicines, setMedicines] = useState<ExtractedMedicine[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [saving, setSaving] = useState(false);
+  /** Blocks a second save from a double tap before `saving` re-renders the button. */
+  const savingRef = useRef(false);
+
+  // ── Duplicate check: the patient's active medicines, loaded once per patient ──
+  const [existingMeds, setExistingMeds] = useState<ExistingMedicine[]>([]);
+  const existingForRef = useRef<string | null>(null);
+  const [dupOpen, setDupOpen] = useState(false);
+  const [dupChoices, setDupChoices] = useState<Record<number, DuplicateChoice>>({});
+  const dupChoicesRef = useRef<Record<number, DuplicateChoice>>({});
+  dupChoicesRef.current = dupChoices;
+  /** The dialog was answered: the next save applies the choices. */
+  const dupResolvedRef = useRef(false);
   /** Extraction progress: preparing the photo, uploading, the AI reading it. */
   const [stage, setStage] = useState<"idle" | "preparing" | "uploading" | "reading">("idle");
   const [elapsed, setElapsed] = useState(0);
@@ -109,6 +142,8 @@ const UploadPrescription = () => {
   const [confirmed, setConfirmed] = useState(false);
   /** Medicine lines the AI could see but not read: the user adds them by hand. */
   const [unreadableLines, setUnreadableLines] = useState(0);
+  /** The cards are only the AI's partial reading of the lines (all fields to check). */
+  const [partlyRead, setPartlyRead] = useState(false);
 
   // Seconds counter while extracting.
   useEffect(() => {
@@ -163,6 +198,51 @@ const UploadPrescription = () => {
     });
 
   // Server: 40 s per model call plus upload; medium thinking needs more than the old 45 s.
+  // The patient's active medicines, once the review list appears (once per patient).
+  const hasList = medicines.length > 0;
+  useEffect(() => {
+    if (!hasList) return;
+    let cancelled = false;
+    void (async () => {
+      const patientId = await resolvePatientId();
+      if (!patientId || cancelled || existingForRef.current === patientId) return;
+      existingForRef.current = patientId;
+      const { data, error } = await supabase
+        .from("medicines")
+        .select("id, name, dosage, frequency, instructions, reminder_times, is_active, end_date, start_date")
+        .eq("patient_id", patientId)
+        .eq("is_active", true);
+      if (error) {
+        console.warn("[duplicates] could not load current medicines:", error.message);
+        existingForRef.current = null;
+        return;
+      }
+      if (!cancelled) setExistingMeds((data ?? []) as ExistingMedicine[]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasList, resolvePatientId]);
+
+  /** Per card: matches an active medicine, or repeats an earlier card. */
+  const dupInfo = useMemo(() => findDuplicates(medicines, existingMeds, localToday()), [medicines, existingMeds]);
+
+  const dupItems: DuplicateItem[] = useMemo(
+    () =>
+      dupInfo
+        .map((d, i) => ({ d, i }))
+        .filter(({ d }) => d.existing || d.twiceOf !== null)
+        .map(({ d, i }) => ({
+          index: i,
+          name: medicines[i].name || t("upload.medicineName"),
+          newDetails: describeMedicine(medicines[i], locale),
+          currentDetails: d.existing ? describeMedicine(d.existing, locale) : null,
+          possible: d.existingKind === "possible",
+          twiceOf: d.existing ? null : d.twiceOf,
+        })),
+    [dupInfo, medicines, locale, t],
+  );
+
   const EXTRACT_TIMEOUT_MS = 60_000;
 
   const handleExtract = async () => {
@@ -188,14 +268,26 @@ const UploadPrescription = () => {
       setStage("uploading");
       // The request is one call; after the upload time the AI is reading.
       readingTimer = window.setTimeout(() => setStage("reading"), Math.min(4000, 800 + img.bytes / 200));
-      const { data, error } = await supabase.functions.invoke("extract-prescription", {
-        body: { imageBase64: img.base64, mimeType: img.mimeType },
-        signal: ctl.signal,
-      });
-      console.info(`[extract] total ${Math.round(performance.now() - t0)} ms, server timings`, data?.timings ?? error);
+      const call = () =>
+        supabase.functions.invoke("extract-prescription", {
+          body: { imageBase64: img.base64, mimeType: img.mimeType },
+          signal: ctl.signal,
+        });
+      const isServerError = (e: unknown) => ((e as { context?: Response })?.context?.status ?? 0) >= 500;
+      let { data, error } = await call();
+      // A broken AI answer or a server error: try once more by itself before giving up.
+      if (!ctl.signal.aborted && (data?.reason === "parse_error" || isServerError(error))) {
+        console.warn("[extract] retrying once:", data?.reason ?? (error as Error)?.message);
+        ({ data, error } = await call());
+      }
+      console.info(
+        `[extract] total ${Math.round(performance.now() - t0)} ms, reason ${data?.reason}, medicines ${data?.medicines?.length ?? 0}, ` +
+          `partial_lines ${data?.partial_lines?.length ?? 0}, unreadable_lines ${data?.unreadable_lines ?? 0}, timings ${JSON.stringify(data?.timings ?? null)}`,
+      );
       if (ctl.signal.aborted) throw new DOMException("Aborted", "AbortError");
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
+      if (data?.reason === "parse_error") throw new Error("parse_error");
 
       const extracted = (data?.medicines || []).map((m: Partial<ExtractedMedicine> & { timing?: string[] }) => {
         const count = getTimeSlotCount(m.frequency || "");
@@ -221,7 +313,29 @@ const UploadPrescription = () => {
         };
       }) as ExtractedMedicine[];
 
+      // Nothing read for sure, but lines are visible: offer them as suggestions to check
+      // (all fields amber; nothing is saved until the user confirms).
+      const partial: string[] = Array.isArray(data?.partial_lines) ? data.partial_lines.filter((x: unknown) => typeof x === "string" && x.trim()) : [];
+      const fromPartial = extracted.length === 0 && partial.length > 0 && data?.reason !== "not_prescription";
+      if (fromPartial) {
+        for (const line of partial) {
+          extracted.push({
+            name: guessName(line),
+            dosage: "",
+            frequency: "",
+            instructions: "",
+            duration_days: null,
+            raw_text: line,
+            confidence: "low",
+            unclear_fields: ["name", "dosage", "frequency", "instructions", "duration_days"],
+            reminder_times: [],
+          });
+        }
+      }
+      setPartlyRead(fromPartial);
+
       if (extracted.length === 0) {
+        // "unreadable" only when there are no medicines AND no partly read lines.
         setFailure(data?.reason === "not_prescription" ? "not_prescription" : "unreadable");
         return;
       }
@@ -374,6 +488,14 @@ const UploadPrescription = () => {
       }
     }
 
+    // Already set for reminders: ask first (nothing is saved until the dialog is answered).
+    if (dupItems.length && !dupResolvedRef.current) {
+      setDupChoices(Object.fromEntries(dupItems.map((d) => [d.index, "skip" as DuplicateChoice])));
+      setDupOpen(true);
+      return;
+    }
+    if (savingRef.current) return; // double tap
+    savingRef.current = true;
     setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -408,9 +530,17 @@ const UploadPrescription = () => {
 
       const today = new Date().toISOString().split("T")[0];
 
-      // Upload medicine photos with safe UUID and fallback
+      // What to do with each card: add (new), update an existing medicine, or skip.
+      const plan: DuplicateChoice[] = medicines.map((_, i) => {
+        const d = dupInfo[i];
+        if (d && (d.existing || d.twiceOf !== null)) return dupChoicesRef.current[i] ?? "skip";
+        return "add";
+      });
+
+      // Upload medicine photos with safe UUID and fallback (only for medicines that are saved)
       const photoUrls: (string | null)[] = await Promise.all(
-        medicines.map(async (m) => {
+        medicines.map(async (m, idx) => {
+          if (plan[idx] === "skip") return null;
           if (!m.photoFile) return m.medicine_photo_url || null;
 
           const ext = (m.photoFile.name.split(".").pop() || "jpg").toLowerCase();
@@ -455,23 +585,61 @@ const UploadPrescription = () => {
         })
       );
 
-      const inserts = medicines.map((m, idx) => ({
-        patient_id: patient.id,
-        name: m.name,
-        dosage: m.dosage,
-        frequency: m.frequency,
-        instructions: m.instructions,
-        reminder_times: m.reminder_times,
-        start_date: today,
-        is_active: true,
-        medicine_photo_url: photoUrls[idx],
-      }));
+      const inserts = medicines
+        .map((m, idx) => ({ m, idx }))
+        .filter(({ idx }) => plan[idx] === "add")
+        .map(({ m, idx }) => ({
+          patient_id: patient.id,
+          name: m.name,
+          dosage: m.dosage,
+          frequency: m.frequency,
+          instructions: m.instructions,
+          reminder_times: m.reminder_times,
+          start_date: today,
+          is_active: true,
+          medicine_photo_url: photoUrls[idx],
+        }));
+      if (inserts.length) {
+        const { error } = await supabase.from("medicines").insert(inserts);
+        if (error) throw error;
+      }
 
-      const { error } = await supabase.from("medicines").insert(inserts);
-      if (error) throw error;
-      notifyMedicinesChanged(); // set phone alarms for the new medicines right away
+      // "Update existing": replace dosage, frequency, times, instructions and dates; no new row.
+      let updated = 0;
+      for (let idx = 0; idx < medicines.length; idx++) {
+        const existing = dupInfo[idx]?.existing;
+        if (plan[idx] !== "update" || !existing) continue;
+        const m = medicines[idx];
+        const { error } = await supabase
+          .from("medicines")
+          .update({
+            dosage: m.dosage,
+            frequency: m.frequency,
+            instructions: m.instructions || null,
+            reminder_times: m.reminder_times,
+            start_date: today,
+            end_date: null,
+            is_active: true,
+            ...(photoUrls[idx] ? { medicine_photo_url: photoUrls[idx] } : {}),
+          })
+          .eq("id", existing.id);
+        if (error) throw error;
+        updated++;
+      }
+      const skipped = plan.filter((c) => c === "skip").length;
 
-      toast.success(t("upload.saved"));
+      // Re-sync every phone alarm from the database: new times set, old ones removed.
+      if (inserts.length || updated) notifyMedicinesChanged();
+
+      if (dupItems.length) {
+        toast.success(t("dup.summary", { added: inserts.length, updated, skipped }));
+      } else {
+        toast.success(t("upload.saved"));
+      }
+      if (!inserts.length && !updated) {
+        navigate("/medicines");
+        return;
+      }
 
       // Send confirmation email in background
       supabase.functions.invoke("send-medicine-email", {
@@ -489,6 +657,9 @@ const UploadPrescription = () => {
       console.error("Save medicines error:", err);
       toast.error(err.message || "Failed to save medicines");
     } finally {
+      savingRef.current = false;
+      dupResolvedRef.current = false;
+      setDupOpen(false);
       setSaving(false);
     }
   };
@@ -609,7 +780,7 @@ const UploadPrescription = () => {
                           ? t("upload.failNotPrescription")
                           : failure === "unreadable"
                             ? t("upload.failUnreadable")
-                            : t("upload.extractFailed")}
+                            : t("upload.failSomethingWrong")}
                   </span>
                 </p>
                 <div className="grid gap-2 sm:grid-cols-2">
@@ -647,6 +818,18 @@ const UploadPrescription = () => {
               </Button>
             </div>
 
+            {partlyRead && (
+
+              <p role="status" className="flex items-start gap-2 rounded-2xl border-2 border-amber-500 bg-amber-500/10 p-4 text-base font-bold text-amber-950 dark:text-amber-50">
+
+                <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-warning" />
+
+                {t("upload.partlyRead")}
+
+              </p>
+
+            )}
+
             {unreadableLines > 0 && (
 
               <p role="status" className="flex items-start gap-2 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-base font-semibold text-amber-950 dark:text-amber-50">
@@ -679,6 +862,21 @@ const UploadPrescription = () => {
                       <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-warning" />
                       {t("upload.checkPrescription")}
                     </p>
+                  )}
+                  {(dupInfo[i]?.existing || dupInfo[i]?.twiceOf !== null) && (
+                    <div className="rounded-xl border-2 border-amber-500 bg-amber-500/10 px-3 py-2 text-amber-950 dark:text-amber-50" data-testid="dup-badge">
+                      <p className="flex items-center gap-2 text-base font-bold">
+                        <AlertTriangle className="w-5 h-5 shrink-0 text-warning" />
+                        {dupInfo[i].existing
+                          ? t(dupInfo[i].existingKind === "possible" ? "dup.badgePossible" : "dup.badgeExisting")
+                          : t("dup.badgeTwice")}
+                      </p>
+                      <p className="mt-0.5 text-sm">
+                        {dupInfo[i].existing
+                          ? t("dup.current", { details: describeMedicine(dupInfo[i].existing!, locale) })
+                          : t("dup.twiceOfNote", { n: (dupInfo[i].twiceOf ?? 0) + 1 })}
+                      </p>
+                    </div>
                   )}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-muted-foreground text-sm">
@@ -840,6 +1038,7 @@ const UploadPrescription = () => {
                 onClick={() => {
                   setFromAi(false);
                   setUnreadableLines(0);
+                  setPartlyRead(false);
                   medicines.forEach((m) => revokeSafePreviewUrl(m.photoPreview));
                   setMedicines([]);
                   setFile(null);
@@ -855,6 +1054,21 @@ const UploadPrescription = () => {
           </motion.div>
         )}
       </div>
+      <DuplicateMedicinesDialog
+        open={dupOpen}
+        items={dupItems}
+        choices={dupChoices}
+        onChoice={(index, choice) => setDupChoices((c) => ({ ...c, [index]: choice }))}
+        saving={saving}
+        onCancel={() => {
+          dupResolvedRef.current = false;
+          setDupOpen(false);
+        }}
+        onSave={() => {
+          dupResolvedRef.current = true;
+          void handleSave();
+        }}
+      />
     </DashboardLayout>
   );
 };
