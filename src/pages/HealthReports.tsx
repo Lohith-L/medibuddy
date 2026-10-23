@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useActivePatient } from "@/contexts/CareContext";
-import { BarChart3, TrendingUp, TrendingDown, Minus, Award, Calendar, Pill, CheckCircle2, XCircle, Download } from "lucide-react";
+import { BarChart3, TrendingUp, TrendingDown, Minus, Award, Calendar, Pill, CheckCircle2, XCircle, Download, Printer, Share2, Loader2, FileText } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import DashboardLayout from "@/components/DashboardLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,9 +9,12 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { startOfWeek, endOfWeek, subWeeks, format, startOfDay } from "date-fns";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useChartTheme } from "@/lib/chartTheme";
+import { printHealthReport, downloadHealthReportFile, shareHealthReport } from "@/lib/reportExport";
+import { toast } from "sonner";
 
 interface WeekData {
   weekLabel: string;
@@ -19,7 +22,8 @@ interface WeekData {
   missed: number;
   pending: number;
   total: number;
-  adherence: number;
+  /** null: nothing taken or missed yet that week (all pending), so no percentage. */
+  adherence: number | null;
 }
 
 const COLORS = {
@@ -127,14 +131,16 @@ const HealthReports = () => {
           missed: wm,
           pending: wp,
           total: weekLogs.length,
-          adherence: wCompleted > 0 ? Math.round((wt / wCompleted) * 100) : 0,
+          adherence: wCompleted > 0 ? Math.round((wt / wCompleted) * 100) : null,
         });
       }
       setWeeklyData(weeks);
 
-      if (weeks.length >= 2) {
-        const recent = weeks[weeks.length - 1].adherence;
-        const prev = weeks[weeks.length - 2].adherence;
+      // Trend from the last two weeks that have a percentage.
+      const rated = weeks.filter((w) => w.adherence !== null);
+      if (rated.length >= 2) {
+        const recent = rated[rated.length - 1].adherence!;
+        const prev = rated[rated.length - 2].adherence!;
         setTrend(recent > prev + 5 ? "up" : recent < prev - 5 ? "down" : "stable");
       }
 
@@ -146,51 +152,55 @@ const HealthReports = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active?.patientId, careLoading]);
 
-  const handleDownload = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exporting, setExporting] = useState<"pdf" | "download" | "share" | null>(null);
 
-    // The report uses the app's current language (same as the screen).
+  const generateHtml = () => {
     const lang = language;
-
     const trendText = trend === "up" ? t("report.improving") : trend === "down" ? t("report.declining") : t("report.stable");
     const adherenceStatusColor = adherence >= 80 ? "#52B788" : adherence >= 50 ? "#EF9F27" : "#E24B4A";
     const now = format(new Date(), "yyyy-MM-dd HH:mm");
 
     const weekRows = weeklyData.map(w => {
-      const color = w.adherence >= 80 ? "#52B788" : w.adherence >= 50 ? "#EF9F27" : "#E24B4A";
+      const color = w.adherence === null ? "#888888" : w.adherence >= 80 ? "#52B788" : w.adherence >= 50 ? "#EF9F27" : "#E24B4A";
       return `<tr>
-        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">${t("report.week")} ${fmtWeek(w.weekLabel)}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;">${w.total}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;color:#52B788;font-weight:600;">${w.taken}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;color:#E24B4A;font-weight:600;">${w.missed}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;color:${color};font-weight:700;">${w.adherence}%</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;">${t("report.week")} ${fmtWeek(w.weekLabel)}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;">${w.total}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;color:#52B788;font-weight:600;">${w.taken}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;color:#E24B4A;font-weight:600;">${w.missed}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;color:${color};font-weight:700;">${w.adherence === null ? "–" : `${w.adherence}%`}</td>
       </tr>`;
     }).join("");
 
-    const html = `<!DOCTYPE html>
+    return `<!DOCTYPE html>
 <html lang="${lang}">
 <head>
 <meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>${t("report.title")} - ${patientName}</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&family=Noto+Sans+Devanagari:wght@400;600;700&family=Noto+Sans+Kannada:wght@400;600;700&family=Noto+Sans+Telugu:wght@400;600;700&family=Noto+Sans+Tamil:wght@400;600;700&display=swap');
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family:'Noto Sans','Noto Sans Devanagari','Noto Sans Kannada','Noto Sans Telugu','Noto Sans Tamil',sans-serif; color:#1a1a2e; background:#fff; padding:40px; max-width:800px; margin:0 auto; }
-  .header { text-align:center; margin-bottom:32px; border-bottom:3px solid #2E86AB; padding-bottom:20px; }
-  .header h1 { font-size:28px; color:#2E86AB; margin-bottom:4px; }
+  body { font-family:'Noto Sans','Noto Sans Devanagari','Noto Sans Kannada','Noto Sans Telugu','Noto Sans Tamil',sans-serif; color:#1a1a2e; background:#fff; padding:24px; max-width:800px; margin:0 auto; line-height:1.5; }
+  .header { text-align:center; margin-bottom:28px; border-bottom:3px solid #2E86AB; padding-bottom:16px; }
+  .header h1 { font-size:26px; color:#2E86AB; margin-bottom:4px; }
   .header p { color:#666; font-size:14px; }
-  .meta { display:flex; justify-content:space-between; margin-bottom:24px; font-size:14px; color:#555; }
-  .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:28px; }
-  .stat-card { border-radius:12px; padding:16px; text-align:center; }
-  .stat-card .value { font-size:32px; font-weight:700; }
-  .stat-card .label { font-size:13px; color:#666; margin-top:4px; }
-  .section-title { font-size:18px; font-weight:700; margin-bottom:12px; color:#1a1a2e; }
-  .progress-bar { background:#e5e7eb; border-radius:8px; height:16px; margin:8px 0 16px; overflow:hidden; }
+  .meta { display:flex; flex-wrap:wrap; justify-content:space-between; gap:12px; margin-bottom:24px; font-size:13px; color:#555; background:#f8fafc; padding:12px 16px; border-radius:10px; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:12px; margin-bottom:24px; }
+  .stat-card { border-radius:12px; padding:14px; text-align:center; border:1px solid #e5e7eb; }
+  .stat-card .value { font-size:28px; font-weight:700; }
+  .stat-card .label { font-size:12px; color:#666; margin-top:4px; }
+  .section-title { font-size:16px; font-weight:700; margin-bottom:12px; color:#1a1a2e; }
+  .progress-bar { background:#e5e7eb; border-radius:8px; height:14px; margin:8px 0 16px; overflow:hidden; }
   .progress-fill { height:100%; border-radius:8px; }
-  table { width:100%; border-collapse:collapse; margin-bottom:24px; }
-  th { background:#f1f5f9; padding:10px 12px; text-align:left; font-size:13px; font-weight:600; color:#555; border-bottom:2px solid #e5e7eb; }
-  .footer { text-align:center; margin-top:32px; padding-top:16px; border-top:1px solid #e5e7eb; font-size:12px; color:#999; }
-  @media print { body { padding:20px; } }
+  .table-container { width:100%; overflow-x:auto; margin-bottom:24px; }
+  table { width:100%; border-collapse:collapse; min-width:320px; }
+  th { background:#f1f5f9; padding:10px 12px; text-align:left; font-size:12px; font-weight:600; color:#555; border-bottom:2px solid #e5e7eb; }
+  .footer { text-align:center; margin-top:28px; padding-top:16px; border-top:1px solid #e5e7eb; font-size:12px; color:#888; }
+  @media print {
+    body { padding:16px; }
+    .meta { background:none; padding:0; }
+  }
 </style>
 </head>
 <body>
@@ -239,18 +249,20 @@ const HealthReports = () => {
   </div>
 
   <div class="section-title">${t("report.weeklyBreakdown")}</div>
-  <table>
-    <thead>
-      <tr>
-        <th>${t("report.week")}</th>
-        <th style="text-align:center;">${t("report.doses")}</th>
-        <th style="text-align:center;">${t("report.taken")}</th>
-        <th style="text-align:center;">${t("report.missed")}</th>
-        <th style="text-align:center;">${t("report.adherence")}</th>
-      </tr>
-    </thead>
-    <tbody>${weekRows}</tbody>
-  </table>
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>${t("report.week")}</th>
+          <th style="text-align:center;">${t("report.doses")}</th>
+          <th style="text-align:center;">${t("report.taken")}</th>
+          <th style="text-align:center;">${t("report.missed")}</th>
+          <th style="text-align:center;">${t("report.adherence")}</th>
+        </tr>
+      </thead>
+      <tbody>${weekRows}</tbody>
+    </table>
+  </div>
 
   <div class="footer">
     <p>${t("report.generatedAt")}: ${now}</p>
@@ -258,12 +270,34 @@ const HealthReports = () => {
   </div>
 </body>
 </html>`;
+  };
 
-    const printWindow = window.open("", "_blank");
-    if (printWindow) {
-      printWindow.document.write(html);
-      printWindow.document.close();
-      setTimeout(() => printWindow.print(), 600);
+  const handleExport = async (action: "pdf" | "download" | "share") => {
+    try {
+      setExporting(action);
+      const html = generateHtml();
+      const cleanName = (patientName || "Patient").replace(/[^a-zA-Z0-9_\u0900-\u0D7F-]/g, "_");
+      const fileName = `Health-Report-${cleanName}-${format(new Date(), "yyyyMMdd")}.html`;
+      const reportTitle = `${t("report.title")} - ${patientName || "Patient"}`;
+
+      if (action === "pdf") {
+        await printHealthReport(html, reportTitle);
+        toast.success(t("report.savePdf"));
+      } else if (action === "download") {
+        await downloadHealthReportFile(html, fileName);
+        toast.success(t("report.downloadSuccess"));
+      } else if (action === "share") {
+        const shared = await shareHealthReport(html, fileName, reportTitle);
+        if (shared) {
+          toast.success(t("report.shareReport"));
+        }
+      }
+      setExportOpen(false);
+    } catch (err) {
+      console.error("Export error:", err);
+      toast.error(t("report.downloadFailed"));
+    } finally {
+      setExporting(null);
     }
   };
 
@@ -296,7 +330,7 @@ const HealthReports = () => {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h1 className="text-2xl font-extrabold">{t("healthReports")}</h1>
           {!noData && (
-            <Button onClick={handleDownload} className="gap-2 min-h-[48px] rounded-xl">
+            <Button onClick={() => setExportOpen(true)} className="gap-2 min-h-[48px] rounded-xl shadow-sm">
               <Download className="w-5 h-5" />
               {t("report.downloadReport")}
             </Button>
@@ -425,8 +459,8 @@ const HealthReports = () => {
                             <p className="font-semibold text-sm">{t("reports.weekOf", { date: fmtWeek(w.weekLabel) })}</p>
                             <p className="text-xs text-muted-foreground">{t("reports.weekLine", { total: w.total, taken: w.taken, missed: w.missed })}</p>
                           </div>
-                          <div className={`text-lg font-bold ${w.adherence >= 80 ? "text-success" : w.adherence >= 50 ? "text-warning" : "text-destructive"}`}>
-                            {w.adherence}%
+                          <div className={`text-lg font-bold ${w.adherence === null ? "text-muted-foreground" : w.adherence >= 80 ? "text-success" : w.adherence >= 50 ? "text-warning" : "text-destructive"}`}>
+                            {w.adherence === null ? "–" : `${w.adherence}%`}
                           </div>
                         </div>
                       ))}
@@ -438,6 +472,71 @@ const HealthReports = () => {
           </>
         )}
       </div>
+
+      {/* Export & Download Dialog for Mobile and Desktop */}
+      <Dialog open={exportOpen} onOpenChange={setExportOpen}>
+        <DialogContent className="max-w-md w-[calc(100vw-2rem)] rounded-2xl p-6">
+          <DialogHeader className="text-left">
+            <DialogTitle className="flex items-center gap-2 text-xl font-bold">
+              <Download className="w-5 h-5 text-primary" />
+              {t("report.downloadReport")}
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground mt-1">
+              {t("report.exportSubtitle")}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3 pt-3">
+            {/* Save as PDF / Print */}
+            <button
+              type="button"
+              disabled={exporting !== null}
+              onClick={() => void handleExport("pdf")}
+              className="flex items-start gap-4 p-4 rounded-xl border border-border/70 hover:border-primary/50 hover:bg-primary/5 active:bg-primary/10 transition-all text-left disabled:opacity-50"
+            >
+              <div className="w-11 h-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
+                {exporting === "pdf" ? <Loader2 className="w-5 h-5 animate-spin" /> : <Printer className="w-5 h-5" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-foreground text-sm">{t("report.savePdf")}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{t("report.savePdfDesc")}</p>
+              </div>
+            </button>
+
+            {/* Download file directly */}
+            <button
+              type="button"
+              disabled={exporting !== null}
+              onClick={() => void handleExport("download")}
+              className="flex items-start gap-4 p-4 rounded-xl border border-border/70 hover:border-emerald-500/50 hover:bg-emerald-500/5 active:bg-emerald-500/10 transition-all text-left disabled:opacity-50"
+            >
+              <div className="w-11 h-11 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5">
+                {exporting === "download" ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-foreground text-sm">{t("report.downloadFile")}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{t("report.downloadFileDesc")}</p>
+              </div>
+            </button>
+
+            {/* Share report */}
+            <button
+              type="button"
+              disabled={exporting !== null}
+              onClick={() => void handleExport("share")}
+              className="flex items-start gap-4 p-4 rounded-xl border border-border/70 hover:border-blue-500/50 hover:bg-blue-500/5 active:bg-blue-500/10 transition-all text-left disabled:opacity-50"
+            >
+              <div className="w-11 h-11 rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center shrink-0 mt-0.5">
+                {exporting === "share" ? <Loader2 className="w-5 h-5 animate-spin" /> : <Share2 className="w-5 h-5" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-foreground text-sm">{t("report.shareReport")}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{t("report.shareReportDesc")}</p>
+              </div>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 };
