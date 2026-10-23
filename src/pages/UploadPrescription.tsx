@@ -28,7 +28,8 @@ interface ExtractedMedicine {
   /** Only when written on the prescription; never a default. */
   duration_days: number | null;
   reminder_times: string[];
-  /** From the AI: how sure it is, and which fields it couldn't read. */
+  /** From the AI: the line as written, how sure it is, and which fields it couldn't read. */
+  raw_text?: string;
   confidence?: "high" | "medium" | "low";
   unclear_fields?: string[];
   photoFile?: File;
@@ -52,6 +53,33 @@ function getTimeSlotCount(frequency: string): number {
   if (f.includes("as needed") || f.includes("optional") || f.includes("prn")) return 0;
   return 1;
 }
+
+/** Reminder time for each part of the day the prescription names. */
+const TIME_OF_DAY: Record<string, string> = { morning: "08:00", afternoon: "14:00", evening: "18:00", night: "21:00" };
+const DAY_ORDER = ["morning", "afternoon", "evening", "night"];
+
+/**
+ * When to take it, from the AI's "timing" or, for older replies, from the
+ * written instructions ("HS", "after dinner", "BBF" ...). [] = not written.
+ */
+function timingFor(m: { timing?: string[]; instructions?: string; raw_text?: string }): string[] {
+  if (Array.isArray(m.timing) && m.timing.length) return DAY_ORDER.filter((d) => m.timing!.includes(d));
+  const text = `${m.instructions ?? ""} ${m.raw_text ?? ""}`.toLowerCase();
+  const pattern = text.match(/(?:^|[^\d])([01½])\s*-\s*([01½])\s*-\s*([01½])(?:\s*-\s*([01½]))?(?![\d-])/);
+  if (pattern) {
+    const slots = pattern[4] !== undefined ? ["morning", "afternoon", "evening", "night"] : ["morning", "afternoon", "night"];
+    return slots.filter((_, i) => pattern[i + 1] !== "0");
+  }
+  const out = new Set<string>();
+  if (/(?:^|\W)hs(?:\W|$)|bed ?time|after dinner|before dinner|(?:^|\W)night(?:\W|$)/.test(text)) out.add("night");
+  if (/(?:^|\W)bbf(?:\W|$)|breakfast|(?:^|\W)morning(?:\W|$)/.test(text)) out.add("morning");
+  if (/lunch|afternoon/.test(text)) out.add("afternoon");
+  if (/(?:^|\W)evening(?:\W|$)/.test(text)) out.add("evening");
+  return DAY_ORDER.filter((d) => out.has(d));
+}
+
+/** "Tab Dolo" -> "Dolo" (the alarm speaks the name). */
+const cleanName = (n: string) => n.trim().replace(/^(tab|tabs|tablet|cap|caps|capsule|syp|syr|syrup|inj|oint|susp)\.?\s+/i, "");
 
 function getDefaultTimes(count: number): string[] {
   if (count === 1) return ["08:00"];
@@ -79,6 +107,8 @@ const UploadPrescription = () => {
   /** AI-read medicines must be checked against the prescription before saving. */
   const [fromAi, setFromAi] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  /** Medicine lines the AI could see but not read: the user adds them by hand. */
+  const [unreadableLines, setUnreadableLines] = useState(0);
 
   // Seconds counter while extracting.
   useEffect(() => {
@@ -132,7 +162,8 @@ const UploadPrescription = () => {
       reader.readAsDataURL(file);
     });
 
-  const EXTRACT_TIMEOUT_MS = 45_000;
+  // Server: 40 s per model call plus upload; medium thinking needs more than the old 45 s.
+  const EXTRACT_TIMEOUT_MS = 60_000;
 
   const handleExtract = async () => {
     if (!file) return;
@@ -166,18 +197,27 @@ const UploadPrescription = () => {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      const extracted = (data?.medicines || []).map((m: Partial<ExtractedMedicine>) => {
+      const extracted = (data?.medicines || []).map((m: Partial<ExtractedMedicine> & { timing?: string[] }) => {
         const count = getTimeSlotCount(m.frequency || "");
+        // Reminder times from when the doctor said (night for 0-0-1 / HS ...), else defaults.
+        const when = timingFor(m);
+        const frequency =
+          m.frequency || (when.length === 1 ? "Once daily" : when.length === 2 ? "Twice daily" : when.length === 3 ? "Three times daily" : "");
+        const times = when.length && when.length === (getTimeSlotCount(frequency) || when.length)
+          ? when.map((d) => TIME_OF_DAY[d])
+          : frequency ? getDefaultTimes(getTimeSlotCount(frequency)) : [];
+        void count;
         return {
-          name: m.name ?? "",
+          name: cleanName(m.name ?? ""),
           dosage: m.dosage ?? "",
-          frequency: m.frequency ?? "",
+          frequency,
           instructions: m.instructions ?? "",
           duration_days: m.duration_days ?? null,
+          raw_text: m.raw_text ?? "",
           confidence: m.confidence ?? "low",
           unclear_fields: m.unclear_fields ?? [],
           // Unknown frequency: no reminder times until the user picks one.
-          reminder_times: m.frequency ? getDefaultTimes(count) : [],
+          reminder_times: times,
         };
       }) as ExtractedMedicine[];
 
@@ -186,6 +226,7 @@ const UploadPrescription = () => {
         return;
       }
       setMedicines(extracted);
+      setUnreadableLines(Math.max(0, Number(data?.unreadable_lines) || 0));
       setFromAi(true);
       setConfirmed(false);
       toast.success(t("upload.extracted", { count: extracted.length }));
@@ -606,6 +647,19 @@ const UploadPrescription = () => {
               </Button>
             </div>
 
+            {unreadableLines > 0 && (
+
+              <p role="status" className="flex items-start gap-2 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-base font-semibold text-amber-950 dark:text-amber-50">
+
+                <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-warning" />
+
+                {t("upload.unreadableLines", { count: unreadableLines })}
+
+              </p>
+
+            )}
+
+
             {medicines.map((med, i) => {
               const timeSlotCount = getTimeSlotCount(med.frequency);
               const unclear = new Set(med.unclear_fields ?? []);
@@ -639,6 +693,11 @@ const UploadPrescription = () => {
                     <div>
                       <Label className="text-base font-semibold">{t("upload.medicineName")}</Label>
                       <Input value={med.name} onChange={(e) => updateMedicine(i, "name", e.target.value)} className={"mt-1.5 min-h-btn text-base rounded-xl" + (med.confidence === "low" ? " border-amber-500 ring-2 ring-amber-500/30" : fieldCls("name"))} placeholder={t("upload.namePlaceholder")} />
+                      {med.raw_text && (
+                        <p className="mt-1.5 text-sm text-muted-foreground break-words">
+                          {t("upload.writtenAs")} <span className="font-medium text-foreground">{med.raw_text}</span>
+                        </p>
+                      )}
                     </div>
                     <div>
                       <Label className="text-base font-semibold">{t("meds.dosageRequiredLabel")}</Label>
@@ -780,6 +839,7 @@ const UploadPrescription = () => {
                 size="lg"
                 onClick={() => {
                   setFromAi(false);
+                  setUnreadableLines(0);
                   medicines.forEach((m) => revokeSafePreviewUrl(m.photoPreview));
                   setMedicines([]);
                   setFile(null);

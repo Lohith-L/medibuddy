@@ -1,7 +1,8 @@
 // Shrinks a prescription photo before it is sent to the AI: phone cameras give
 // 3-8 MB images, which made uploads and the model call slow. Longest side
-// 1600 px (plenty for reading text), JPEG ~0.8, camera rotation (EXIF) applied.
-// Target < 500 KB. PDFs are sent unchanged.
+// 2048 px, JPEG ~0.85, camera rotation (EXIF) applied. Target < 1.2 MB:
+// 1600 px / 500 KB was faster but lost the detail in handwritten medicine names.
+// PDFs are sent unchanged.
 //
 // Android app: native resize (ImageToolsPlugin). Decoding a 12 MP JPEG in the
 // WebView took ~4 s; Android decodes it at reduced size in a fraction of that.
@@ -19,8 +20,8 @@ export interface PreparedUpload {
   ms: number;
 }
 
-const MAX_SIDE = 1600;
-const TARGET_BYTES = 500 * 1024;
+const MAX_SIDE = 2048;
+const TARGET_BYTES = 1200 * 1024;
 
 const blobToBase64 = (blob: Blob): Promise<string> =>
   new Promise((resolve, reject) => {
@@ -78,8 +79,8 @@ export async function prepareForUpload(file: File): Promise<PreparedUpload> {
   if (Capacitor.isNativePlatform()) {
     try {
       const raw = await blobToBase64(file);
-      let r = await ImageTools.shrinkImage({ base64: raw, maxSide: MAX_SIDE, quality: 80 });
-      if (r.bytes > TARGET_BYTES) r = await ImageTools.shrinkImage({ base64: raw, maxSide: 1280, quality: 70 });
+      let r = await ImageTools.shrinkImage({ base64: raw, maxSide: MAX_SIDE, quality: 85 });
+      if (r.bytes > TARGET_BYTES) r = await ImageTools.shrinkImage({ base64: raw, maxSide: 1800, quality: 78 });
       return { base64: r.base64, mimeType: "image/jpeg", bytes: r.bytes, originalBytes: file.size, ms: Math.round(performance.now() - t0) };
     } catch (e) {
       console.warn("[prescription] native resize failed, using the canvas:", e);
@@ -88,7 +89,7 @@ export async function prepareForUpload(file: File): Promise<PreparedUpload> {
   const img = await decode(file, MAX_SIDE);
   try {
     let side = MAX_SIDE;
-    let quality = 0.8;
+    let quality = 0.85;
     let blob: Blob | null = null;
     // Usually one pass; very detailed photos get one or two smaller tries.
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -104,8 +105,8 @@ export async function prepareForUpload(file: File): Promise<PreparedUpload> {
       ctx.drawImage(img.source, 0, 0, w, h);
       blob = await encode(canvas, quality);
       if (blob.size <= TARGET_BYTES) break;
-      quality = Math.max(0.6, quality - 0.1);
-      side = Math.round(side * 0.85);
+      quality = Math.max(0.7, quality - 0.07);
+      side = Math.round(side * 0.9);
     }
     return {
       base64: await blobToBase64(blob!),
