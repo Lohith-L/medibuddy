@@ -15,6 +15,7 @@ public class MainActivity extends BridgeActivity {
         // App-local plugin: phone step counter fallback + Health Connect revoke
         registerPlugin(MediHealthPlugin.class);
         registerPlugin(ImageToolsPlugin.class);
+        registerPlugin(ReportPlugin.class);
         super.onCreate(savedInstanceState);
 
         // The WebView scales text with the phone's system font size, which made
