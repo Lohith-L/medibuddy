@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { generateUUID } from "@/lib/uuid";
+import { describeMedicine, findDuplicates, localToday } from "@/lib/medicineMatch";
 import { validateImageFile, fileToOptimizedDataUrl } from "@/lib/imageUtils";
 import {
   AlertDialog,
@@ -41,6 +42,7 @@ interface Medicine {
   instructions: string | null;
   reminder_times: string[] | null;
   is_active: boolean;
+  end_date?: string | null;
   medicine_photo_url: string | null;
   patient_id: string;
 }
@@ -64,7 +66,7 @@ function getDefaultTimes(count: number): string[] {
 
 const Medicines = () => {
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
   /** Stored frequency (English value or free text from the prescription) → label in the app language. */
   const frequencyLabel = (value: string) => {
     const key = frequencyLabelKey(value);
@@ -81,6 +83,9 @@ const Medicines = () => {
   const [editingMed, setEditingMed] = useState<Medicine | null>(null);
   const [editForm, setEditForm] = useState({ name: "", dosage: "", frequency: "", instructions: "", reminder_times: [] as string[] });
   const [saving, setSaving] = useState(false);
+  /** Edit would give the medicine the same name as another active one: confirm first. */
+  const [editDup, setEditDup] = useState<{ name: string; current: string } | null>(null);
+  const editDupOkRef = useRef(false);
 
   // Delete state
   const [deletingMed, setDeletingMed] = useState<Medicine | null>(null);
@@ -232,6 +237,21 @@ const Medicines = () => {
       toast.error(t("meds.nameDosageRequired"));
       return;
     }
+    // Same name as another active medicine (not this one): warn before saving.
+    if (!editDupOkRef.current) {
+      const [d] = findDuplicates(
+        [{ name: editForm.name }],
+        medicines.map((m) => ({ ...m, end_date: m.end_date ?? null })),
+        localToday(),
+        editingMed.id,
+      );
+      if (d.existing) {
+        setEditDup({ name: editForm.name.trim(), current: describeMedicine(d.existing, locale) });
+        return;
+      }
+    }
+    editDupOkRef.current = false;
+    if (saving) return; // double tap
     setSaving(true);
     try {
       const { error } = await supabase
@@ -459,6 +479,31 @@ const Medicines = () => {
       </Dialog>
 
       {/* ── Delete Confirmation ────────────────────────────────────── */}
+      <AlertDialog open={!!editDup} onOpenChange={(open) => !open && setEditDup(null)}>
+        <AlertDialogContent className="max-w-md w-[calc(100vw-1.5rem)] rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-extrabold">{t("dup.dialogTitle")}</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2 text-base text-foreground">
+              <span className="block">{editDup && t("dup.editWarn", { name: editDup.name })}</span>
+              <span className="block text-muted-foreground">{editDup && t("dup.current", { details: editDup.current })}</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel className="min-h-[52px] text-base">{t("dup.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              className="min-h-[52px] text-base"
+              onClick={() => {
+                editDupOkRef.current = true;
+                setEditDup(null);
+                void handleSaveEdit();
+              }}
+            >
+              {t("dup.saveAnyway")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={!!deletingMed} onOpenChange={(open) => !open && setDeletingMed(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
