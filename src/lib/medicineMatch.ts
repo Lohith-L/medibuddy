@@ -58,25 +58,51 @@ export interface DuplicateInfo {
   existingKind: MatchKind | null;
   /** Index of an earlier entry in the same list with the same medicine (listed twice). */
   twiceOf: number | null;
+  /**
+   * The name itself was read with low confidence: never treated as a duplicate,
+   * only shown as a possible match the user decides on.
+   */
+  unsureName: boolean;
 }
+
+export interface Candidate {
+  name: string;
+  /** From the prescription reader; manual entries have none. */
+  confidence?: "high" | "medium" | "low";
+  /** The user typed the name over the reader's guess, so it is no longer unsure. */
+  nameEdited?: boolean;
+}
+
+/** A low-confidence name the user hasn't corrected. */
+export const isUnsureName = (c: Candidate) => c.confidence === "low" && !c.nameEdited;
 
 /**
  * For each candidate: does it match an active medicine of this patient, and is
  * it a repeat of an earlier entry in the same list? `ignoreId` skips the
- * medicine being edited.
+ * medicine being edited. An unsure name matches only when the normalised names
+ * are equal, and then only as "possible".
  */
 export function findDuplicates(
-  candidates: { name: string }[],
+  candidates: Candidate[],
   existing: ExistingMedicine[],
   today: string,
   ignoreId?: string,
 ): DuplicateInfo[] {
   const active = existing.filter((m) => m.id !== ignoreId && isActiveMedicine(m, today));
   return candidates.map((c, i) => {
+    const unsureName = isUnsureName(c);
     let best: ExistingMedicine | null = null;
     let bestKind: MatchKind | null = null;
     for (const m of active) {
       const k = matchKind(c.name, m.name);
+      if (unsureName) {
+        if (k === "exact") {
+          best = m;
+          bestKind = "possible";
+          break;
+        }
+        continue;
+      }
       if (k === "exact") {
         best = m;
         bestKind = k;
@@ -94,7 +120,7 @@ export function findDuplicates(
         break;
       }
     }
-    return { existing: best, existingKind: bestKind, twiceOf };
+    return { existing: best, existingKind: bestKind, twiceOf, unsureName };
   });
 }
 

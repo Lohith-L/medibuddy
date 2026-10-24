@@ -34,6 +34,8 @@ interface ExtractedMedicine {
   raw_text?: string;
   confidence?: "high" | "medium" | "low";
   unclear_fields?: string[];
+  /** The user typed the name over the AI's reading (no longer an unsure name). */
+  nameEdited?: boolean;
   photoFile?: File;
   photoPreview?: string;
   medicine_photo_url?: string;
@@ -82,12 +84,35 @@ function timingFor(m: { timing?: string[]; instructions?: string; raw_text?: str
 
 /** "1) Tab Acepar.. 1-0-1 x 3d" -> "Acepar": a starting point the user corrects. */
 function guessName(line: string): string {
-  const noNum = line.replace(/^[\s\-–—.)(\d]+/, "");
-  const name = cleanName(noNum)
-    .split(/\s+(?=[\d½]|x\s*\d|od\b|bd\b|tds\b|hs\b)/i)[0]
-    .replace(/[?.]+$/g, "")
-    .trim();
-  return name || noNum.trim();
+  const words: string[] = [];
+  // Words up to the dose pattern; Rx / Tab / Cap in front and "?" marks are skipped.
+  for (const token of line.replace(/^[\s\-–—.)(\d]+/, "").split(/\s+/)) {
+    const w = token.replace(/^[^\p{L}\d½]+|[^\p{L}\d½-]+$/gu, "");
+    if (!w) {
+      if (words.length) break; // "Acepan ??" - the name ended
+      continue;
+    }
+    if (!words.length && /^(rx|tab|tabs|tablet|cap|caps|capsule|syp|syr|syrup|inj|oint|susp|drops?)$/i.test(w)) continue;
+    if (/[\d½]/.test(w) || /^(x|od|bd|tds|hs|sos)$/i.test(w)) break;
+    words.push(w);
+  }
+  const name = words.join(" ");
+  // "Rx ???? 1-0-1": no readable name - leave it empty for the user to type.
+  return /\p{L}{2,}/u.test(name.replace(/[^\p{L}]/gu, "")) ? name : "";
+}
+
+/** "Pan-D 40" -> "pand": compares a name with the line it was read from. */
+const lettersOf = (s: string) => s.toLowerCase().replace(/[^\p{L}]/gu, "");
+
+/**
+ * The name must come from the line the AI says it read. If its first letters
+ * aren't in that line (or there is no line), it may be filled from memory:
+ * mark it low confidence so the user checks it and it's never called a duplicate.
+ */
+function checkNameAgainstLine<T extends { name: string; raw_text?: string; confidence?: string; unclear_fields?: string[] }>(m: T): T {
+  const head = lettersOf(m.name).slice(0, 4);
+  if (head && m.raw_text && lettersOf(m.raw_text).includes(head)) return m;
+  return { ...m, confidence: "low", unclear_fields: [...new Set([...(m.unclear_fields ?? []), "name"])] };
 }
 
 /** "Tab Dolo" -> "Dolo" (the alarm speaks the name). */
@@ -122,9 +147,10 @@ const UploadPrescription = () => {
   /** Blocks a second save from a double tap before `saving` re-renders the button. */
   const savingRef = useRef(false);
 
-  // ── Duplicate check: the patient's active medicines, loaded once per patient ──
+  // ── Duplicate check: the current patient's active medicines, fetched fresh for each list and on save ──
   const [existingMeds, setExistingMeds] = useState<ExistingMedicine[]>([]);
-  const existingForRef = useRef<string | null>(null);
+  /** Only the latest load may set existingMeds (patient switch, a slow older request). */
+  const existingSeqRef = useRef(0);
   const [dupOpen, setDupOpen] = useState(false);
   const [dupChoices, setDupChoices] = useState<Record<number, DuplicateChoice>>({});
   const dupChoicesRef = useRef<Record<number, DuplicateChoice>>({});
@@ -135,6 +161,8 @@ const UploadPrescription = () => {
   const [stage, setStage] = useState<"idle" | "preparing" | "uploading" | "reading">("idle");
   const [elapsed, setElapsed] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
+  /** Id of the latest extraction: a reply for an older photo is ignored. */
+  const extractSeqRef = useRef(0);
   /** Why the last extraction gave nothing (shown with Try again / Enter manually). */
   const [failure, setFailure] = useState<null | "timeout" | "unreadable" | "not_prescription" | "offline" | "error">(null);
   /** AI-read medicines must be checked against the prescription before saving. */
@@ -154,6 +182,31 @@ const UploadPrescription = () => {
     return () => window.clearInterval(id);
   }, [loading]);
 
+  /** Clears everything from the previous photo before a new one is read. */
+  const resetResults = useCallback(() => {
+    setMedicines((prev) => {
+      prev.forEach((m) => revokeSafePreviewUrl(m.photoPreview));
+      return [];
+    });
+    setFailure(null);
+    setFromAi(false);
+    setConfirmed(false);
+    setUnreadableLines(0);
+    setPartlyRead(false);
+    setDupChoices({});
+    setDupOpen(false);
+    dupResolvedRef.current = false;
+  }, []);
+
+  /** A new photo was chosen: the running extraction (if any) must not fill the list. */
+  const supersedeExtraction = useCallback(() => {
+    extractSeqRef.current++;
+    abortRef.current?.abort("superseded");
+    abortRef.current = null;
+    setStage("idle");
+    setLoading(false);
+  }, []);
+
   const handleFile = useCallback((f: File) => {
     if (!f.type.startsWith("image/") && f.type !== "application/pdf") {
       toast.error(t("upload.wrongFileType"));
@@ -163,10 +216,9 @@ const UploadPrescription = () => {
       toast.error(t("upload.fileTooLarge"));
       return;
     }
+    supersedeExtraction();
     setFile(f);
-    setMedicines([]);
-    setFailure(null);
-    setFromAi(false);
+    resetResults();
     if (f.type.startsWith("image/")) {
       const reader = new FileReader();
       reader.onload = (e) => setPreview(e.target?.result as string);
@@ -174,7 +226,7 @@ const UploadPrescription = () => {
     } else {
       setPreview(null);
     }
-  }, []);
+  }, [resetResults, supersedeExtraction, t]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -197,32 +249,40 @@ const UploadPrescription = () => {
       reader.readAsDataURL(file);
     });
 
-  // Server: 40 s per model call plus upload; medium thinking needs more than the old 45 s.
-  // The patient's active medicines, once the review list appears (once per patient).
+  /**
+   * The current patient's active medicines, straight from the database. null when
+   * a newer load replaced this one or it failed; on failure the list is emptied so
+   * nothing from another patient or account is ever compared.
+   */
+  const loadExisting = useCallback(async (): Promise<ExistingMedicine[] | null> => {
+    const seq = ++existingSeqRef.current;
+    const patientId = await resolvePatientId();
+    if (seq !== existingSeqRef.current) return null;
+    if (!patientId) {
+      setExistingMeds([]);
+      return [];
+    }
+    const { data, error } = await supabase
+      .from("medicines")
+      .select("id, name, dosage, frequency, instructions, reminder_times, is_active, end_date, start_date")
+      .eq("patient_id", patientId)
+      .eq("is_active", true);
+    if (seq !== existingSeqRef.current) return null;
+    if (error) {
+      console.warn("[duplicates] could not load current medicines:", error.message);
+      setExistingMeds([]);
+      return null;
+    }
+    const list = (data ?? []) as ExistingMedicine[];
+    setExistingMeds(list);
+    return list;
+  }, [resolvePatientId]);
+
+  // Fresh each time a review list appears (a new photo read, or manual entry) and on a patient switch.
   const hasList = medicines.length > 0;
   useEffect(() => {
-    if (!hasList) return;
-    let cancelled = false;
-    void (async () => {
-      const patientId = await resolvePatientId();
-      if (!patientId || cancelled || existingForRef.current === patientId) return;
-      existingForRef.current = patientId;
-      const { data, error } = await supabase
-        .from("medicines")
-        .select("id, name, dosage, frequency, instructions, reminder_times, is_active, end_date, start_date")
-        .eq("patient_id", patientId)
-        .eq("is_active", true);
-      if (error) {
-        console.warn("[duplicates] could not load current medicines:", error.message);
-        existingForRef.current = null;
-        return;
-      }
-      if (!cancelled) setExistingMeds((data ?? []) as ExistingMedicine[]);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [hasList, resolvePatientId]);
+    if (hasList) void loadExisting();
+  }, [hasList, loadExisting]);
 
   /** Per card: matches an active medicine, or repeats an earlier card. */
   const dupInfo = useMemo(() => findDuplicates(medicines, existingMeds, localToday()), [medicines, existingMeds]);
@@ -235,6 +295,7 @@ const UploadPrescription = () => {
         .map(({ d, i }) => ({
           index: i,
           name: medicines[i].name || t("upload.medicineName"),
+          unsure: d.unsureName,
           newDetails: describeMedicine(medicines[i], locale),
           currentDetails: d.existing ? describeMedicine(d.existing, locale) : null,
           possible: d.existingKind === "possible",
@@ -252,8 +313,11 @@ const UploadPrescription = () => {
       setFailure("offline");
       return;
     }
+    // Try again / a second tap: only this request's reply may fill the list.
+    abortRef.current?.abort("superseded");
+    const seq = ++extractSeqRef.current;
+    resetResults();
     setLoading(true);
-    setFailure(null);
     const ctl = new AbortController();
     abortRef.current = ctl;
     const timeout = window.setTimeout(() => ctl.abort("timeout"), EXTRACT_TIMEOUT_MS);
@@ -285,6 +349,7 @@ const UploadPrescription = () => {
           `partial_lines ${data?.partial_lines?.length ?? 0}, unreadable_lines ${data?.unreadable_lines ?? 0}, timings ${JSON.stringify(data?.timings ?? null)}`,
       );
       if (ctl.signal.aborted) throw new DOMException("Aborted", "AbortError");
+      if (seq !== extractSeqRef.current) return; // a newer photo was picked meanwhile
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       if (data?.reason === "parse_error") throw new Error("parse_error");
@@ -299,7 +364,7 @@ const UploadPrescription = () => {
           ? when.map((d) => TIME_OF_DAY[d])
           : frequency ? getDefaultTimes(getTimeSlotCount(frequency)) : [];
         void count;
-        return {
+        return checkNameAgainstLine({
           name: cleanName(m.name ?? ""),
           dosage: m.dosage ?? "",
           frequency,
@@ -310,7 +375,7 @@ const UploadPrescription = () => {
           unclear_fields: m.unclear_fields ?? [],
           // Unknown frequency: no reminder times until the user picks one.
           reminder_times: times,
-        };
+        });
       }) as ExtractedMedicine[];
 
       // Nothing read for sure, but lines are visible: offer them as suggestions to check
@@ -340,11 +405,13 @@ const UploadPrescription = () => {
         return;
       }
       setMedicines(extracted);
-      setUnreadableLines(Math.max(0, Number(data?.unreadable_lines) || 0));
+      // Partly read lines already have a card each: only lines beyond those are "more".
+      setUnreadableLines(Math.max(0, (Number(data?.unreadable_lines) || 0) - (fromPartial ? partial.length : 0)));
       setFromAi(true);
       setConfirmed(false);
       toast.success(t("upload.extracted", { count: extracted.length }));
     } catch (err: unknown) {
+      if (seq !== extractSeqRef.current) return; // replaced by a newer request: say nothing
       const reason = ctl.signal.reason;
       if (reason === "user") {
         toast(t("upload.cancelled"));
@@ -359,16 +426,18 @@ const UploadPrescription = () => {
     } finally {
       window.clearTimeout(timeout);
       if (readingTimer) window.clearTimeout(readingTimer);
-      abortRef.current = null;
-      setStage("idle");
-      setLoading(false);
+      if (seq === extractSeqRef.current) {
+        abortRef.current = null;
+        setStage("idle");
+        setLoading(false);
+      }
     }
   };
 
   const cancelExtract = () => abortRef.current?.abort("user");
 
   const updateMedicine = (index: number, field: keyof ExtractedMedicine, value: any) => {
-    setMedicines((prev) => prev.map((m, i) => (i === index ? { ...m, [field]: value } : m)));
+    setMedicines((prev) => prev.map((m, i) => (i === index ? { ...m, [field]: value, ...(field === "name" ? { nameEdited: true } : {}) } : m)));
   };
 
   const handleFrequencyChange = (index: number, newFrequency: string) => {
@@ -488,13 +557,24 @@ const UploadPrescription = () => {
       }
     }
 
-    // Already set for reminders: ask first (nothing is saved until the dialog is answered).
-    if (dupItems.length && !dupResolvedRef.current) {
-      setDupChoices(Object.fromEntries(dupItems.map((d) => [d.index, "skip" as DuplicateChoice])));
-      setDupOpen(true);
-      return;
-    }
     if (savingRef.current) return; // double tap
+    // Already set for reminders: ask first (nothing is saved until the dialog is answered),
+    // checked against the patient's medicines as they are now, not as they were on upload.
+    let info = dupInfo;
+    if (!dupResolvedRef.current) {
+      const fresh = (await loadExisting()) ?? existingMeds;
+      info = findDuplicates(medicines, fresh, localToday());
+      if (info.some((d) => d.existing || d.twiceOf !== null)) {
+        // Unsure names get no default: the user picks one.
+        setDupChoices(
+          Object.fromEntries(
+            info.flatMap((d, i) => ((d.existing || d.twiceOf !== null) && !d.unsureName ? [[i, "skip" as DuplicateChoice]] : [])),
+          ),
+        );
+        setDupOpen(true);
+        return;
+      }
+    }
     savingRef.current = true;
     setSaving(true);
     try {
@@ -532,7 +612,7 @@ const UploadPrescription = () => {
 
       // What to do with each card: add (new), update an existing medicine, or skip.
       const plan: DuplicateChoice[] = medicines.map((_, i) => {
-        const d = dupInfo[i];
+        const d = info[i];
         if (d && (d.existing || d.twiceOf !== null)) return dupChoicesRef.current[i] ?? "skip";
         return "add";
       });
@@ -730,7 +810,7 @@ const UploadPrescription = () => {
                 <div className="relative">
                   <img src={preview} alt={t("upload.prescriptionAlt")} className="max-h-64 mx-auto rounded-xl mb-4" />
                   <button
-                    onClick={(e) => { e.stopPropagation(); setFile(null); setPreview(null); }}
+                    onClick={(e) => { e.stopPropagation(); supersedeExtraction(); resetResults(); setFile(null); setPreview(null); }}
                     className="absolute top-2 right-2 w-8 h-8 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center"
                   >
                     <X className="w-4 h-4" />
@@ -868,12 +948,16 @@ const UploadPrescription = () => {
                       <p className="flex items-center gap-2 text-base font-bold">
                         <AlertTriangle className="w-5 h-5 shrink-0 text-warning" />
                         {dupInfo[i].existing
-                          ? t(dupInfo[i].existingKind === "possible" ? "dup.badgePossible" : "dup.badgeExisting")
+                          ? dupInfo[i].unsureName
+                            ? t("dup.possibleMatch", { details: describeMedicine(dupInfo[i].existing!, locale) })
+                            : t(dupInfo[i].existingKind === "possible" ? "dup.badgePossible" : "dup.badgeExisting")
                           : t("dup.badgeTwice")}
                       </p>
                       <p className="mt-0.5 text-sm">
                         {dupInfo[i].existing
-                          ? t("dup.current", { details: describeMedicine(dupInfo[i].existing!, locale) })
+                          ? dupInfo[i].unsureName
+                            ? t("dup.unsureNote")
+                            : t("dup.current", { details: describeMedicine(dupInfo[i].existing!, locale) })
                           : t("dup.twiceOfNote", { n: (dupInfo[i].twiceOf ?? 0) + 1 })}
                       </p>
                     </div>
@@ -1036,11 +1120,7 @@ const UploadPrescription = () => {
                 className="flex-1"
                 size="lg"
                 onClick={() => {
-                  setFromAi(false);
-                  setUnreadableLines(0);
-                  setPartlyRead(false);
-                  medicines.forEach((m) => revokeSafePreviewUrl(m.photoPreview));
-                  setMedicines([]);
+                  resetResults();
                   setFile(null);
                   setPreview(null);
                 }}

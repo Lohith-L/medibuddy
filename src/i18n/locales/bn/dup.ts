@@ -20,6 +20,9 @@ const dup = {
   "dup.possibleNote": "নামটি একই রকম - এটি একই ওষুধ কিনা দেখে নিন।",
   "dup.twiceOfNote": "এই তালিকার ওষুধ {n}-এর মতোই",
   "dup.twiceIntro": "এই তালিকায় একাধিকবার: {names}",
+  "dup.possibleMatch": "সম্ভাব্য মিল: {details}",
+  "dup.unsureNote": "ছবিতে নামটি স্পষ্ট নয়। যাচাই করে তারপর বেছে নিন।",
+  "dup.chooseEach": "সম্ভাব্য মিল চিহ্নিত প্রতিটি ওষুধের জন্য একটি বিকল্প বেছে নিন।",
 };
 
 export default dup;

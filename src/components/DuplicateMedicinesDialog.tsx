@@ -16,6 +16,8 @@ export interface DuplicateItem {
   /** Matches an active medicine ("Current: ..."), or null when only listed twice. */
   currentDetails: string | null;
   possible: boolean;
+  /** The name was read with low confidence: no default choice, the user must pick one. */
+  unsure: boolean;
   /** Same as entry number n (1-based) in this list. */
   twiceOf: number | null;
 }
@@ -34,6 +36,7 @@ const DuplicateMedicinesDialog = ({ open, items, choices, onChoice, onSave, onCa
   const { t } = useLanguage();
   const existingNames = items.filter((i) => i.currentDetails).map((i) => i.name).join(", ");
   const twiceNames = items.filter((i) => !i.currentDetails).map((i) => i.name).join(", ");
+  const missingChoice = items.some((i) => i.unsure && !choices[i.index]);
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !saving && onCancel()}>
@@ -64,13 +67,19 @@ const DuplicateMedicinesDialog = ({ open, items, choices, onChoice, onSave, onCa
             return (
               <fieldset key={it.index} className="rounded-2xl border-2 border-amber-500/50 bg-amber-500/5 p-4">
                 <legend className="px-1 text-lg font-bold">{it.name}</legend>
-                {it.currentDetails && <p className="text-base">{t("dup.current", { details: it.currentDetails })}</p>}
+                {it.currentDetails && (
+                  <p className="text-base">{t(it.unsure ? "dup.possibleMatch" : "dup.current", { details: it.currentDetails })}</p>
+                )}
                 {it.twiceOf !== null && !it.currentDetails && <p className="text-base">{t("dup.twiceOfNote", { n: it.twiceOf + 1 })}</p>}
                 <p className="text-base text-muted-foreground">{t("dup.newDetails", { details: it.newDetails })}</p>
-                {it.possible && <p className="mt-1 text-sm font-semibold text-warning">{t("dup.possibleNote")}</p>}
+                {it.unsure ? (
+                  <p className="mt-1 text-sm font-semibold text-warning">{t("dup.unsureNote")}</p>
+                ) : (
+                  it.possible && <p className="mt-1 text-sm font-semibold text-warning">{t("dup.possibleNote")}</p>
+                )}
                 <div className="mt-3 grid gap-2" role="radiogroup" aria-label={it.name}>
                   {options.map((o) => {
-                    const selected = (choices[it.index] ?? "skip") === o.value;
+                    const selected = (choices[it.index] ?? (it.unsure ? undefined : "skip")) === o.value;
                     return (
                       <button
                         key={o.value}
@@ -95,11 +104,12 @@ const DuplicateMedicinesDialog = ({ open, items, choices, onChoice, onSave, onCa
           })}
         </div>
 
+        {missingChoice && <p className="text-base font-semibold text-warning" role="status">{t("dup.chooseEach")}</p>}
         <div className="mt-2 grid grid-cols-2 gap-3">
           <Button variant="outline" size="lg" className="min-h-[52px] text-base" onClick={onCancel} disabled={saving}>
             {t("dup.cancel")}
           </Button>
-          <Button variant="hero" size="lg" className="min-h-[52px] text-base" onClick={onSave} disabled={saving}>
+          <Button variant="hero" size="lg" className="min-h-[52px] text-base" onClick={onSave} disabled={saving || missingChoice}>
             {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : t("dup.save")}
           </Button>
         </div>

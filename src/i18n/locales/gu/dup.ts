@@ -20,6 +20,9 @@ const dup = {
   "dup.possibleNote": "નામ મળતું આવે છે - એ જ દવા છે કે નહીં તે તપાસો.",
   "dup.twiceOfNote": "આ યાદીની દવા {n} જેવી જ",
   "dup.twiceIntro": "આ યાદીમાં એકથી વધુ વાર: {names}",
+  "dup.possibleMatch": "સંભવિત મેળ: {details}",
+  "dup.unsureNote": "ફોટામાં નામ સ્પષ્ટ નથી. તપાસો, પછી પસંદ કરો.",
+  "dup.chooseEach": "સંભવિત મેળ તરીકે ચિહ્નિત દરેક દવા માટે એક વિકલ્પ પસંદ કરો.",
 };
 
 export default dup;
