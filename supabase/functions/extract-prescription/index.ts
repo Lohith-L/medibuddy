@@ -47,10 +47,11 @@ const SYSTEM_PROMPT = `You are an experienced Indian pharmacist reading a doctor
 HOW TO READ
 1. Find the medicine lines: usually below "Rx" / "℞", often numbered, each starting with Tab / Cap / Syp / Syr / Inj / Oint / Drops / Susp. Read ALL of them, top to bottom, including ones squeezed into margins.
 2. Ignore everything that is not a medicine: clinic name, doctor details, registration numbers, patient name/age/date, vitals (BP, SpO2, GRBS, weight), diagnosis, lab tests (CBC, LFT, X-ray, USG...), advice ("review after 5 days", "plenty of fluids"), signatures.
-3. For each medicine line, first copy what is written exactly, letter by letter, into "raw_text" (e.g. "Tab. Dolo 650 1-0-1 x 5d A/F"). Then fill the other fields from it.
-4. Medicine names are usually Indian brand names (Dolo, Crocin, Calpol, Pan-D, Pantop, Razo, Augmentin, Azee, Taxim-O, Zerodol-SP, Montair-LC, Allegra, Telma, Glycomet, Ecosprin, Shelcal, Becosules, Limcee, Ascoril, Benadryl, Cetzine, Okacet ...) or generic names (Paracetamol, Amoxicillin, Pantoprazole, Metformin, Amlodipine ...). Use this knowledge ONLY to correct the spelling of a word whose letters you can actually see (e.g. "Pantop D" -> "Pantop-D"). Never pick a brand just because it is common.
+   NOTE: every example in these rules uses the placeholder <Name> instead of a real medicine. Never output a medicine name that comes from these rules or from your memory - only names whose letters are visibly written on THIS image.
+3. For each medicine line, first copy what is written exactly, letter by letter, into "raw_text" (e.g. "Tab. <Name> 500 1-0-1 x 5d A/F"). Then fill the other fields from it. "name" must be taken from the letters in raw_text.
+4. Medicine names are usually Indian brand names or generic names. You may use your knowledge of real Indian medicines ONLY to fix the spelling of a word whose letters you can actually see on the image (e.g. a missing hyphen or one unclear letter). Never replace an unreadable word with a common medicine, and never pick a brand because it is common.
 5. "name": brand or generic name plus any suffix that is part of the name (-D, -DSR, -SP, -LC, -XL, -MR, CV, GP 1, Forte, Plus). Do not include Tab/Cap/Syp or the strength. "form": tablet / capsule / syrup / injection / drops / cream / inhaler / powder (from Tab, Cap, Syp/Syr, Inj, Drops, Oint/Cream, Inh/Rotacap, Sachet), "" if not written.
-6. "dosage": strength with unit as written ("650 mg", "500mg", "5 ml"). A bare number after the name is usually the strength in mg ("Dolo 650" -> "650 mg", "Shelcal 500" -> "500 mg"). If no strength is written at all, give the amount per dose instead ("1 tablet", "1 capsule", "5 ml", "½ tablet") from the dose pattern or form. Leave it empty only if neither is written.
+6. "dosage": strength with unit as written ("650 mg", "500mg", "5 ml"). A bare number after the name is usually the strength in mg ("<Name> 650" -> "650 mg"). If no strength is written at all, give the amount per dose instead ("1 tablet", "1 capsule", "5 ml", "½ tablet") from the dose pattern or form. Leave it empty only if neither is written.
 7. Frequency shorthand: OD / QD / 1-0-0 / 0-0-1 / HS -> "Once daily"; BD / BID / 1-0-1 / 1-1-0 / 0-1-1 -> "Twice daily"; TDS / TID / 1-1-1 -> "Three times daily"; QID / 1-1-1-1 -> "Three times daily" and add "four times a day" to instructions; SOS / PRN / "if needed" / "if fever" -> "As needed"; STAT -> "Once daily" and "single dose now" in instructions. ½ means half a tablet: put "½ tablet" in instructions.
 8. "instructions": timing and how to take, in plain English: A/F, AF, p.c. -> "After food"; B/F, BF, a.c., empty stomach -> "Before food"; HS -> "At bedtime"; morning/night pattern from 1-0-1 ("Morning and night"). Translate Kannada/Hindi notes (ಊಟದ ನಂತರ / खाने के बाद -> "After food").
 9. "timing": WHEN in the day each dose is taken, as a list of "morning", "afternoon", "evening", "night". 1-0-1 -> ["morning","night"]; 0-0-1 -> ["night"]; 0-1-0 -> ["afternoon"]; 1-1-1 -> ["morning","afternoon","night"]; 1-1-1-1 -> ["morning","afternoon","evening","night"]; HS / at bedtime / after dinner -> ["night"]; BBF / before or after breakfast / empty stomach in the morning -> ["morning"]; after lunch -> ["afternoon"]; BD without a pattern -> ["morning","night"]; TDS without a pattern -> ["morning","afternoon","night"]. OD with no time written, or SOS -> [].
@@ -64,7 +65,7 @@ SAFETY RULES (a patient will take these medicines; a wrong medicine can harm the
 - "confidence": "high" if every written field is clearly legible, "medium" if some letters were uncertain, "low" if the name itself is uncertain.
 - Judge EACH medicine line on its own. Doctors' handwriting is often messy: return every line you can read (with confidence "medium"/"low" where unsure) even if other lines are illegible. Never give up on the whole prescription because one line is unreadable.
 - "unreadable_lines": how many medicine lines you could see but not read (0 if none). The patient will add those by hand.
-- "partial_lines": EVERY medicine line you can see, copied exactly as far as you can read it, with "?" for letters you cannot make out (e.g. "Tab Acepar.. 1-0-1", "Of?ox 3"). Fill it even when you are unsure of the names; it is shown to the patient as a suggestion to check. [] only if there are no medicine lines at all.
+- "partial_lines": EVERY medicine line you can see, copied exactly as far as you can read it, with "?" for letters you cannot make out (e.g. "Tab ????? 1-0-1"). Fill it even when you are unsure of the names; it is shown to the patient as a suggestion to check. [] only if there are no medicine lines at all.
 - If the image is not a prescription, return medicines: [] and reason "not_prescription". Use reason "unreadable" ONLY if not a single medicine line can be read. Otherwise reason "ok".`;
 
 const SCHEMA = {
@@ -148,9 +149,12 @@ interface Parsed {
   reason: string;
   medicines: Medicine[];
   unreadable_lines: number;
-  /** Every medicine line as far as it could be read ("Tab Acepar.. 1-0-1"). */
+  /** Every medicine line as far as it could be read ("Tab Ab?d.. 1-0-1"). */
   partial_lines: string[];
 }
+
+/** "Pan-D 40" -> "pand40": for comparing a name with the line it was read from. */
+const lettersOnly = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
 function parse(content: string): Parsed {
   const cleaned = content.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
@@ -179,7 +183,7 @@ function parse(content: string): Parsed {
       const conf = ["high", "medium", "low"].includes(String(m.confidence)) ? (String(m.confidence) as Medicine["confidence"]) : "low";
       return {
         raw_text: String(m.raw_text ?? "").trim(),
-        // Safety net: a form word left in front of the name ("Tab Dolo" -> "Dolo").
+        // Safety net: a form word left in front of the name ("Tab Abcd" -> "Abcd").
         name: String(m.name ?? "").trim().replace(/^(tab|tabs|tablet|cap|caps|capsule|syp|syr|syrup|inj|oint|susp)\.?\s+/i, ""),
         form: FORMS.includes(String(m.form ?? "")) ? String(m.form ?? "") : "",
         timing: Array.isArray(m.timing) ? [...new Set(m.timing.map(String).filter((x) => TIMES.includes(x)))] : [],
@@ -191,13 +195,40 @@ function parse(content: string): Parsed {
         unclear_fields: unclear,
       };
     })
-    .filter((m) => m.name.length > 0); // never return a medicine without a readable name
+    // Never return a medicine without a readable name, or a placeholder copied from the prompt.
+    .filter((m) => {
+      if (!m.name || m.name.includes("<") || m.name.includes(">")) return false;
+      const stripped = lettersOnly(m.name).replace(/\d+/g, "");
+      return stripped !== "name" && stripped !== "unknown" && stripped !== "medicine" && stripped.length > 0;
+    })
+    .map((m) => {
+      // The name must come from the line the model says it read: if its first
+      // letters aren't in raw_text, it was probably filled from memory - make
+      // the patient check it.
+      // No raw_text at all: nothing to check the name against, so the same applies.
+      const head = lettersOnly(m.name).replace(/\d+/g, "").slice(0, 4);
+      if (!m.raw_text || (head && !lettersOnly(m.raw_text).includes(head))) {
+        m.confidence = "low";
+        if (!m.unclear_fields.includes("name")) m.unclear_fields.push("name");
+      }
+      return m;
+    });
+  // "Not a prescription" with medicines anyway contradicts itself: those names can't be from a prescription.
+  if (raw.reason === "not_prescription" && medicines.length) {
+    console.warn(`[extract] not_prescription but ${medicines.length} medicines returned; dropped`);
+    medicines.length = 0;
+  }
   const reason = medicines.length ? "ok" : raw.reason === "not_prescription" ? "not_prescription" : "unreadable";
   const unreadable = Math.max(0, Math.min(20, Math.round(Number((raw as { unreadable_lines?: number }).unreadable_lines) || 0)));
   const partialRaw = (raw as { partial_lines?: unknown }).partial_lines;
   const partial = (Array.isArray(partialRaw) ? partialRaw : [])
     .map((x) => String(x ?? "").trim())
-    .filter((x) => x.length > 1)
+    .filter((x) => {
+      if (x.length <= 1) return false;
+      if (x.includes("<") || x.includes(">")) return false;
+      const stripped = lettersOnly(x).replace(/^(tab|cap|syp|syr|inj|oint|susp)/, "").replace(/\d+/g, "");
+      return stripped !== "name" && stripped !== "";
+    })
     .slice(0, 15);
   return { reason, medicines, unreadable_lines: unreadable, partial_lines: partial };
 }
@@ -308,6 +339,11 @@ Deno.serve(async (req) => {
         `unreadable_lines ${result.unreadable_lines}, partial_lines ${result.partial_lines.length}, ` +
         `second pass ${pass > 1 ? "yes" : "no"}, schema ${features.schema}, thinking ${features.lowThinking}, timings ${JSON.stringify(timings)}`,
     );
+    // What was read vs. what was returned, to check names come from the paper (no image is logged).
+    for (const m of result.medicines) {
+      console.log(`[extract] raw_text ${JSON.stringify(m.raw_text)} -> name ${JSON.stringify(m.name)} (${m.confidence}${m.unclear_fields.length ? `, unclear ${m.unclear_fields.join("/")}` : ""})`);
+    }
+    if (result.partial_lines.length) console.log(`[extract] partial_lines ${JSON.stringify(result.partial_lines)}`);
     return json({ ...result, timings });
   } catch (e) {
     console.error("[extract] error:", e);

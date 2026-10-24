@@ -20,6 +20,9 @@ const dup = {
   "dup.possibleNote": "పేరు దాదాపు ఒకేలా ఉంది - అదే మందు అని చూసుకోండి.",
   "dup.twiceOfNote": "ఈ జాబితాలోని మందు {n} లాగే",
   "dup.twiceIntro": "ఈ జాబితాలో ఒకటి కంటే ఎక్కువసార్లు: {names}",
+  "dup.possibleMatch": "సరిపోలే అవకాశం: {details}",
+  "dup.unsureNote": "ఫోటోలో పేరు స్పష్టంగా లేదు. తనిఖీ చేసి, ఆపై ఎంచుకోండి.",
+  "dup.chooseEach": "సరిపోలే అవకాశం అని గుర్తించిన ప్రతి మందుకు ఒక ఎంపికను ఎంచుకోండి.",
 };
 
 export default dup;

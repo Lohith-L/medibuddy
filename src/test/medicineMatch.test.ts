@@ -97,6 +97,21 @@ describe("findDuplicates", () => {
     const d = findDuplicates([{ name: "Dolo 650" }], existing, TODAY, "m1");
     expect(d[0].existing).toBeNull();
   });
+  it("a low-confidence name is only a possible match, and only when the names are equal", () => {
+    const d = findDuplicates(
+      [{ name: "Dolo", confidence: "low" }, { name: "Pantop", confidence: "low" }, { name: "Dolonex", confidence: "low" }],
+      existing,
+      TODAY,
+    );
+    expect(d[0]).toMatchObject({ existingKind: "possible", unsureName: true });
+    expect(d[0].existing?.id).toBe("m1");
+    expect(d[1].existing).toBeNull(); // "pantop" only contained in "pantopd"
+    expect(d[2].existing).toBeNull();
+  });
+  it("a low-confidence name the user retyped is checked normally", () => {
+    const [d] = findDuplicates([{ name: "Dolo 650", confidence: "low", nameEdited: true }], existing, TODAY);
+    expect(d).toMatchObject({ existingKind: "exact", unsureName: false });
+  });
   it("no duplicates for only new medicines", () => {
     expect(hasAnyDuplicate(findDuplicates([{ name: "Azee" }, { name: "Allegra" }], existing, TODAY))).toBe(false);
   });
