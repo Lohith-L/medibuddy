@@ -407,6 +407,10 @@ const app = {
   "auth.forgot": "ಪಾಸ್‌ವರ್ಡ್ ಮರೆತಿರಾ?",
   "auth.createAccount": "ಖಾತೆ ರಚಿಸಿ",
   "auth.googleFailed": "Google ಲಾಗಿನ್ ವಿಫಲವಾಗಿದೆ: {message}",
+  "auth.signingIn": "ನಿಮ್ಮನ್ನು ಸೈನ್ ಇನ್ ಮಾಡಲಾಗುತ್ತಿದೆ…",
+  "auth.sessionExpired": "ನಿಮ್ಮ ಸೆಷನ್ ಮುಗಿದಿದೆ, ದಯವಿಟ್ಟು ಮತ್ತೆ ಸೈನ್ ಇನ್ ಮಾಡಿ",
+  "auth.signInIncomplete": "ಸೈನ್ ಇನ್ ಪೂರ್ಣಗೊಂಡಿಲ್ಲ. ದಯವಿಟ್ಟು ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
+  "auth.backToLogin": "ಲಾಗಿನ್‌ಗೆ ಹಿಂತಿರುಗಿ",
 
   // alarm settings
   "alarm.title": "ಔಷಧಿ ಅಲಾರಂ",

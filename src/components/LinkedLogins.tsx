@@ -7,6 +7,7 @@ import { CheckCircle2, KeyRound, Link2, Mail, Phone, ShieldCheck, Merge } from "
 import { supabase } from "@/integrations/supabase/client";
 import { OAUTH_REDIRECT_URL } from "@/hooks/useDeepLink";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -69,11 +70,11 @@ const LinkedLogins = ({ onChanged }: { onChanged?: () => void }) => {
     setUser(data.user ?? null);
   }, []);
 
+  // Reload the full user (identities, pending email) whenever the session's user changes.
+  const { user: authUser } = useAuth();
   useEffect(() => {
     void refreshUser();
-    const { data: sub } = supabase.auth.onAuthStateChange(() => void refreshUser());
-    return () => sub.subscription.unsubscribe();
-  }, [refreshUser]);
+  }, [authUser, refreshUser]);
 
   const verifiedPhone = user?.phone && user.phone_confirmed_at ? fromAuthPhone(user.phone) : null;
   const providers = new Set((user?.identities ?? []).map((i) => i.provider));

@@ -1,4 +1,7 @@
 {
+  "redirects": [
+    { "source": "/auth/callback", "destination": "/", "permanent": false }
+  ],
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]

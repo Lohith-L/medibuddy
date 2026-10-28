@@ -457,6 +457,10 @@ const app = {
   "auth.forgot": "পাসওয়ার্ড ভুলে গেছেন?",
   "auth.createAccount": "অ্যাকাউন্ট তৈরি করুন",
   "auth.googleFailed": "Google লগইন ব্যর্থ: {message}",
+  "auth.signingIn": "আপনাকে সাইন ইন করানো হচ্ছে…",
+  "auth.sessionExpired": "আপনার সেশনের মেয়াদ শেষ, আবার সাইন ইন করুন",
+  "auth.signInIncomplete": "সাইন ইন শেষ হয়নি। আবার চেষ্টা করুন।",
+  "auth.backToLogin": "লগইনে ফিরে যান",
 
   // alarm settings
   "alarm.title": "ওষুধের অ্যালার্ম",

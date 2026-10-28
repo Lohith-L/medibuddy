@@ -42,6 +42,7 @@ const SignupRole = lazy(() => import("./pages/SignupRole"));
 const AuthStart = lazy(() => import("./pages/AuthStart"));
 const Join = lazy(() => import("./pages/Join"));
 const HomeRedirect = lazy(() => import("./pages/HomeRedirect"));
+const AuthCallback = lazy(() => import("./pages/AuthCallback"));
 // Android app start flow (the website keeps the landing page at "/").
 const NativeStart = lazy(() => import("./pages/NativeStart"));
 const Intro = lazy(() => import("./pages/Intro"));
@@ -111,6 +112,8 @@ const AppRoutes = () => {
       <Route path="/join" element={<Join />} />
       {/* After login / OAuth: send each user to their home */}
       <Route path="/home" element={<HomeRedirect />} />
+      {/* Website Google sign-in returns here (Android uses the deep link instead) */}
+      <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
 
       {/* Semi-public: onboarding runs right after Google OAuth callback */}
@@ -148,9 +151,10 @@ const App = () => (
   <MotionConfig reducedMotion={isNative ? "always" : "user"}>
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
+      {/* Outermost: language, theme and everything else read the session from here */}
+      <AuthProvider>
       <AppThemeProvider>
       <LanguageProvider>
-        <AuthProvider>
           {/* After login: the theme saved in the profile (website <-> app) */}
           <ThemeProfileSync />
           {/* "Why we need your location", shown right before the Android popup */}
@@ -165,9 +169,9 @@ const App = () => (
               </CaregiverAlertsProvider>
             </CareProvider>
           </HashRouter>
-        </AuthProvider>
       </LanguageProvider>
       </AppThemeProvider>
+      </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
   </MotionConfig>

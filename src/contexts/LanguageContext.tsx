@@ -12,6 +12,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { normalizeLanguageCode, languageLabelByCode } from "@/lib/language";
 import {
   ensureLanguage,
@@ -109,8 +110,14 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return true;
   }, []);
 
+  const { user } = useAuth();
+  const userId = user?.id;
+  const userRef = useRef(user);
+  userRef.current = user;
+
   // Follow the profile language when a user signs in (or the session restores).
   useEffect(() => {
+    if (!userId) return;
     let cancelled = false;
 
     const syncFromProfile = async (userId: string, metaLanguage?: string) => {
@@ -137,21 +144,12 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (isSupportedLanguage(profileLang) && profileLang !== local) await apply(profileLang);
     };
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) void syncFromProfile(session.user.id, session.user.user_metadata?.language);
-    });
-
-    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN" && session?.user) {
-        void syncFromProfile(session.user.id, session.user.user_metadata?.language);
-      }
-    });
+    void syncFromProfile(userId, userRef.current?.user_metadata?.language);
 
     return () => {
       cancelled = true;
-      listener.subscription.unsubscribe();
     };
-  }, [apply]);
+  }, [userId, apply]);
 
   const setLanguage = useCallback(
     async (newLang: string) => {
@@ -163,8 +161,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return;
       }
 
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) {
+      if (!userRef.current) {
         writeStorage(PENDING_SYNC_KEY, "1");
         toast.success(translate(lang, "languageChanged", { language: languageLabelByCode[lang] ?? lang }));
         return;

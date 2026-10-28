@@ -1,3 +1,5 @@
+// Must stay the first import: fixes the URL before Supabase and the router read it.
+import "@/lib/webUrl";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
@@ -9,13 +11,6 @@ import { preloadStoredLanguage } from "@/contexts/LanguageContext";
 // gets this class, so its look is unchanged.
 if (Capacitor.isNativePlatform()) {
   document.documentElement.classList.add("native-app");
-}
-
-// If visiting a non-root route directly on the web without a hash (e.g. /dashboard from Vercel rewrite),
-// convert to hash route so HashRouter can match and route properly.
-if (!Capacitor.isNativePlatform() && window.location.pathname && window.location.pathname !== "/" && !window.location.hash) {
-  const target = window.location.pathname + window.location.search;
-  window.location.replace(`/#${target}`);
 }
 
 // On native (Android/iOS), pre-populate the Capacitor Preferences cache so

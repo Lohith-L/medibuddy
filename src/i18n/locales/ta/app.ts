@@ -428,6 +428,10 @@ const app = {
   "auth.forgot": "கடவுச்சொல் மறந்துவிட்டதா?",
   "auth.createAccount": "கணக்கை உருவாக்கு",
   "auth.googleFailed": "Google உள்நுழைவு தோல்வி: {message}",
+  "auth.signingIn": "உங்களை உள்நுழையச் செய்கிறோம்…",
+  "auth.sessionExpired": "உங்கள் அமர்வு காலாவதியானது, மீண்டும் உள்நுழையவும்",
+  "auth.signInIncomplete": "உள்நுழைவு முடியவில்லை. மீண்டும் முயற்சிக்கவும்.",
+  "auth.backToLogin": "உள்நுழைவுக்குத் திரும்பு",
 
   // alarm settings
   "alarm.title": "மருந்து அலாரம்",

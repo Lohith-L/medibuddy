@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Capacitor } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
 import { OAUTH_REDIRECT_URL } from "@/hooks/useDeepLink";
+import { AUTH_CALLBACK_PATH } from "@/lib/webUrl";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -222,9 +223,10 @@ const Auth = ({ signupRole, loginMode }: { signupRole?: Role; loginMode?: HomeMo
       return;
     }
 
+    // Returns to /auth/callback, which waits for the code exchange (see webUrl.ts).
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/dashboard` },
+      options: { redirectTo: `${window.location.origin}${AUTH_CALLBACK_PATH}` },
     });
     if (error) toast.error(error.message);
   };

@@ -421,6 +421,10 @@ const app = {
   "auth.forgot": "పాస్‌వర్డ్ మర్చిపోయారా?",
   "auth.createAccount": "ఖాతా సృష్టించండి",
   "auth.googleFailed": "Google లాగిన్ విఫలమైంది: {message}",
+  "auth.signingIn": "మిమ్మల్ని సైన్ ఇన్ చేస్తున్నాం…",
+  "auth.sessionExpired": "మీ సెషన్ ముగిసింది, దయచేసి మళ్లీ సైన్ ఇన్ చేయండి",
+  "auth.signInIncomplete": "సైన్ ఇన్ పూర్తి కాలేదు. దయచేసి మళ్లీ ప్రయత్నించండి.",
+  "auth.backToLogin": "లాగిన్‌కు తిరిగి వెళ్లండి",
 
   // alarm settings
   "alarm.title": "మందుల అలారం",

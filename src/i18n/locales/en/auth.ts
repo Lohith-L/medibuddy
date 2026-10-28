@@ -42,6 +42,10 @@ const auth = {
   "auth.forgot": "Forgot password?",
   "auth.createAccount": "Create account",
   "auth.googleFailed": "Google sign-in failed: {message}",
+  "auth.signingIn": "Signing you in…",
+  "auth.sessionExpired": "Your session expired, please sign in again",
+  "auth.signInIncomplete": "Sign-in didn't finish. Please try again.",
+  "auth.backToLogin": "Back to login",
 };
 
 export default auth;

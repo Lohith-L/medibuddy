@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { signOut, useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,6 +30,9 @@ const Profile = () => {
   const navigate = useNavigate();
   const { t, language: appLanguage, setLanguage, locale } = useLanguage();
   const care = useCare();
+  const { user: authUser } = useAuth();
+  const authUserRef = useRef(authUser);
+  authUserRef.current = authUser;
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     name: "", email: "", language: "en", caregiverEmail: "",
@@ -40,13 +44,9 @@ const Profile = () => {
   const [savingPassword, setSavingPassword] = useState(false);
 
   const loadProfile = useCallback(async () => {
-      const { data } = await supabase.auth.getSession();
-      if (!data.session) {
-        navigate("/auth");
-        return;
-      }
-
-      const user = data.session.user;
+      // Signed out: ProtectedRoute redirects.
+      const user = authUserRef.current;
+      if (!user) return;
       const meta = user.user_metadata;
       const { data: patient } = await supabase
         .from("patients")
@@ -66,12 +66,12 @@ const Profile = () => {
         language: appLanguage,
         caregiverEmail: (meta?.caregiver_email as string) || patient?.caregiver_email || "",
       });
-  }, [navigate, appLanguage]);
+  }, [appLanguage]);
 
   useEffect(() => {
     void loadProfile();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navigate]);
+  }, [authUser?.id]);
 
   // Keep the language picker in step when the language is changed elsewhere (header menu).
   useEffect(() => {
@@ -157,7 +157,7 @@ const Profile = () => {
 
   const handleLogout = async () => {
     await forgetPushToken(); // before signing out (RLS)
-    await supabase.auth.signOut();
+    await signOut();
     toast.success(t("layout.loggedOut"));
     navigate("/");
   };

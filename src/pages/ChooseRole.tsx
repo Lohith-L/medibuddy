@@ -4,10 +4,9 @@ import { Loader2, UserX } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, signOut } from "@/contexts/AuthContext";
 import { useCare } from "@/contexts/CareContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { supabase } from "@/integrations/supabase/client";
 import { peekPendingInvite, saveRoles, type Role } from "@/lib/care";
 import { forgetPushToken } from "@/lib/pushToken";
 
@@ -43,7 +42,7 @@ const ChooseRole = () => {
 
   const cancel = async () => {
     await forgetPushToken(); // before signing out (RLS)
-    await supabase.auth.signOut();
+    await signOut();
     navigate("/auth", { replace: true });
   };
 

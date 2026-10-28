@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useActivePatient } from "@/contexts/CareContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { App } from "@capacitor/app";
 import type { HealthDataType } from "@capgo/capacitor-health";
@@ -31,7 +32,6 @@ import {
 } from "@/lib/healthService";
 import { HEALTH_SYNCED_EVENT } from "@/hooks/useHealthAutoSync";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { signedOutPath } from "@/lib/startFlow";
 import { useChartTheme } from "@/lib/chartTheme";
 import HealthDebugPanel from "@/components/HealthDebugPanel";
 
@@ -54,6 +54,8 @@ const Health = () => {
   // Me, or the patient I'm viewing as a caregiver. Phone (Health Connect) features
   // only apply to my own data: a caregiver sees the patient's synced data.
   const { active, loading: careLoading } = useActivePatient();
+  const { user } = useAuth();
+  const userId = user?.id;
   const viewingOther = !!active && !active.isSelf;
   const native = isNativeAndroid() && !viewingOther;
 
@@ -133,9 +135,8 @@ const Health = () => {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (careLoading) return;
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { navigate(signedOutPath()); return; }
+      // Signed out: ProtectedRoute redirects.
+      if (careLoading || !userId) return;
       setLoading(true);
       if (viewingOther && active) {
         setPatientId(active.patientId);
@@ -144,7 +145,7 @@ const Health = () => {
         return;
       }
       const { data: patient } = await supabase
-        .from("patients").select("id").eq("user_id", session.user.id).maybeSingle();
+        .from("patients").select("id").eq("user_id", userId).maybeSingle();
       if (cancelled) return;
       if (!patient) { setLoading(false); return; }
       setPatientId(patient.id);
@@ -164,7 +165,7 @@ const Health = () => {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navigate, careLoading, active?.patientId]);
+  }, [userId, careLoading, active?.patientId]);
 
   // Background (app foreground) syncs refresh the page; returning from Health Connect re-checks access.
   useEffect(() => {

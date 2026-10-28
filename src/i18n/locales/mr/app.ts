@@ -430,6 +430,10 @@ const app = {
   "auth.forgot": "पासवर्ड विसरलात?",
   "auth.createAccount": "खाते तयार करा",
   "auth.googleFailed": "Google लॉगिन अयशस्वी: {message}",
+  "auth.signingIn": "तुम्हाला साइन इन करत आहोत…",
+  "auth.sessionExpired": "तुमचे सत्र संपले, कृपया पुन्हा साइन इन करा",
+  "auth.signInIncomplete": "साइन इन पूर्ण झाले नाही. कृपया पुन्हा प्रयत्न करा.",
+  "auth.backToLogin": "लॉगिनवर परत जा",
 
   // alarm settings
   "alarm.title": "औषधाचा अलार्म",

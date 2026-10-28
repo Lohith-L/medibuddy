@@ -457,6 +457,10 @@ const app = {
   "auth.forgot": "પાસવર્ડ ભૂલી ગયા?",
   "auth.createAccount": "ખાતું બનાવો",
   "auth.googleFailed": "Google લૉગિન નિષ્ફળ: {message}",
+  "auth.signingIn": "તમને સાઇન ઇન કરી રહ્યા છીએ…",
+  "auth.sessionExpired": "તમારું સત્ર સમાપ્ત થયું, કૃપા કરી ફરી સાઇન ઇન કરો",
+  "auth.signInIncomplete": "સાઇન ઇન પૂર્ણ થયું નહીં. કૃપા કરી ફરી પ્રયાસ કરો.",
+  "auth.backToLogin": "લૉગિન પર પાછા જાઓ",
 
   // alarm settings
   "alarm.title": "દવાનો એલાર્મ",

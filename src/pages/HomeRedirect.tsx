@@ -5,9 +5,8 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCare } from "@/contexts/CareContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { supabase } from "@/integrations/supabase/client";
 import { evaluateLogin, peekPendingInvite, takeLoginIntent, writeHomeMode } from "@/lib/care";
-import { signedOutPath } from "@/lib/startFlow";
+import { signedOutPath, takeReturnTo } from "@/lib/startFlow";
 import { forgetPushToken } from "@/lib/pushToken";
 
 /**
@@ -18,7 +17,7 @@ import { forgetPushToken } from "@/lib/pushToken";
  * the interface stored with the session is reopened.
  */
 const HomeRedirect = () => {
-  const { session, loading: authLoading } = useAuth();
+  const { session, loading: authLoading, signOut } = useAuth();
   const { loading, homePath, me, refresh, setMode } = useCare();
   const { t } = useLanguage();
   const navigate = useNavigate();
@@ -35,7 +34,7 @@ const HomeRedirect = () => {
         if (outcome === "notPatient") {
           setBlocked("notPatient"); // shown even after signing out
           await forgetPushToken(); // before signing out (RLS)
-          await supabase.auth.signOut();
+          await signOut();
           return;
         }
         if (outcome === "newAccount") {
@@ -52,7 +51,7 @@ const HomeRedirect = () => {
             navigate(`/care/add?code=${encodeURIComponent(pending)}&auto=1`, { replace: true });
             return;
           }
-          navigate(outcome === "caregiver" ? "/care" : "/dashboard", { replace: true });
+          navigate(takeReturnTo() ?? (outcome === "caregiver" ? "/care" : "/dashboard"), { replace: true });
           return;
         }
       }
@@ -66,9 +65,10 @@ const HomeRedirect = () => {
         navigate(`/care/add?code=${encodeURIComponent(pending)}&auto=1`, { replace: true });
         return;
       }
-      navigate(homePath, { replace: true });
+      // A protected page opened while signed out (or when the session expired).
+      navigate(takeReturnTo() ?? homePath, { replace: true });
     })();
-  }, [authLoading, loading, session, me, homePath, navigate, refresh, setMode]);
+  }, [authLoading, loading, session, me, homePath, navigate, refresh, setMode, signOut]);
 
   if (blocked === "notPatient") {
     return (

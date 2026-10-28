@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import type { User } from "@supabase/supabase-js";
+import { signOut, useAuth } from "@/contexts/AuthContext";
 import {
   Home, Pill, Camera, Users, BarChart3, Settings, LogOut, Menu, X, Bell, Globe, Check, AlertTriangle, Clock, CheckCircle2, XCircle, Mail, Activity, Store,
   HeartHandshake, ClipboardList, BellRing, Siren,
@@ -18,7 +18,6 @@ import BottomNav from "@/components/BottomNav";
 import { useLanguage } from "@/contexts/LanguageContext";
 import SOSButton, { SOSProvider } from "@/components/SOSButton";
 import BrandLogo from "@/components/BrandLogo";
-import { signedOutPath } from "@/lib/startFlow";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
@@ -72,8 +71,8 @@ const DashboardLayout = ({ children }: Props) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { t, language, setLanguage, locale } = useLanguage();
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Signed-out users never get here: ProtectedRoute redirects them.
+  const { user, loading } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
   const [patientId, setPatientId] = useState<string | null>(null);
@@ -122,18 +121,6 @@ const DashboardLayout = ({ children }: Props) => {
           ...navKeys.slice(1),
         ]
       : navKeys;
-
-  useEffect(() => {
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) navigate(signedOutPath());
-      else { setUser(session.user); setLoading(false); }
-    });
-    supabase.auth.getSession().then(({ data }) => {
-      if (!data.session) navigate(signedOutPath());
-      else { setUser(data.session.user); setLoading(false); }
-    });
-    return () => listener.subscription.unsubscribe();
-  }, [navigate]);
 
   // Patient id for the notification panel
   useEffect(() => {
@@ -199,7 +186,7 @@ const DashboardLayout = ({ children }: Props) => {
 
   const handleLogout = async () => {
     await forgetPushToken(); // before signing out (RLS)
-    await supabase.auth.signOut();
+    await signOut();
     toast.success(t("layout.loggedOut"));
     navigate("/");
   };

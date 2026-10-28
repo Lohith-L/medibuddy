@@ -7,7 +7,7 @@ import { useCare } from "@/contexts/CareContext";
 import { useCaregiverAlerts } from "@/contexts/CaregiverAlertsContext";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { supabase } from "@/integrations/supabase/client";
+import { signOut } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { pushBackHandler } from "@/lib/backHandlers";
 import { forgetPushToken } from "@/lib/pushToken";
@@ -82,7 +82,7 @@ const BottomNav = () => {
   const handleLogout = async () => {
     setMoreOpen(false);
     await forgetPushToken(); // before signing out (RLS)
-    await supabase.auth.signOut();
+    await signOut();
     toast.success(t("layout.loggedOut"));
     navigate("/");
   };

@@ -10,6 +10,7 @@ import { Siren, X, UserPlus, PhoneCall, Loader2, CheckCircle2, ShieldCheck, MapP
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useCare } from "@/contexts/CareContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { dialable } from "@/lib/phone";
 import {
   attachLocationLater, cancelSos, fetchMyActiveSos, fetchSosEvent, raiseSos, timeAgo, type SosEvent, type SosOption,
@@ -112,7 +113,7 @@ export const SOSProvider = ({ children }: { children: ReactNode }) => {
   const { t } = useLanguage();
   const care = useCare();
   const [open, setOpen] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const isLoggedIn = !!useAuth().session;
   const [activeSos, setActiveSos] = useState<SosEvent | null>(null);
   const [send, setSend] = useState<SendState>({ state: "idle" });
   const sendingRef = useRef(false);
@@ -124,12 +125,6 @@ export const SOSProvider = ({ children }: { children: ReactNode }) => {
   // caregiver interface has no caregivers of their own to alert.
   const patientId = care.mode === "patient" && care.isPatient ? care.me?.patientId ?? null : null;
   const canAlert = !!patientId;
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setIsLoggedIn(!!data.session));
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => setIsLoggedIn(!!session));
-    return () => listener.subscription.unsubscribe();
-  }, []);
 
   const refresh = useCallback(async () => {
     if (!patientId) return;

@@ -407,6 +407,10 @@ const app = {
   "auth.forgot": "पासवर्ड भूल गए?",
   "auth.createAccount": "खाता बनाएं",
   "auth.googleFailed": "Google लॉगिन विफल: {message}",
+  "auth.signingIn": "आपको साइन इन किया जा रहा है…",
+  "auth.sessionExpired": "आपका सेशन समाप्त हो गया, कृपया फिर से साइन इन करें",
+  "auth.signInIncomplete": "साइन इन पूरा नहीं हुआ। कृपया फिर से कोशिश करें।",
+  "auth.backToLogin": "लॉगिन पर वापस जाएं",
 
   // alarm settings
   "alarm.title": "दवा का अलार्म",

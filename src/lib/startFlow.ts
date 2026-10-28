@@ -40,6 +40,36 @@ export function signedOutPath(): string {
   return Capacitor.isNativePlatform() ? "/welcome" : "/";
 }
 
+const RETURN_TO_KEY = "medibuddy.returnTo";
+
+/** A protected page opened while signed out: reopened after the next login. */
+export function rememberReturnTo(path: string) {
+  try {
+    sessionStorage.setItem(RETURN_TO_KEY, path);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function forgetReturnTo() {
+  try {
+    sessionStorage.removeItem(RETURN_TO_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** The remembered page (once), or null. */
+export function takeReturnTo(): string | null {
+  try {
+    const path = sessionStorage.getItem(RETURN_TO_KEY);
+    sessionStorage.removeItem(RETURN_TO_KEY);
+    return path && path.startsWith("/") && !path.startsWith("//") ? path : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Keeps the native splash (MediBuddy logo) up while the session and profile
  * load, then hides it: no fixed delay. Hidden after SPLASH_MAX_MS at the latest.
