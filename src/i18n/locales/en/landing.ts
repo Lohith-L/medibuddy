@@ -12,7 +12,7 @@ const landing = {
   "landing.heroSubBefore": "Upload prescriptions, get AI-powered reminders in",
   "landing.heroSubLanguages": "8 Indian languages",
   "landing.heroSubAfter": ", and keep your whole family informed, all in one place.",
-  "landing.startFree": "Start free, no credit card",
+  "landing.startFree": "Get started free",
   "landing.seeHow": "See how it works",
 
   "landing.stat.1": "Medicines tracked",

@@ -541,7 +541,7 @@ const app = {
   "landing.heroSubBefore": "প্রেসক্রিপশন আপলোড করুন,",
   "landing.heroSubLanguages": "8টি ভারতীয় ভাষায়",
   "landing.heroSubAfter": " AI রিমাইন্ডার পান, আর পুরো পরিবারকে এক জায়গা থেকে খবর দিন।",
-  "landing.startFree": "বিনামূল্যে শুরু করুন, কার্ড লাগবে না",
+  "landing.startFree": "বিনামূল্যে শুরু করুন",
   "landing.seeHow": "কীভাবে কাজ করে দেখুন",
   "landing.stat.1": "ট্র্যাক করা ওষুধ",
   "landing.stat.2": "মেনে চলার হার",

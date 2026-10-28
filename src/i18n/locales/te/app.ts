@@ -505,7 +505,7 @@ const app = {
   "landing.heroSubBefore": "ప్రిస్క్రిప్షన్‌లు అప్‌లోడ్ చేయండి,",
   "landing.heroSubLanguages": "8 భారతీయ భాషల్లో",
   "landing.heroSubAfter": " AI రిమైండర్‌లు పొందండి, మీ కుటుంబమంతటికీ ఒకే చోట నుంచి సమాచారం అందించండి.",
-  "landing.startFree": "ఉచితంగా మొదలుపెట్టండి, కార్డ్ అవసరం లేదు",
+  "landing.startFree": "ఉచితంగా మొదలుపెట్టండి",
   "landing.seeHow": "ఎలా పనిచేస్తుందో చూడండి",
   "landing.stat.1": "ట్రాక్ చేసిన మందులు",
   "landing.stat.2": "పాటింపు రేటు",

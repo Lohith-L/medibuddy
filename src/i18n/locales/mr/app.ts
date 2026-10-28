@@ -514,7 +514,7 @@ const app = {
   "landing.heroSubBefore": "प्रिस्क्रिप्शन अपलोड करा,",
   "landing.heroSubLanguages": "8 भारतीय भाषांमध्ये",
   "landing.heroSubAfter": " AI रिमाइंडर मिळवा आणि संपूर्ण कुटुंबाला एकाच ठिकाणाहून माहिती द्या.",
-  "landing.startFree": "मोफत सुरुवात करा, कार्ड नको",
+  "landing.startFree": "मोफत सुरुवात करा",
   "landing.seeHow": "कसे काम करते ते पाहा",
   "landing.stat.1": "ट्रॅक केलेली औषधे",
   "landing.stat.2": "पालन दर",

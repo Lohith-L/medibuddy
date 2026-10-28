@@ -491,7 +491,7 @@ const app = {
   "landing.heroSubBefore": "ಪ್ರಿಸ್ಕ್ರಿಪ್ಷನ್‌ಗಳನ್ನು ಅಪ್‌ಲೋಡ್ ಮಾಡಿ,",
   "landing.heroSubLanguages": "8 ಭಾರತೀಯ ಭಾಷೆಗಳಲ್ಲಿ",
   "landing.heroSubAfter": " AI ಜ್ಞಾಪನೆಗಳನ್ನು ಪಡೆಯಿರಿ, ನಿಮ್ಮ ಇಡೀ ಕುಟುಂಬಕ್ಕೆ ಒಂದೇ ಕಡೆಯಿಂದ ಮಾಹಿತಿ ನೀಡಿ.",
-  "landing.startFree": "ಉಚಿತವಾಗಿ ಶುರು ಮಾಡಿ, ಕಾರ್ಡ್ ಬೇಕಿಲ್ಲ",
+  "landing.startFree": "ಉಚಿತವಾಗಿ ಶುರು ಮಾಡಿ",
   "landing.seeHow": "ಹೇಗೆ ಕೆಲಸ ಮಾಡುತ್ತದೆ ನೋಡಿ",
   "landing.stat.1": "ಟ್ರ್ಯಾಕ್ ಮಾಡಿದ ಔಷಧಿಗಳು",
   "landing.stat.2": "ಅನುಸರಣೆ ದರ",

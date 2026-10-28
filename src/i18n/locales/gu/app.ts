@@ -541,7 +541,7 @@ const app = {
   "landing.heroSubBefore": "પ્રિસ્ક્રિપ્શન અપલોડ કરો,",
   "landing.heroSubLanguages": "8 ભારતીય ભાષાઓમાં",
   "landing.heroSubAfter": " AI રિમાઇન્ડર મેળવો અને આખા પરિવારને એક જ જગ્યાએથી માહિતી આપો.",
-  "landing.startFree": "મફતમાં શરૂ કરો, કાર્ડની જરૂર નથી",
+  "landing.startFree": "મફતમાં શરૂ કરો",
   "landing.seeHow": "કેવી રીતે કામ કરે છે તે જુઓ",
   "landing.stat.1": "ટ્રૅક કરેલી દવાઓ",
   "landing.stat.2": "પાલન દર",
