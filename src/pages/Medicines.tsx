@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
+import ReminderTimePicker, { fromPicker, REMINDER_TIME_RE, toPicker } from "@/components/ReminderTimePicker";
 import { generateUUID } from "@/lib/uuid";
 import { describeMedicine, findDuplicates, localToday } from "@/lib/medicineMatch";
 import { validateImageFile, fileToOptimizedDataUrl } from "@/lib/imageUtils";
@@ -209,7 +210,11 @@ const Medicines = () => {
       dosage: med.dosage,
       frequency: med.frequency,
       instructions: med.instructions || "",
-      reminder_times: [...(med.reminder_times || [])],
+      // "08:00:00" -> "08:00" (the format reminder-cron matches); anything unreadable stays and must be re-picked.
+      reminder_times: (med.reminder_times || []).map((time) => {
+        const p = toPicker(time);
+        return p ? fromPicker(p) : time;
+      }),
     });
   };
 
@@ -235,6 +240,11 @@ const Medicines = () => {
     if (!editingMed) return;
     if (!editForm.name.trim() || !editForm.dosage.trim()) {
       toast.error(t("meds.nameDosageRequired"));
+      return;
+    }
+    // reminder-cron and the phone alarms only understand "HH:MM" (24 h).
+    if (editForm.reminder_times.some((time) => !REMINDER_TIME_RE.test(time))) {
+      toast.error(t("meds.invalidTime"));
       return;
     }
     // Same name as another active medicine (not this one): warn before saving.
@@ -416,7 +426,12 @@ const Medicines = () => {
 
       {/* ── Edit Dialog ─────────────────────────────────────────────── */}
       <Dialog open={!!editingMed} onOpenChange={(open) => !open && setEditingMed(null)}>
-        <DialogContent className="sm:max-w-md">
+        {/* Phones: one column no wider than the screen (the base grid column grows to its
+            widest child and was cut off on the right), scroll inside, and no keyboard on open. */}
+        <DialogContent
+          className="w-[calc(100vw-2rem)] sm:max-w-md grid-cols-[minmax(0,1fr)] max-h-[90dvh] overflow-y-auto rounded-2xl p-5 sm:p-6"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
           <DialogHeader>
             <DialogTitle className="text-xl font-bold">{t("meds.editTitle")}</DialogTitle>
           </DialogHeader>
@@ -452,16 +467,15 @@ const Medicines = () => {
                   <Clock className="w-4 h-4 text-primary" />
                   <Label className="text-base font-semibold">{t("meds.reminderTimes")}</Label>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-3">
                   {editForm.reminder_times.map((time, tIdx) => (
-                    <div key={tIdx} className="flex items-center gap-2">
-                      <input
-                        type="time"
+                    <div key={tIdx} className="space-y-1.5 min-w-0">
+                      <span className="block text-sm text-muted-foreground font-semibold">{t("meds.doseN", { n: tIdx + 1 })}</span>
+                      <ReminderTimePicker
                         value={time}
-                        onChange={(e) => updateReminderTime(tIdx, e.target.value)}
-                        className="w-full min-h-btn text-base rounded-xl border bg-background px-3 py-2 text-center font-semibold"
+                        onChange={(v) => updateReminderTime(tIdx, v)}
+                        label={t("meds.doseN", { n: tIdx + 1 })}
                       />
-                      <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">{t("meds.doseN", { n: tIdx + 1 })}</span>
                     </div>
                   ))}
                 </div>
@@ -469,8 +483,9 @@ const Medicines = () => {
             )}
 
             <div className="flex gap-3 pt-2">
-              <Button variant="outline" className="flex-1" size="lg" onClick={() => setEditingMed(null)}>{t("cancel")}</Button>
-              <Button variant="hero" className="flex-1" size="lg" onClick={handleSaveEdit} disabled={saving}>
+              {/* min-w-0 + wrapping: long labels (e.g. Kannada "Save changes") stay inside on phones */}
+              <Button variant="outline" className="flex-1 min-w-0 h-auto min-h-12 py-2 whitespace-normal" size="lg" onClick={() => setEditingMed(null)}>{t("cancel")}</Button>
+              <Button variant="hero" className="flex-1 min-w-0 h-auto min-h-12 py-2 whitespace-normal" size="lg" onClick={handleSaveEdit} disabled={saving}>
                 {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : `${t("profile.saveChanges")} ✅`}
               </Button>
             </div>

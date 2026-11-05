@@ -18,6 +18,9 @@ const medicines = {
   "meds.instructionsPlaceholder": "e.g. After food",
   "meds.reminderTimes": "Reminder times",
   "meds.doseN": "Dose {n}",
+  "meds.timeHour": "Hour",
+  "meds.timeMinute": "Minute",
+  "meds.invalidTime": "Please choose an hour, minute and AM/PM for every reminder time.",
   "meds.deleteTitle": "Delete {name}?",
   "meds.deleteDesc": "This permanently removes this medicine and its photo. This can't be undone.",
 
