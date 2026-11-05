@@ -360,7 +360,7 @@ const Landing = () => {
                 </Button>
               </motion.div>
               <DownloadAppButton
-                className="-mt-6 mb-10 flex flex-col items-start gap-2 min-w-0"
+                className="-mt-6 mb-10 flex flex-col items-start gap-2 min-w-0 min-[769px]:hidden"
                 buttonClassName="w-full sm:w-auto whitespace-normal text-base sm:text-xl px-6 sm:px-10"
                 size="xl"
               />

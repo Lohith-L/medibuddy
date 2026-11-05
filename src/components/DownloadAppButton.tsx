@@ -11,14 +11,12 @@ interface Props {
   size?: "default" | "xl";
 }
 
-/** Android phone browsers only: the APK. Hidden on desktop, on iPhone and inside the app. */
+/** The APK link for the website. The page decides by screen width where it shows; never inside the app. */
 const DownloadAppButton = ({ className, buttonClassName, size }: Props) => {
   const { t } = useLanguage();
 
   const showButton =
-    !Capacitor.isNativePlatform() &&
-    /Android/i.test(navigator.userAgent) &&
-    !window.matchMedia("(display-mode: standalone)").matches;
+    !Capacitor.isNativePlatform() && !window.matchMedia("(display-mode: standalone)").matches;
   if (!showButton) return null;
 
   return (
