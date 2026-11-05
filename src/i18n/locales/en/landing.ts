@@ -13,6 +13,12 @@ const landing = {
   "landing.heroSubLanguages": "8 Indian languages",
   "landing.heroSubAfter": ", and keep your whole family informed, all in one place.",
   "landing.startFree": "Get started free",
+  "landing.downloadApp": "Download App",
+  "landing.downloadAndroidNote": "Android 8.0 or later. Your phone may ask you to allow installing from this source.",
+  "landing.downloadChromiumHint": "Click the install icon in the address bar, or open the browser menu and choose Install MediBuddy.",
+  "landing.downloadSafariHint": "In Safari, choose File > Add to Dock.",
+  "landing.downloadOtherHint": "Open this site in Chrome or Edge to install the app.",
+  "landing.downloadDesktopNote": "Medicine alarms ring on the Android app.",
   "landing.seeHow": "See how it works",
 
   "landing.stat.1": "Medicines tracked",

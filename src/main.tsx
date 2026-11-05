@@ -1,5 +1,6 @@
 // Must stay the first import: fixes the URL before Supabase and the router read it.
 import "@/lib/webUrl";
+import "@/lib/installPrompt";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";

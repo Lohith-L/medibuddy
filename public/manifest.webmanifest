@@ -3,6 +3,7 @@
   "short_name": "MediBuddy",
   "description": "Medicine reminders, health tracking and family alerts.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#ffffff",

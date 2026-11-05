@@ -8,6 +8,7 @@ import { Capacitor } from "@capacitor/core";
 import { useLanguage } from "@/contexts/LanguageContext";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import BrandLogo from "@/components/BrandLogo";
+import DownloadAppButton from "@/components/DownloadAppButton";
 import ThemeToggle from "@/components/ThemeToggle";
 import {
   Clock, Heart, Shield, Users, Smartphone, ArrowRight,
@@ -271,6 +272,7 @@ const Landing = () => {
                   <Button variant="hero" className="w-full" onClick={() => { navigate("/auth"); setMenuOpen(false); }}>
                     {t("landing.getStarted")}
                   </Button>
+                  <DownloadAppButton className="flex flex-col gap-2" buttonClassName="w-full" />
                 </div>
               </div>
             </motion.div>
@@ -357,6 +359,11 @@ const Landing = () => {
                   {t("landing.seeHow")}
                 </Button>
               </motion.div>
+              <DownloadAppButton
+                className="-mt-6 mb-10 flex flex-col items-start gap-2 min-w-0"
+                buttonClassName="w-full sm:w-auto whitespace-normal text-base sm:text-xl px-6 sm:px-10"
+                size="xl"
+              />
 
 
             </motion.div>
