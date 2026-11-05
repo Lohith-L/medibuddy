@@ -34,6 +34,7 @@ dist-ssr
 # Secrets: never commit signing keys or service credentials
 *.jks
 *.keystore
+keystore.properties
 *.p12
 google-services.json
 GoogleService-Info.plist
